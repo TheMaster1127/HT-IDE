@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HT-IDE</title>
+    <style>
+        #current-path-display { 
+            padding: 5px 10px; font-size: 0.8em; color: #aaa; background-color: #1a1a1a; 
+            border-radius: 3px; margin: 0 10px 10px; white-space: nowrap; overflow: hidden; 
+            text-overflow: ellipsis; 
+            direction: rtl; 
+            text-align: right;
+        }
+
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #000000; color: #e0e0e0; }
+        body.preload * { transition: none !important; }
+        .ide-container { display: flex; height: 100vh; width: 100vw; }
+        .sidebar { width: 250px; min-width: 150px; background-color: #121212; display: flex; flex-direction: column; overflow-y: hidden; border-right: 1px solid #222; transition: min-width 0.3s ease, padding 0.3s ease; }
+        .sidebar.collapsed { width: 0 !important; min-width: 0; padding-left: 0; padding-right: 0; overflow: hidden; border-right: none; }
+        .sidebar-header { padding: 10px; flex-shrink: 0; }
+        .sidebar-header h2 { margin: 0; font-size: 1.1em; border-bottom: 1px solid #2c2c2c; padding-bottom: 8px; flex-grow: 1; }
+        .sidebar-actions { display: flex; gap: 5px; margin-bottom: 10px; padding: 0 10px; }
+        #new-file-btn, #new-folder-btn { color: white; border: none; padding: 8px 10px; cursor: pointer; border-radius: 3px; font-size: 0.9em; width: 50%; }
+        #new-file-btn { background-color: #0e639c; }
+        #new-folder-btn { background-color: #FE621B; }
+        #file-list { list-style: none; padding: 0; margin: 0; flex-grow: 1; overflow-y: auto; padding-bottom: 10px; }
+        #file-list li { padding: 6px 10px; cursor: pointer; border-radius: 3px; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; justify-content: space-between; align-items: center; border: 1px solid transparent; }
+        #file-list li:hover { background-color: #1f1f1f; }
+        #file-list li.active-file-list-item { background-color: #005f87; color: white; }
+        .file-item-name { flex-grow: 1; overflow: hidden; text-overflow: ellipsis; }
+        .file-item-actions { display: flex; }
+        .file-item-actions button { background: none; border: none; color: #aaa; cursor: pointer; font-size: 1.1em; padding: 0 4px; line-height: 1; visibility: hidden; }
+        #file-list li:hover .file-item-actions button { visibility: visible; }
+        .file-item-actions .delete-btn:hover { color: #F44336; }
+        .sidebar-footer { padding: 10px; border-top: 1px solid #222; display: grid; gap: 5px; grid-template-columns: 1fr 1fr; }
+        .sidebar-footer button { background-color: #333; color: white; border: none; padding: 8px; cursor: pointer; border-radius: 3px; font-size: 0.85em; width: 100%; }
+        .sidebar-footer button:hover { background-color: #444; }
+        #open-folder-btn { grid-column: 1 / -1; background-color: #2a8f2a; }
+        
+        #sidebar-resizer { width: 5px; background-color: #222; cursor: ew-resize; flex-shrink: 0; transition: background-color 0.2s ease; }
+        #sidebar-resizer:hover { background-color: #383838; }
+        .sidebar.collapsed + #sidebar-resizer { display: none; }
+
+        .main-content { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+        .top-bar { display: flex; align-items: center; background-color: #1a1a1a; flex-shrink: 0; padding: 0 8px; }
+        #main-toggle-sidebar-btn { background: none; border: none; color: #e0e0e0; font-size: 1.2em; line-height: 1; cursor: pointer; padding: 10px 12px; flex-shrink: 0; }
+        
+        #run-btn { margin-left: 8px; background-color: #3d8b40; color: white; font-weight: bold; border: none; padding: 8px 16px; border-radius: 3px; cursor: pointer; flex-shrink: 0; transition: background-color 0.2s ease; white-space: nowrap; }
+        #run-btn:hover { background-color: #4CAF50; }
+
+        #tabs-container { display: flex; background-color: #1a1a1a; padding: 5px 0 0 5px; overflow-x: auto; flex-grow: 1; border-bottom: 1px solid #000000; min-width: 0; }
+        
+        .tab { 
+            padding: 8px 12px; 
+            background-color: #252525; 
+            color: #cccccc; 
+            margin-right: 2px; 
+            cursor: pointer; 
+            border-radius: 4px 4px 0 0; 
+            font-size: 0.85em; 
+            position: relative; 
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+            min-width: 50px;
+        }
+
+        .tab .file-name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+        }
+        
+        .tab.active { background-color: #000000; color: #ffffff; }
+        .tab.dirty .file-name::after { content: " *"; color: #007acc; font-weight: bold; }
+
+        .tab .close-tab { 
+            margin-left: 8px; 
+            font-weight: bold; 
+            font-size: 1.1em; 
+            padding: 0 4px; 
+            line-height: 1;
+            flex-shrink: 0;
+        }
+
+        #editor-container { flex-grow: 1; position: relative; min-height: 100px; background-color: #000000; }
+        #editor { position: absolute; top: 0; right: 0; bottom: 0; left: 0; font-size: 14px; }
+        #terminal-resizer { height: 8px; background-color: #222; cursor: ns-resize; flex-shrink: 0; }
+        #terminal-container { height: 200px; min-height: 40px; background-color: #000000; flex-shrink: 0; overflow: hidden; }
+        #terminal { width: 100%; height: 100%; }
+        #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); z-index: 1000; justify-content: center; align-items: center; }
+        #modal-box { background-color: #1e1e1e; padding: 20px; border-radius: 5px; width: 90%; max-width: 400px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+        #modal-list { list-style: none; padding: 0; margin: 0 0 15px 0; max-height: 200px; overflow-y: auto; border: 1px solid #333; border-radius: 3px; }
+        #modal-list li { padding: 8px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        #modal-list li .session-name { flex-grow: 1; }
+        #modal-list li .delete-session-btn { background: none; border: none; color: #aaa; font-size: 1.2em; cursor: pointer; padding: 0 5px; }
+        #modal-list li .delete-session-btn:hover { color: #F44336; }
+        #modal-list li.no-sessions { cursor: default; color: #888; }
+        #modal-list li:not(.no-sessions):hover { background-color: #007acc; }
+        #modal-buttons { text-align: right; }
+        #modal-confirm-btn { background-color: #0e639c; color: white; }
+    </style>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+</head>
+<body class="preload">
+    <div class="ide-container">
+        <div class="sidebar">
+            <div class="sidebar-header"><h2>Files</h2></div>
+            <div id="current-path-display">/</div>
+            <div class="sidebar-actions">
+                <button id="new-file-btn" title="Create a new file in the current directory">New File</button>
+                <button id="new-folder-btn" title="Create a new folder in the current directory">New Folder</button>
+            </div>
+            <ul id="file-list"></ul>
+            <div class="sidebar-footer">
+                <button id="save-session-btn" title="Save the current set of open tabs as a named session">Save Session</button>
+                <button id="load-session-btn" title="Load a previously saved session">Load Session</button>
+                <button id="open-folder-btn" title="This feature uses the real file system in the desktop version.">Open Folder</button>
+            </div>
+        </div>
+        <div id="sidebar-resizer"></div>
+        <div class="main-content">
+            <div class="top-bar">
+                <button id="main-toggle-sidebar-btn" title="Toggle File Explorer (Ctrl+B)">☰</button>
+                <div id="tabs-container"></div>
+                <button id="run-btn" title="Run (F5 or Ctrl+Enter)">▶ Run</button>
+            </div>
+            <div id="editor-container"><div id="editor"></div></div>
+            <div id="terminal-resizer"></div>
+            <div id="terminal-container"><div id="terminal"></div></div>
+        </div>
+    </div>
+
+    <div id="modal-overlay">
+        <div id="modal-box">
+            <h3 id="modal-title"></h3>
+            <div id="modal-save-content" style="display: none;">
+                <p>Enter a name for the new session, or click an existing session below to overwrite it.</p>
+                <input type="text" id="modal-input" placeholder="e.g., My Project Setup" style="width: calc(100% - 22px); padding: 10px; margin-bottom: 15px; background-color: #252525; border: 1px solid #333; color: #e0e0e0; border-radius: 3px;">
+            </div>
+            <div id="modal-load-content" style="display: none;">
+                <p>Select a session to load:</p>
+                <ul id="modal-list"></ul>
+            </div>
+            <div id="modal-buttons">
+                <button id="modal-cancel-btn">Cancel</button>
+                <button id="modal-confirm-btn">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ace.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ext-modelist.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ext-language_tools.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/keybinding-vim.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const STORAGE_PREFIX = 'HT-IDE-';
+            let editor, term, fitAddon;
+            let currentOpenFile = null, currentDirectory = '/';
+            let openTabs = [], recentlyClosedTabs = [];
+            const fileSessions = new Map();
+            
+            function debounce(func, delay) { let timeout; return function(...args) { const context = this; clearTimeout(timeout); timeout = setTimeout(() => func.apply(context, args), delay); }; }
+            function lsGet(key) { try { const item = localStorage.getItem(STORAGE_PREFIX + key); return item ? JSON.parse(item) : null; } catch { return null; }}
+            function lsSet(key, value) { try { localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value)); } catch (e) { console.error("LS Set Error:", e); }}
+            function lsRemove(key) { localStorage.removeItem(STORAGE_PREFIX + key); }
+            function getAllPaths() { const paths = new Set(); for (let i = 0; i < localStorage.length; i++) { const key = localStorage.key(i); if (key?.startsWith(STORAGE_PREFIX)) { const typeAndPath = key.substring(STORAGE_PREFIX.length); if(typeAndPath.startsWith('file_')) paths.add(typeAndPath.substring('file_'.length)); if(typeAndPath.startsWith('folder_')) paths.add(typeAndPath.substring('folder_'.length)); } } return Array.from(paths).sort((a,b) => a.localeCompare(b, undefined, {numeric: true})); }
+            function saveFileContent(filename, content, silent = false) { if (!filename) return; lsSet('file_' + filename, content); if (fileSessions.has(filename)) { fileSessions.get(filename).getUndoManager().markClean(); checkDirtyState(filename); } if (!silent && term) { term.writeln(`\x1b[32mFile saved: ${filename}\x1b[0m`); }}
+            
+            function saveEditorState(filename) {
+                if (!filename || !fileSessions.has(filename) || !editor.getSession()) return;
+                const session = fileSessions.get(filename);
+                if (editor.getSession() === session) {
+                    const state = {
+                        scrollTop: session.getScrollTop(),
+                        cursor: editor.getCursorPosition()
+                    };
+                    lsSet('state_' + filename, state);
+                }
+            }
+
+            function restoreEditorState(filename) {
+                if (!filename || !fileSessions.has(filename)) return;
+                const state = lsGet('state_' + filename);
+                if (state && state.cursor) {
+                    const session = fileSessions.get(filename);
+                    setTimeout(() => {
+                        editor.gotoLine(state.cursor.row + 1, state.cursor.column, false);
+                        session.setScrollTop(state.scrollTop);
+                        editor.focus();
+                    }, 1);
+                }
+            }
+            
+            function deleteItem(path, isFile) {
+                const itemType = isFile ? "file" : "folder";
+                const confirmDelete = confirm(`Are you sure you want to delete the ${itemType} "${path}"? This cannot be undone.`);
+                if (!confirmDelete) return;
+                const pathsToDelete = isFile ? [path] : getAllPaths().filter(p => p.startsWith(path));
+                pathsToDelete.forEach(p => {
+                    lsRemove(p.endsWith('/') ? 'folder_' + p : 'file_' + p);
+                    lsRemove('state_' + p);
+                    fileSessions.delete(p);
+                    closeTab(p, true);
+                });
+                const sessionList = lsGet('session_list') || [];
+                sessionList.forEach(sessionName => {
+                    let sessionTabs = lsGet(`session_${sessionName}`);
+                    const initialLength = sessionTabs.length;
+                    sessionTabs = sessionTabs.filter(tabPath => !pathsToDelete.includes(tabPath));
+                    if (sessionTabs.length < initialLength) {
+                        lsSet(`session_${sessionName}`, sessionTabs);
+                        term.writeln(`\x1b[33mUpdated session "${sessionName}" to remove deleted files.\x1b[0m`);
+                    }
+                });
+                if (!isFile && currentDirectory.startsWith(path)) setCurrentDirectory('/');
+                term.writeln(`\x1b[31m${itemType.charAt(0).toUpperCase() + itemType.slice(1)} deleted: ${path}\x1b[0m`);
+                renderFileList();
+            }
+            function setCurrentDirectory(path) { currentDirectory = path; document.getElementById('current-path-display').textContent = path; renderFileList(); }
+            function renderFileList() {
+                const fileListEl = document.getElementById('file-list');
+                fileListEl.innerHTML = '';
+                const allPaths = getAllPaths();
+                const fileTree = {};
+                allPaths.forEach(path => {
+                    let currentLevel = fileTree;
+                    const parts = path.split('/').filter(p => p);
+                    parts.forEach((part, index, arr) => {
+                        if (!currentLevel[part]) currentLevel[part] = { _children: {} };
+                        if (index === arr.length - 1) { currentLevel[part]._isFile = !path.endsWith('/'); currentLevel[part]._path = path; }
+                        currentLevel = currentLevel[part]._children;
+                    });
+                });
+                let currentNode = fileTree;
+                currentDirectory.split('/').filter(p => p).forEach(part => {
+                    if (currentNode && currentNode[part] && currentNode[part]._children) {
+                        currentNode = currentNode[part]._children;
+                    }
+                });
+                if (currentDirectory !== '/') {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<strong style="font-size: 1.1em;">..</strong>`;
+                    li.onclick = () => {
+                        const parts = currentDirectory.split('/').filter(p=>p);
+                        parts.pop();
+                        setCurrentDirectory(parts.length > 0 ? `/${parts.join('/')}/` : '/');
+                    };
+                    fileListEl.appendChild(li);
+                }
+                const sortedKeys = currentNode ? Object.keys(currentNode).sort((a, b) => { const aIsFile = currentNode[a]._isFile; const bIsFile = !currentNode[a]._isFile; if (aIsFile === bIsFile) { return a.localeCompare(b); } return aIsFile ? 1 : -1; }) : [];
+                sortedKeys.forEach(key => {
+                    const item = currentNode[key];
+                    const li = document.createElement('li');
+                    const nameSpan = document.createElement('span'); nameSpan.className = 'file-item-name';
+                    const actionsDiv = document.createElement('div'); actionsDiv.className = 'file-item-actions';
+                    const deleteBtn = document.createElement('button'); deleteBtn.innerHTML = '🗑️'; deleteBtn.className = 'delete-btn';
+                    if (item._isFile) {
+                        li.dataset.filename = item._path;
+                        nameSpan.textContent = `📄 ${key}`;
+                        deleteBtn.title = `Delete ${key}`;
+                        deleteBtn.onclick = (e) => { e.stopPropagation(); deleteItem(item._path, true); };
+                        li.onclick = () => openFileInEditor(item._path);
+                    } else {
+                        nameSpan.textContent = `📁 ${key}`;
+                        const folderPath = item._path;
+                        li.dataset.foldername = folderPath;
+                        deleteBtn.title = `Delete ${key} folder`;
+                        deleteBtn.onclick = (e) => { e.stopPropagation(); deleteItem(folderPath, false); };
+                        li.onclick = () => setCurrentDirectory(folderPath);
+                    }
+                    li.appendChild(nameSpan);
+                    actionsDiv.appendChild(deleteBtn);
+                    li.appendChild(actionsDiv);
+                    fileListEl.appendChild(li);
+                });
+                updateActiveFileVisuals(currentOpenFile);
+            }
+            function renderTabs() {
+                const tabsContainer = document.getElementById('tabs-container');
+                tabsContainer.innerHTML = '';
+                openTabs.forEach(filename => {
+                    const tabEl = document.createElement('div'); tabEl.className = 'tab'; tabEl.dataset.filename = filename; tabEl.title = filename; 
+                    const nameSpan = document.createElement('span'); nameSpan.className = 'file-name'; nameSpan.textContent = filename.split('/').pop();
+                    tabEl.appendChild(nameSpan);
+                    const closeBtn = document.createElement('span'); closeBtn.className = 'close-tab'; closeBtn.innerHTML = '×';
+                    closeBtn.onclick = (e) => { e.stopPropagation(); handleCloseTabRequest(filename); };
+                    tabEl.appendChild(closeBtn);
+                    tabEl.onclick = () => openFileInEditor(filename);
+                    tabsContainer.appendChild(tabEl);
+                    checkDirtyState(filename);
+                });
+                updateActiveFileVisuals(currentOpenFile);
+            }
+            function updateActiveFileVisuals(filename) {
+                document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.filename === filename));
+                document.querySelectorAll('#file-list li').forEach(li => { li.classList.toggle('active-file-list-item', li.dataset.filename === filename); });
+                const activeTabEl = document.querySelector('.tab.active');
+                if (activeTabEl) activeTabEl.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'nearest' });
+            }
+            function renderAll() { renderFileList(); renderTabs(); }
+            function checkDirtyState(filename) { const tabEl = document.querySelector(`.tab[data-filename="${filename}"]`); if (!tabEl || !fileSessions.has(filename)) return; const isDirty = !fileSessions.get(filename).getUndoManager().isClean(); tabEl.classList.toggle('dirty', isDirty); }
+            
+            function openFileInEditor(filename) {
+                if (!filename || currentOpenFile === filename) return;
+
+                if (currentOpenFile) {
+                    saveFileContent(currentOpenFile, editor.getValue(), true);
+                    saveEditorState(currentOpenFile);
+                }
+                
+                if (!fileSessions.has(filename)) { 
+                    const content = lsGet('file_' + filename) ?? ""; 
+                    const modelist = ace.require("ace/ext/modelist"); 
+                    const newSession = ace.createEditSession(content, modelist.getModeForPath(filename).mode); 
+                    newSession.on('change', () => checkDirtyState(filename)); 
+                    fileSessions.set(filename, newSession); 
+                }
+
+                editor.setSession(fileSessions.get(filename));
+                restoreEditorState(filename);
+
+                editor.setReadOnly(false);
+                editor.focus();
+                currentOpenFile = filename;
+                if (!openTabs.includes(filename)) openTabs.push(filename);
+                renderAll();
+            }
+
+            function closeTab(filenameToClose, force = false) {
+                if (filenameToClose === currentOpenFile) {
+                    saveEditorState(filenameToClose);
+                }
+
+                const tabIndex = openTabs.indexOf(filenameToClose); if (tabIndex === -1) return;
+                if (!force) recentlyClosedTabs.push(filenameToClose);
+                openTabs.splice(tabIndex, 1);
+                if (currentOpenFile === filenameToClose) {
+                    currentOpenFile = null;
+                    if (openTabs.length > 0) {
+                        openFileInEditor(openTabs[Math.max(0, tabIndex - 1)]);
+                    } else {
+                        editor.setSession(ace.createEditSession("// No file open. Use 'New File' or Ctrl+Shift+T to reopen a closed tab."));
+                        editor.setReadOnly(true);
+                    }
+                }
+                renderAll();
+            }
+            function handleNewFile() {
+                const name = prompt("Enter new file name:");
+                if (name && name.trim()) {
+                    const filename = name.trim();
+                    const path = currentDirectory === '/' ? filename : `${currentDirectory}${filename}`;
+                    if (getAllPaths().includes(path)) { alert(`File "${path}" already exists.`); return; }
+                    saveFileContent(path, "", true);
+                    openFileInEditor(path);
+                }
+            }
+            function handleNewFolder() {
+                const name = prompt("Enter new folder name:");
+                if (name && name.trim()) {
+                    const foldername = name.trim();
+                    const path = currentDirectory === '/' ? foldername : `${currentDirectory}${foldername}`;
+                    const pathWithSlash = path + '/';
+                    if (getAllPaths().some(p => p.startsWith(pathWithSlash))) { alert(`Folder "${path}" or a sub-item already exists.`); return; }
+                    lsSet(`folder_${pathWithSlash}`, true);
+                    term.writeln(`\x1b[32mFolder created: ${path}\x1b[0m`);
+                    renderFileList();
+                }
+            }
+            function handleRun() { if (currentOpenFile && !editor.getReadOnly()) { saveFileContent(currentOpenFile, editor.getValue()); term.writeln(`\x1b[36mRunning ${currentOpenFile}...\x1b[0m`); } }
+            function handleCloseTabRequest(filename) { if (!filename) return; if (fileSessions.has(filename)) { const session = fileSessions.get(filename); if (session && !session.getUndoManager().isClean()) saveFileContent(filename, session.getValue(), true); } closeTab(filename); }
+            function handleReopenTab() { const fileToReopen = recentlyClosedTabs.pop(); if (fileToReopen && getAllPaths().includes(fileToReopen)) { openFileInEditor(fileToReopen); } }
+            
+            function openSessionModal(mode) {
+                const overlay = document.getElementById('modal-overlay');
+                const title = document.getElementById('modal-title');
+                const saveContent = document.getElementById('modal-save-content');
+                const loadContent = document.getElementById('modal-load-content');
+                const confirmBtn = document.getElementById('modal-confirm-btn');
+                const input = document.getElementById('modal-input');
+                const list = document.getElementById('modal-list');
+                const closeModal = () => { overlay.style.display = 'none'; confirmBtn.onclick = null; };
+                document.getElementById('modal-cancel-btn').onclick = closeModal;
+                overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
+                const populateSessionList = (clickCallback) => {
+                    list.innerHTML = '';
+                    const sessionList = lsGet('session_list') || [];
+                    if (sessionList.length === 0) {
+                        list.innerHTML = "<li class='no-sessions'>No saved sessions found.</li>";
+                    } else {
+                        sessionList.forEach(name => {
+                            const li = document.createElement('li');
+                            const nameSpan = document.createElement('span');
+                            nameSpan.className = 'session-name';
+                            nameSpan.textContent = name;
+                            nameSpan.onclick = () => clickCallback(name);
+                            li.appendChild(nameSpan);
+                            const deleteBtn = document.createElement('button');
+                            deleteBtn.className = 'delete-session-btn';
+                            deleteBtn.innerHTML = '🗑️';
+                            deleteBtn.title = `Delete session "${name}"`;
+                            deleteBtn.onclick = (e) => {
+                                e.stopPropagation();
+                                if (confirm(`Are you sure you want to delete the session "${name}"?`)) {
+                                    lsRemove(`session_${name}`);
+                                    const newList = sessionList.filter(s => s !== name);
+                                    lsSet('session_list', newList);
+                                    term.writeln(`\x1b[31mSession "${name}" deleted.\x1b[0m`);
+                                    populateSessionList(clickCallback);
+                                }
+                            };
+                            li.appendChild(deleteBtn);
+                            list.appendChild(li);
+                        });
+                    }
+                };
+                if (mode === 'save') {
+                    title.textContent = "Save/Overwrite Session";
+                    saveContent.style.display = 'block';
+                    loadContent.style.display = 'block';
+                    confirmBtn.style.display = 'inline-block';
+                    input.value = '';
+                    input.focus();
+                    confirmBtn.textContent = 'Save as New';
+                    const saveAction = (sessionName) => {
+                        let sessionList = lsGet('session_list') || [];
+                        if (!sessionList.includes(sessionName)) sessionList.push(sessionName);
+                        lsSet('session_list', sessionList);
+                        lsSet(`session_${sessionName}`, openTabs);
+                        term.writeln(`\x1b[32mSession "${sessionName}" saved.\x1b[0m`);
+                        closeModal();
+                    };
+                    populateSessionList((name) => saveAction(name));
+                    confirmBtn.onclick = () => {
+                        const sessionName = input.value.trim();
+                        if (sessionName) saveAction(sessionName);
+                        else alert("Session name cannot be empty.");
+                    };
+                } else {
+                    title.textContent = "Load Session";
+                    saveContent.style.display = 'none';
+                    loadContent.style.display = 'block';
+                    confirmBtn.style.display = 'none';
+                    populateSessionList((name) => {
+                        const savedTabs = lsGet(`session_${name}`);
+                        if (savedTabs) {
+                            [...openTabs].forEach(f => closeTab(f, true));
+                            savedTabs.forEach(f => { if (getAllPaths().includes(f)) openFileInEditor(f); });
+                            term.writeln(`\x1b[32mSession "${name}" loaded.\x1b[0m`);
+                            closeModal();
+                        }
+                    });
+                }
+                overlay.style.display = 'flex';
+            }
+
+            // --- Initializer ---
+            const savedSidebarWidth = lsGet('sidebarWidth');
+            if (savedSidebarWidth) document.querySelector('.sidebar').style.width = savedSidebarWidth;
+            const savedTerminalHeight = lsGet('terminalHeight');
+            if (savedTerminalHeight) document.getElementById('terminal-container').style.height = savedTerminalHeight;
+            
+            ace.require("ace/ext/language_tools");
+            editor = ace.edit("editor");
+            editor.setTheme("ace/theme/monokai");
+            editor.setOptions({ enableBasicAutocompletion: true, enableSnippets: true, enableLiveAutocompletion: true, fontSize: "14px", showPrintMargin: false });
+            
+            const VIM_MODE_KEY = 'vimModeEnabled';
+            function toggleVimMode() {
+                const isVimEnabled = editor.getKeyboardHandler().$id === "ace/keyboard/vim";
+                if (isVimEnabled) {
+                    editor.setKeyboardHandler(null);
+                    lsSet(VIM_MODE_KEY, false);
+                    term.writeln('\x1b[33mVim mode disabled.\x1b[0m');
+                } else {
+                    editor.setKeyboardHandler("ace/keyboard/vim");
+                    lsSet(VIM_MODE_KEY, true);
+                    term.writeln('\x1b[32mVim mode enabled.\x1b[0m');
+                }
+            }
+            editor.commands.addCommand({
+              name: "toggleVimMode",
+              bindKey: { win: "Ctrl-Alt-Shift-V", mac: "Command-Alt-Shift-V" },
+              exec: toggleVimMode,
+            });
+            if (lsGet(VIM_MODE_KEY) === true) {
+                editor.setKeyboardHandler("ace/keyboard/vim");
+            }
+
+            const addCustomCss = () => {
+                const css = `
+                    .ace-monokai .ace_marker-layer .ace_active-line { background-color: #103010 !important; }
+                    .ace-monokai { background-color: #050505 !important; color: #f8f8f2; }
+                    .ace-monokai .ace_gutter { background: #204020 !important; color: #cbcdc3 !important; }
+                    .ace-monokai .ace_gutter-active-line { background-color: transparent !important; }
+                    .ace-monokai .ace_entity.ace_name.ace_tag, .ace-monokai .ace_keyword, .ace-monokai .ace_meta.ace_tag, .ace-monokai .ace_storage { color: #40a0e0 !important; }
+                    .ace-monokai .ace_entity.ace_name.ace_function, .ace-monokai .ace_entity.ace_other, .ace-monokai .ace_entity.ace_other.ace_attribute-name, .ace-monokai .ace_variable { color: #ff80df !important; }
+                    .ace-monokai .ace_comment { color: #40d080 !important; font-style: italic !important; }
+                    .ace-monokai .ace_programmingBlocksAndImport { color: #f51000 !important; font-weight: bold !important; }
+                    .ace-monokai .ace_commentOpen_Close { color: #40d080 !important; font-style: italic !important; }
+                    .ace-monokai .ace_variables { color: #ffffff !important; }
+                    .ace-monokai .ace_functions { color: #80dfff !important; }
+                    .ace-monokai .ace_keywords { color: #8080e0 !important; font-weight: bold !important; }
+                    .ace-monokai .ace_braces_Open, .ace-monokai .ace_braces_Close { color: #FFFFff !important; }
+                    .ace-monokai .ace_arrayMethods { color: #FAB820 !important; }
+                    .ace-monokai .ace_BuildInFunc { color: #ff80df !important; }
+                    .ace-monokai .ace_command { color: #40a0e0 !important; font-weight: bold !important; }
+                    .ace-monokai .ace_static_types { color: #569cd6 !important; font-weight: bold !important; }
+                    .ace-monokai .ace_string { color: #ffa0a0 !important; font-weight: lighter !important; }
+                    .ace-monokai .ace_operators, .ace-monokai .ace_trueANDfalse { color: #00ffff !important; font-weight: lighter !important; }
+                    .ace-monokai .ace_escape-char { color: #ff8000 !important; font-weight: bold !important; }
+                    .ace-monokai .ace_punctuation, .ace-monokai .ace_punctuation.ace _tag { color: #ffa0a0 !important; }
+                    
+                    *::-webkit-scrollbar {
+                        width: 16px;
+                        height: 16px;
+                    }
+                    *::-webkit-scrollbar-track {
+                        background: #1e1e1e;
+                    }
+                    *::-webkit-scrollbar-thumb {
+                        background-color: #4A90E2; 
+                        border-radius: 3px;
+                    }
+                    *::-webkit-scrollbar-thumb:hover {
+                        background-color: #0078D4;
+                    }
+                `;
+                var style = document.createElement("style");
+                style.type = "text/css";
+                style.appendChild(document.createTextNode(css));
+                document.head.appendChild(style);
+            };
+            addCustomCss();
+
+            term = new Terminal({ cursorBlink: true, fontFamily: 'monospace', fontSize: 13, theme: { background: '#000000', foreground: '#00DD00', cursor: '#00FF00', selectionBackground: '#225522' } });
+            fitAddon = new FitAddon.FitAddon();
+            term.loadAddon(fitAddon);
+            term.open(document.getElementById('terminal'));
+            fitAddon.fit();
+            term.writeln('\x1b[1;32mWelcome to HT-IDE Terminal!\x1b[0m');
+            term.write('$ ');
+            
+            let command = '';
+            term.onKey(({ key, domEvent }) => {
+                const printable = !domEvent.altKey && !domEvent.ctrlKey && !domEvent.metaKey;
+                if (domEvent.keyCode === 13) {
+                    term.writeln('');
+                    if (command.trim() === 'clear') { term.clear(); term.writeln('\x1b[1;32mWelcome!\x1b[0m');
+                    } else if (command.trim()) { term.writeln(`\x1b[33mEcho: ${command}\x1b[0m`); }
+                    command = '';
+                    term.write('$ ');
+                } else if (domEvent.keyCode === 8) {
+                    if (term.buffer.active.cursorX > 2) { term.write('\b \b'); command = command.slice(0, -1); }
+                } else if (printable && key.length === 1) { command += key; term.write(key); }
+            });
+            
+            document.getElementById('new-file-btn').addEventListener('click', handleNewFile);
+            document.getElementById('new-folder-btn').addEventListener('click', handleNewFolder);
+            document.getElementById('save-session-btn').addEventListener('click', () => openSessionModal('save'));
+            document.getElementById('load-session-btn').addEventListener('click', () => openSessionModal('load'));
+            document.getElementById('open-folder-btn').addEventListener('click', () => alert("This feature uses the real file system in the desktop version."));
+            document.getElementById('run-btn').addEventListener('click', handleRun);
+            
+            document.addEventListener('keydown', (e) => {
+                const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+                if (isCtrlOrCmd && e.key.toLowerCase() === 's') { e.preventDefault(); if(currentOpenFile) saveFileContent(currentOpenFile, editor.getValue()); } 
+                else if (isCtrlOrCmd && e.key.toLowerCase() === 'w') { e.preventDefault(); handleCloseTabRequest(currentOpenFile); } 
+                else if (isCtrlOrCmd && e.key.toLowerCase() === 'enter') { e.preventDefault(); handleRun(); } 
+                else if (isCtrlOrCmd && e.shiftKey && e.key.toLowerCase() === 't') { e.preventDefault(); handleReopenTab(); } 
+                else if (isCtrlOrCmd && e.key.toLowerCase() === 'b') { e.preventDefault(); document.getElementById('main-toggle-sidebar-btn').click(); } 
+                else if (e.key === 'F5') { e.preventDefault(); handleRun(); }
+            });
+
+            const initTerminalResizer = () => { 
+                const r = document.getElementById('terminal-resizer'), c = document.getElementById('terminal-container'); 
+                r.onmousedown = (e) => { 
+                    e.preventDefault(); 
+                    const y = e.clientY, h = c.offsetHeight; 
+                    const d = (m) => { 
+                        const n = h - (m.clientY - y); 
+                        if (n >= 40 && n < (window.innerHeight - 100)) { 
+                            c.style.height = `${n}px`; 
+                            editor.resize(); 
+                            fitAddon.fit(); 
+                        }
+                    }; 
+                    const s = () => { 
+                        window.removeEventListener('mousemove', d); 
+                        window.removeEventListener('mouseup', s); 
+                        lsSet('terminalHeight', c.style.height);
+                    }; 
+                    window.addEventListener('mousemove', d); window.addEventListener('mouseup', s); 
+                };
+            };
+            
+            const initSidebarResizer = () => {
+                const resizer = document.getElementById('sidebar-resizer');
+                const sidebar = document.querySelector('.sidebar');
+                
+                resizer.onmousedown = (e) => {
+                    e.preventDefault();
+                    document.body.style.userSelect = 'none';
+                    document.body.style.cursor = 'ew-resize';
+
+                    const startX = e.clientX;
+                    const startWidth = sidebar.offsetWidth;
+
+                    const doDrag = (moveEvent) => {
+                        const newWidth = startWidth + (moveEvent.clientX - startX);
+                        if (newWidth >= 150 && newWidth <= (window.innerWidth - 200)) {
+                            sidebar.style.width = `${newWidth}px`;
+                            editor.resize();
+                            if (fitAddon) fitAddon.fit();
+                        }
+                    };
+
+                    const stopDrag = () => {
+                        document.body.style.userSelect = 'auto';
+                        document.body.style.cursor = 'default';
+                        window.removeEventListener('mousemove', doDrag);
+                        window.removeEventListener('mouseup', stopDrag);
+                        lsSet('sidebarWidth', sidebar.style.width);
+                    };
+
+                    window.addEventListener('mousemove', doDrag);
+                    window.addEventListener('mouseup', stopDrag);
+                };
+            };
+
+            const initSidebarToggle = () => { 
+                const t = document.getElementById('main-toggle-sidebar-btn'), s = document.querySelector('.sidebar'); 
+                const ts = () => { 
+                    s.classList.toggle('collapsed'); 
+                    lsSet('sidebarCollapsed', s.classList.contains('collapsed')); 
+                    setTimeout(() => { editor.resize(); fitAddon.fit(); }, 310); 
+                }; 
+                if (t) t.onclick = ts; 
+                if (lsGet('sidebarCollapsed')) s.classList.add('collapsed'); 
+                setTimeout(() => { document.body.classList.remove('preload'); }, 50); 
+            };
+            
+            initTerminalResizer();
+            initSidebarResizer();
+            initSidebarToggle();
+            
+            window.addEventListener('resize', debounce(() => { if(editor && fitAddon) { editor.resize(); fitAddon.fit(); } }, 100));
+
+            const savedOpenTabs = lsGet('openTabs');
+            if (savedOpenTabs && Array.isArray(savedOpenTabs)) { openTabs = savedOpenTabs.filter(filename => getAllPaths().includes(filename)); }
+            const lastOpenFile = lsGet('lastOpenFile');
+            const lastCwd = lsGet('lastCwd');
+            if(lastCwd) setCurrentDirectory(lastCwd);
+            
+            renderAll();
+            if (lastOpenFile && getAllPaths().includes(lastOpenFile)) {
+                openFileInEditor(lastOpenFile); 
+            } else if (openTabs.length > 0) {
+                openFileInEditor(openTabs[0]); 
+            } else {
+                editor.setSession(ace.createEditSession("// No file open. Create a new file or folder to get started."));
+                editor.setReadOnly(true);
+                renderAll();
+            }
+
+            window.addEventListener('beforeunload', () => {
+                if (currentOpenFile) {
+                    saveFileContent(currentOpenFile, editor.getValue(), true);
+                    saveEditorState(currentOpenFile);
+                }
+                lsSet('openTabs', openTabs);
+                lsSet('lastOpenFile', currentOpenFile);
+                lsSet('lastCwd', currentDirectory);
+            });
+        });
+    </script>
+</body>
+</html>
