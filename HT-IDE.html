@@ -4,152 +4,153 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HT-IDE</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
     <style>
-        #current-path-display { 
-            padding: 5px 10px; font-size: 0.8em; color: #aaa; background-color: #1a1a1a; 
-            border-radius: 3px; margin: 0 10px 10px; white-space: nowrap; overflow: hidden; 
-            text-overflow: ellipsis; 
-            direction: rtl; 
-            text-align: right;
-        }
-
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #000000; color: #e0e0e0; }
+        :root { --bg-color: #1a1a1a; --text-color: #e0e0e0; --sidebar-bg: #121212; --hover-bg: #1f1f1f; --btn-bg: #fe6619; --btn-hover: #e65a00; --splitter-bg: #222; }
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #000000; color: var(--text-color); }
         body.preload * { transition: none !important; }
         .ide-container { display: flex; height: 100vh; width: 100vw; }
-        .sidebar { width: 250px; min-width: 150px; background-color: #121212; display: flex; flex-direction: column; overflow-y: hidden; border-right: 1px solid #222; transition: min-width 0.3s ease, padding 0.3s ease; }
+        .sidebar { width: 250px; min-width: 150px; background-color: var(--sidebar-bg); display: flex; flex-direction: column; overflow-y: hidden; border-right: 1px solid var(--splitter-bg); transition: width 0.3s ease, min-width 0.3s ease; }
         .sidebar.collapsed { width: 0 !important; min-width: 0; padding-left: 0; padding-right: 0; overflow: hidden; border-right: none; }
         .sidebar-header { padding: 10px; flex-shrink: 0; }
         .sidebar-header h2 { margin: 0; font-size: 1.1em; border-bottom: 1px solid #2c2c2c; padding-bottom: 8px; flex-grow: 1; }
+        #current-path-display { padding: 5px 10px; font-size: 0.8em; color: #aaa; background-color: #1a1a1a; border-radius: 3px; margin: 0 10px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: right; }
         .sidebar-actions { display: flex; gap: 5px; margin-bottom: 10px; padding: 0 10px; }
         #new-file-btn, #new-folder-btn { color: white; border: none; padding: 8px 10px; cursor: pointer; border-radius: 3px; font-size: 0.9em; width: 50%; }
         #new-file-btn { background-color: #0e639c; }
-        #new-folder-btn { background-color: #FE621B; }
-        #file-list { list-style: none; padding: 0; margin: 0; flex-grow: 1; overflow-y: auto; padding-bottom: 10px; }
-        #file-list li { padding: 6px 10px; cursor: pointer; border-radius: 3px; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; justify-content: space-between; align-items: center; border: 1px solid transparent; }
-        #file-list li:hover { background-color: #1f1f1f; }
+        #new-folder-btn { background-color: var(--btn-bg); }
+        #file-list { list-style: none; padding: 0; margin: 0; flex-grow: 1; overflow-y: auto; }
+        #file-list li { padding: 6px 10px; cursor: pointer; border-radius: 3px; font-size: 0.9em; display: flex; align-items: center; justify-content: space-between; overflow: hidden; }
+        .file-item-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #file-list li:hover { background-color: var(--hover-bg); }
         #file-list li.active-file-list-item { background-color: #005f87; color: white; }
-        .file-item-name { flex-grow: 1; overflow: hidden; text-overflow: ellipsis; }
-        .file-item-actions { display: flex; }
-        .file-item-actions button { background: none; border: none; color: #aaa; cursor: pointer; font-size: 1.1em; padding: 0 4px; line-height: 1; visibility: hidden; }
-        #file-list li:hover .file-item-actions button { visibility: visible; }
-        .file-item-actions .delete-btn:hover { color: #F44336; }
-        .sidebar-footer { padding: 10px; border-top: 1px solid #222; display: grid; gap: 5px; grid-template-columns: 1fr 1fr; }
+        .sidebar-footer { padding: 10px; border-top: 1px solid var(--splitter-bg); display: grid; gap: 5px; grid-template-columns: 1fr 1fr; }
         .sidebar-footer button { background-color: #333; color: white; border: none; padding: 8px; cursor: pointer; border-radius: 3px; font-size: 0.85em; width: 100%; }
-        .sidebar-footer button:hover { background-color: #444; }
-        #open-folder-btn { grid-column: 1 / -1; background-color: #2a8f2a; }
-        
-        #sidebar-resizer { width: 5px; background-color: #222; cursor: ew-resize; flex-shrink: 0; transition: background-color 0.2s ease; }
-        #sidebar-resizer:hover { background-color: #383838; }
+        #load-instructions-btn { background-color: #2a8f2a; }
+        #settings-btn { background-color: #555; }
+        #open-folder-btn { grid-column: 1 / -1; background-color: #0e639c; }
+        #sidebar-resizer { width: 5px; background-color: var(--splitter-bg); cursor: ew-resize; flex-shrink: 0; }
         .sidebar.collapsed + #sidebar-resizer { display: none; }
-
+        .main-content-wrapper { flex: 1; display: flex; min-width: 0; }
         .main-content { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
-        .top-bar { display: flex; align-items: center; background-color: #1a1a1a; flex-shrink: 0; padding: 0 8px; }
-        #main-toggle-sidebar-btn { background: none; border: none; color: #e0e0e0; font-size: 1.2em; line-height: 1; cursor: pointer; padding: 10px 12px; flex-shrink: 0; }
-        
-        #run-btn { margin-left: 8px; background-color: #3d8b40; color: white; font-weight: bold; border: none; padding: 8px 16px; border-radius: 3px; cursor: pointer; flex-shrink: 0; transition: background-color 0.2s ease; white-space: nowrap; }
-        #run-btn:hover { background-color: #4CAF50; }
-
-        #tabs-container { display: flex; background-color: #1a1a1a; padding: 5px 0 0 5px; overflow-x: auto; flex-grow: 1; border-bottom: 1px solid #000000; min-width: 0; }
-        
-        .tab { 
-            padding: 8px 12px; 
-            background-color: #252525; 
-            color: #cccccc; 
-            margin-right: 2px; 
-            cursor: pointer; 
-            border-radius: 4px 4px 0 0; 
-            font-size: 0.85em; 
-            position: relative; 
-            display: flex;
-            align-items: center;
-            flex-shrink: 0;
-            min-width: 50px;
-        }
-
-        .tab .file-name {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            min-width: 0;
-        }
-        
-        .tab.active { background-color: #000000; color: #ffffff; }
+        .top-bar { display: flex; align-items: center; background-color: #1a1a1a; flex-shrink: 0; padding: 0 8px; flex-wrap: nowrap; }
+        #main-toggle-sidebar-btn { background: none; border: none; color: #e0e0e0; font-size: 1.2em; cursor: pointer; padding: 10px 12px; }
+        #tabs-container { display: flex; background-color: #1a1a1a; padding: 5px 0 0 5px; overflow-x: auto; flex-grow: 1; border-bottom: 1px solid #000; min-width: 0; }
+        .tab { padding: 8px 12px; background-color: #252525; color: #ccc; margin-right: 2px; cursor: pointer; border-radius: 4px 4px 0 0; font-size: 0.85em; display: flex; align-items: center; flex-shrink: 0; }
+        .tab .file-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .tab.active { background-color: #000; color: #fff; }
         .tab.dirty .file-name::after { content: " *"; color: #007acc; font-weight: bold; }
-
-        .tab .close-tab { 
-            margin-left: 8px; 
-            font-weight: bold; 
-            font-size: 1.1em; 
-            padding: 0 4px; 
-            line-height: 1;
-            flex-shrink: 0;
-        }
-
-        #editor-container { flex-grow: 1; position: relative; min-height: 100px; background-color: #000000; }
+        .tab .close-tab { margin-left: 8px; font-weight: bold; cursor: pointer; }
+        #run-btn { margin-left: auto; background-color: #3d8b40; color: white; font-weight: bold; border: none; padding: 8px 16px; border-radius: 3px; cursor: pointer; flex-shrink: 0; }
+        #htvm-controls { display: none; align-items: center; gap: 10px; margin-left: 15px; margin-right: 15px; flex-shrink: 0; }
+        .select-container { position: relative; display: inline-block; width: 140px; }
+        .selected-item { padding: 5px 8px; background-color: #252525; border: 1px solid #333; cursor: pointer; border-radius: 3px; display: flex; align-items: center; color: var(--text-color); }
+        .selected-item img, .dropdown-item img { width: 16px; height: 16px; margin-right: 8px; }
+        .dropdown { display: none; position: absolute; background-color: #202020; min-width: 160px; border: 1px solid #333; box-shadow: 0 8px 16px rgba(0,0,0,0.2); z-index: 1001; border-radius: 5px; }
+        .dropdown-item { padding: 8px 10px; cursor: pointer; display: flex; align-items: center; color: var(--text-color); }
+        .dropdown-item:hover { background-color: #303030; }
+        .toggle-switch-label { display: flex; align-items: center; gap: 6px; font-size: 0.85em; color: #ccc; cursor: pointer; }
+        #run-js-after-htvm, #full-html-checkbox { accent-color: #3d8b40; }
+        #editor-container { flex-grow: 1; position: relative; min-height: 100px; background-color: #000; }
         #editor { position: absolute; top: 0; right: 0; bottom: 0; left: 0; font-size: 14px; }
-        #terminal-resizer { height: 8px; background-color: #222; cursor: ns-resize; flex-shrink: 0; }
-        #terminal-container { height: 200px; min-height: 40px; background-color: #000000; flex-shrink: 0; overflow: hidden; }
-        #terminal { width: 100%; height: 100%; }
-        #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); z-index: 1000; justify-content: center; align-items: center; }
-        #modal-box { background-color: #1e1e1e; padding: 20px; border-radius: 5px; width: 90%; max-width: 400px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
-        #modal-list { list-style: none; padding: 0; margin: 0 0 15px 0; max-height: 200px; overflow-y: auto; border: 1px solid #333; border-radius: 3px; }
-        #modal-list li { padding: 8px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-        #modal-list li .session-name { flex-grow: 1; }
-        #modal-list li .delete-session-btn { background: none; border: none; color: #aaa; font-size: 1.2em; cursor: pointer; padding: 0 5px; }
-        #modal-list li .delete-session-btn:hover { color: #F44336; }
-        #modal-list li.no-sessions { cursor: default; color: #888; }
-        #modal-list li:not(.no-sessions):hover { background-color: #007acc; }
-        #modal-buttons { text-align: right; }
-        #modal-confirm-btn { background-color: #0e639c; color: white; }
+        #terminal-resizer { height: 8px; background-color: var(--splitter-bg); cursor: ns-resize; flex-shrink: 0; }
+        #terminal-container { height: 200px; min-height: 40px; background-color: #000; flex-shrink: 0; overflow: hidden; display: flex; flex-direction: column; }
+        #terminal { width: 100%; height: 100%; flex-grow: 1; }
+        #output-panel-resizer { width: 5px; background-color: var(--splitter-bg); cursor: ew-resize; flex-shrink: 0; display: none; }
+        #output-panel { width: 0; background-color: #fff; display: flex; flex-direction: column; transition: width 0.3s ease; overflow: hidden; }
+        #output-panel.visible { width: 50%; border-left: 1px solid var(--splitter-bg); }
+        #output-panel.visible ~ #output-panel-resizer { display: block; }
+        #output-header { background-color: #1a1a1a; color: white; padding: 8px; display: flex; justify-content: space-between; align-items: center; }
+        #close-output-btn { background: none; border: none; color: white; font-size: 1.2em; cursor: pointer; }
+        #html-output { flex-grow: 1; border: none; }
+        #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-box { background-color: #1e1e1e; padding: 20px; border-radius: 5px; width: 90%; max-width: 500px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+        .modal-list { list-style: none; padding: 0; margin: 0 0 15px 0; max-height: 200px; overflow-y: auto; border: 1px solid #333; border-radius: 3px; }
+        .modal-list li { padding: 8px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .modal-list li:not(.no-sessions):hover { background-color: #007acc; }
+        .modal-buttons { text-align: right; }
+        *::-webkit-scrollbar { width: 16px; height: 16px; }
+        *::-webkit-scrollbar-track { background: #2c2c2c; }
+        *::-webkit-scrollbar-thumb { background-color: #0078d4; border-radius: 3px; border: 2px solid #2c2c2c; }
+        *::-webkit-scrollbar-thumb:hover { background-color: #0098f4; }
+        .ace-monokai .ace_marker-layer .ace_active-line { background-color: #103010 !important; } .ace-monokai { background-color: #050505 !important; }
+        .ace-monokai .ace_gutter { background: #204020 !important; color: #cbcdc3 !important; }
+        .ace-monokai .ace_command { color: #569cd6 !important; font-weight: bold; }
+        .ace-monokai .ace_keyword { color: #8080e0 !important; font-weight: bold; }
+        .ace-monokai .ace_functions { color: #80dfff !important; } /* Cyan/Light Blue for functions */
+        .ace-monokai .ace_BuildInFunc { color: #ff80df !important; } /* Pink for A_... variables */
+        .ace-monokai .ace_comment { color: #40d080 !important; font-style: italic; }
+        .ace-monokai .ace_programmingBlocksAndImport { color: #f51000 !important; font-weight: bold; }
+        .ace-monokai .ace_static_types { color: #569cd6 !important; font-weight: bold; }
+        .ace-monokai .ace_string { color: #ffa0a0 !important; }
+        .ace-monokai .ace_operators, .ace-monokai .ace_trueANDfalse { color: #00ffff !important; }
+        .ace-monokai .ace_arrayMethods { color: #FAB820 !important; }
     </style>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
 </head>
-<body class="preload">
+<body>
     <div class="ide-container">
         <div class="sidebar">
             <div class="sidebar-header"><h2>Files</h2></div>
             <div id="current-path-display">/</div>
             <div class="sidebar-actions">
-                <button id="new-file-btn" title="Create a new file in the current directory">New File</button>
-                <button id="new-folder-btn" title="Create a new folder in the current directory">New Folder</button>
+                <button id="new-file-btn" title="New File">New File</button>
+                <button id="new-folder-btn" title="New Folder">New Folder</button>
             </div>
             <ul id="file-list"></ul>
             <div class="sidebar-footer">
-                <button id="save-session-btn" title="Save the current set of open tabs as a named session">Save Session</button>
-                <button id="load-session-btn" title="Load a previously saved session">Load Session</button>
-                <button id="open-folder-btn" title="This feature uses the real file system in the desktop version.">Open Folder</button>
+                <button id="save-session-btn" title="Save Session">Save Session</button>
+                <button id="load-session-btn" title="Load Session">Load Session</button>
+                <button id="load-instructions-btn" title="Load custom HTVM instructions">Load Instructions</button>
+                <button id="settings-btn" title="Settings">Settings</button>
+                <input type="file" id="instruction-file-input" style="display: none;" accept=".txt">
+                <button id="open-folder-btn" title="This feature uses the real file system in the desktop version.">Open New Folder</button>
             </div>
         </div>
         <div id="sidebar-resizer"></div>
-        <div class="main-content">
-            <div class="top-bar">
-                <button id="main-toggle-sidebar-btn" title="Toggle File Explorer (Ctrl+B)">☰</button>
-                <div id="tabs-container"></div>
-                <button id="run-btn" title="Run (F5 or Ctrl+Enter)">▶ Run</button>
+        <div class="main-content-wrapper">
+            <div class="main-content">
+                <div class="top-bar">
+                    <button id="main-toggle-sidebar-btn" title="Toggle File Explorer (Ctrl+B)">☰</button>
+                    <div id="tabs-container"></div>
+                    <div id="htvm-controls">
+                      <div class="select-container">
+                        <div class="selected-item" onclick="toggleDropdown()"><img id="selected-lang-img" src="images/js.png" alt="JS"><span id="selected-lang-name">JavaScript</span></div>
+                        <div id="lang-dropdown" class="dropdown">
+                          <div class="dropdown-item" data-lang="js" data-name="JavaScript" data-img="images/js.png"><img src="images/js.png"><span>JavaScript</span></div>
+                          <div class="dropdown-item" data-lang="py" data-name="Python" data-img="images/python.png"><img src="images/python.png"><span>Python</span></div>
+                          <div class="dropdown-item" data-lang="cpp" data-name="C++" data-img="images/cpp.png"><img src="images/cpp.png"><span>C++</span></div>
+                          <div class="dropdown-item" data-lang="go" data-name="Go" data-img="images/go.png"><img src="images/go.png"><span>Go</span></div>
+                          <div class="dropdown-item" data-lang="lua" data-name="Lua" data-img="images/lua.png"><img src="images/lua.png"><span>Lua</span></div>
+                          <div class="dropdown-item" data-lang="cs" data-name="C#" data-img="images/csharp.png"><img src="images/csharp.png"><span>C#</span></div>
+                          <div class="dropdown-item" data-lang="java" data-name="Java" data-img="images/java.png"><img src="images/java.png"><span>Java</span></div>
+                          <div class="dropdown-item" data-lang="kt" data-name="Kotlin" data-img="images/kotlin.png"><img src="images/kotlin.png"><span>Kotlin</span></div>
+                          <div class="dropdown-item" data-lang="rb" data-name="Ruby" data-img="images/ruby.png"><img src="images/ruby.png"><span>Ruby</span></div>
+                          <div class="dropdown-item" data-lang="nim" data-name="Nim" data-img="images/nim.png"><img src="images/nim.png"><span>Nim</span></div>
+                          <div class="dropdown-item" data-lang="ahk" data-name="AutoHotKey" data-img="images/ahk.png"><img src="images/ahk.png"><span>AutoHotKey</span></div>
+                          <div class="dropdown-item" data-lang="swift" data-name="Swift" data-img="images/swift.png"><img src="images/swift.png"><span>Swift</span></div>
+                          <div class="dropdown-item" data-lang="dart" data-name="Dart" data-img="images/dart.png"><img src="images/dart.png"><span>Dart</span></div>
+                          <div class="dropdown-item" data-lang="ts" data-name="TypeScript" data-img="images/ts.png"><img src="images/ts.png"><span>TypeScript</span></div>
+                          <div class="dropdown-item" data-lang="groovy" data-name="Groovy" data-img="images/groovy.png"><img src="images/groovy.png"><span>Groovy</span></div>
+                        </div>
+                      </div>
+                      <label class="toggle-switch-label" title="Run generated code immediately if target is JavaScript"><input type="checkbox" id="run-js-after-htvm"><span>Run JS</span></label>
+                      <label class="toggle-switch-label" title="Wrap generated JS in a full HTML file for direct browser execution"><input type="checkbox" id="full-html-checkbox"><span>Full HTML</span></label>
+                    </div>
+                    <button id="run-btn" title="Run (F5 or Ctrl+Enter)">▶ Run</button>
+                </div>
+                <div id="editor-container"><div id="editor"></div></div>
+                <div id="terminal-resizer"></div>
+                <div id="terminal-container"><div id="terminal"></div></div>
             </div>
-            <div id="editor-container"><div id="editor"></div></div>
-            <div id="terminal-resizer"></div>
-            <div id="terminal-container"><div id="terminal"></div></div>
+            <div id="output-panel">
+                <div id="output-header"><span>HTML Output</span><button id="close-output-btn">×</button></div>
+                <iframe id="html-output"></iframe>
+            </div>
+            <div id="output-panel-resizer"></div>
         </div>
     </div>
-
-    <div id="modal-overlay">
-        <div id="modal-box">
-            <h3 id="modal-title"></h3>
-            <div id="modal-save-content" style="display: none;">
-                <p>Enter a name for the new session, or click an existing session below to overwrite it.</p>
-                <input type="text" id="modal-input" placeholder="e.g., My Project Setup" style="width: calc(100% - 22px); padding: 10px; margin-bottom: 15px; background-color: #252525; border: 1px solid #333; color: #e0e0e0; border-radius: 3px;">
-            </div>
-            <div id="modal-load-content" style="display: none;">
-                <p>Select a session to load:</p>
-                <ul id="modal-list"></ul>
-            </div>
-            <div id="modal-buttons">
-                <button id="modal-cancel-btn">Cancel</button>
-                <button id="modal-confirm-btn">Confirm</button>
-            </div>
-        </div>
-    </div>
+    
+    <div id="modal-overlay"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ace.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ext-modelist.js"></script>
@@ -158,528 +159,299 @@
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
     
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const STORAGE_PREFIX = 'HT-IDE-';
-            let editor, term, fitAddon;
-            let currentOpenFile = null, currentDirectory = '/';
-            let openTabs = [], recentlyClosedTabs = [];
-            const fileSessions = new Map();
-            
-            function debounce(func, delay) { let timeout; return function(...args) { const context = this; clearTimeout(timeout); timeout = setTimeout(() => func.apply(context, args), delay); }; }
-            function lsGet(key) { try { const item = localStorage.getItem(STORAGE_PREFIX + key); return item ? JSON.parse(item) : null; } catch { return null; }}
-            function lsSet(key, value) { try { localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value)); } catch (e) { console.error("LS Set Error:", e); }}
-            function lsRemove(key) { localStorage.removeItem(STORAGE_PREFIX + key); }
-            function getAllPaths() { const paths = new Set(); for (let i = 0; i < localStorage.length; i++) { const key = localStorage.key(i); if (key?.startsWith(STORAGE_PREFIX)) { const typeAndPath = key.substring(STORAGE_PREFIX.length); if(typeAndPath.startsWith('file_')) paths.add(typeAndPath.substring('file_'.length)); if(typeAndPath.startsWith('folder_')) paths.add(typeAndPath.substring('folder_'.length)); } } return Array.from(paths).sort((a,b) => a.localeCompare(b, undefined, {numeric: true})); }
-            function saveFileContent(filename, content, silent = false) { if (!filename) return; lsSet('file_' + filename, content); if (fileSessions.has(filename)) { fileSessions.get(filename).getUndoManager().markClean(); checkDirtyState(filename); } if (!silent && term) { term.writeln(`\x1b[32mFile saved: ${filename}\x1b[0m`); }}
-            
-            function saveEditorState(filename) {
-                if (!filename || !fileSessions.has(filename) || !editor.getSession()) return;
-                const session = fileSessions.get(filename);
-                if (editor.getSession() === session) {
-                    const state = {
-                        scrollTop: session.getScrollTop(),
-                        cursor: editor.getCursorPosition()
-                    };
-                    lsSet('state_' + filename, state);
-                }
-            }
+    <script src="HTVM.js"></script>
+    <script src="htvm-mode.js"></script>
+    <script src="htvm_completions.js"></script>
 
-            function restoreEditorState(filename) {
-                if (!filename || !fileSessions.has(filename)) return;
-                const state = lsGet('state_' + filename);
-                if (state && state.cursor) {
-                    const session = fileSessions.get(filename);
-                    setTimeout(() => {
-                        editor.gotoLine(state.cursor.row + 1, state.cursor.column, false);
-                        session.setScrollTop(state.scrollTop);
-                        editor.focus();
-                    }, 1);
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            let editor, term, fitAddon;
+            const getIdeId = () => new URLSearchParams(window.location.search).get('id') ?? '0';
+            const IDE_ID = getIdeId();
+            const STORAGE_PREFIX = `HT-IDE-id${IDE_ID}-`;
+
+            let currentOpenFile = null, currentDirectory = '/', openTabs = [], recentlyClosedTabs = [];
+            const fileSessions = new Map();
+            const langTools = ace.require("ace/ext/language_tools");
+            
+            async function loadHtvmInstructions(instructionContent = null) {
+                await window.initializeHtvmMode(IDE_ID, instructionContent);
+                await window.initializeHtvmAutocomplete(IDE_ID, editor);
+                if (editor && currentOpenFile && currentOpenFile.endsWith('.htvm')) {
+                    editor.session.setMode("ace/mode/text");
+                    editor.session.setMode("ace/mode/htvm");
                 }
             }
+            
+            editor = ace.edit("editor");
+            term = new Terminal({ cursorBlink: true, fontFamily: 'monospace', fontSize: 13, theme: { background: '#000000', foreground: '#00DD00', cursor: '#00FF00' } });
+            fitAddon = new FitAddon.FitAddon(); term.loadAddon(fitAddon); term.open(document.getElementById('terminal')); fitAddon.fit();
+            
+            await loadHtvmInstructions(); 
+            
+            const debounce = (func, delay) => { let timeout; return (...args) => { clearTimeout(timeout); timeout = setTimeout(() => func.apply(this, args), delay); }; };
+            const lsGet = key => { try { const i = localStorage.getItem(STORAGE_PREFIX + key); return i ? JSON.parse(i) : null; } catch { return null; } };
+            const lsSet = (key, value) => { try { localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value)); } catch (e) { console.error(e); } };
+            const lsRemove = key => localStorage.removeItem(STORAGE_PREFIX + key);
+            const getAllPaths = () => { const p = new Set(); for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k?.startsWith(STORAGE_PREFIX)) { const tp = k.substring(STORAGE_PREFIX.length); if (tp.startsWith('file_')) p.add(tp.substring(5)); if (tp.startsWith('folder_')) p.add(tp.substring(7)); } } return Array.from(p).sort((a,b) => a.localeCompare(b, void 0, {numeric:true})); };
+            
+            function saveFileContent(filename, content, silent = false) { if (!filename) return; lsSet('file_' + filename, content); if (fileSessions.has(filename)) { fileSessions.get(filename).getUndoManager().markClean(); checkDirtyState(filename); } if (!silent && term) term.writeln(`\x1b[32mFile saved: ${filename}\x1b[0m`); }
             
             function deleteItem(path, isFile) {
-                const itemType = isFile ? "file" : "folder";
-                const confirmDelete = confirm(`Are you sure you want to delete the ${itemType} "${path}"? This cannot be undone.`);
-                if (!confirmDelete) return;
+                if (!confirm(`Are you sure you want to delete the ${isFile ? "file" : "folder"} "${path}"?`)) return;
                 const pathsToDelete = isFile ? [path] : getAllPaths().filter(p => p.startsWith(path));
-                pathsToDelete.forEach(p => {
-                    lsRemove(p.endsWith('/') ? 'folder_' + p : 'file_' + p);
-                    lsRemove('state_' + p);
-                    fileSessions.delete(p);
-                    closeTab(p, true);
-                });
+                pathsToDelete.forEach(p => { lsRemove(p.endsWith('/') ? 'folder_' + p : 'file_' + p); lsRemove('state_' + p); fileSessions.delete(p); closeTab(p, true); });
+                term.writeln(`\x1b[31m${isFile ? "File" : "Folder"} deleted: ${path}\x1b[0m`);
                 const sessionList = lsGet('session_list') || [];
                 sessionList.forEach(sessionName => {
-                    let sessionTabs = lsGet(`session_${sessionName}`);
+                    let sessionTabs = lsGet(`session_data_${sessionName}`);
                     const initialLength = sessionTabs.length;
                     sessionTabs = sessionTabs.filter(tabPath => !pathsToDelete.includes(tabPath));
-                    if (sessionTabs.length < initialLength) {
-                        lsSet(`session_${sessionName}`, sessionTabs);
-                        term.writeln(`\x1b[33mUpdated session "${sessionName}" to remove deleted files.\x1b[0m`);
-                    }
+                    if (sessionTabs.length < initialLength) { lsSet(`session_data_${sessionName}`, sessionTabs); term.writeln(`\x1b[33mUpdated session "${sessionName}" to remove deleted files.\x1b[0m`); }
                 });
-                if (!isFile && currentDirectory.startsWith(path)) setCurrentDirectory('/');
-                term.writeln(`\x1b[31m${itemType.charAt(0).toUpperCase() + itemType.slice(1)} deleted: ${path}\x1b[0m`);
                 renderFileList();
             }
-            function setCurrentDirectory(path) { currentDirectory = path; document.getElementById('current-path-display').textContent = path; renderFileList(); }
+            function setCurrentDirectory(path) { currentDirectory = path; document.getElementById('current-path-display').textContent = path; lsSet('lastCwd', path); renderFileList(); }
             function renderFileList() {
-                const fileListEl = document.getElementById('file-list');
-                fileListEl.innerHTML = '';
-                const allPaths = getAllPaths();
-                const fileTree = {};
-                allPaths.forEach(path => {
-                    let currentLevel = fileTree;
-                    const parts = path.split('/').filter(p => p);
-                    parts.forEach((part, index, arr) => {
-                        if (!currentLevel[part]) currentLevel[part] = { _children: {} };
-                        if (index === arr.length - 1) { currentLevel[part]._isFile = !path.endsWith('/'); currentLevel[part]._path = path; }
-                        currentLevel = currentLevel[part]._children;
-                    });
-                });
-                let currentNode = fileTree;
-                currentDirectory.split('/').filter(p => p).forEach(part => {
-                    if (currentNode && currentNode[part] && currentNode[part]._children) {
-                        currentNode = currentNode[part]._children;
-                    }
-                });
-                if (currentDirectory !== '/') {
-                    const li = document.createElement('li');
-                    li.innerHTML = `<strong style="font-size: 1.1em;">..</strong>`;
-                    li.onclick = () => {
-                        const parts = currentDirectory.split('/').filter(p=>p);
-                        parts.pop();
-                        setCurrentDirectory(parts.length > 0 ? `/${parts.join('/')}/` : '/');
-                    };
-                    fileListEl.appendChild(li);
-                }
-                const sortedKeys = currentNode ? Object.keys(currentNode).sort((a, b) => { const aIsFile = currentNode[a]._isFile; const bIsFile = !currentNode[a]._isFile; if (aIsFile === bIsFile) { return a.localeCompare(b); } return aIsFile ? 1 : -1; }) : [];
-                sortedKeys.forEach(key => {
-                    const item = currentNode[key];
-                    const li = document.createElement('li');
-                    const nameSpan = document.createElement('span'); nameSpan.className = 'file-item-name';
-                    const actionsDiv = document.createElement('div'); actionsDiv.className = 'file-item-actions';
-                    const deleteBtn = document.createElement('button'); deleteBtn.innerHTML = '🗑️'; deleteBtn.className = 'delete-btn';
-                    if (item._isFile) {
-                        li.dataset.filename = item._path;
-                        nameSpan.textContent = `📄 ${key}`;
-                        deleteBtn.title = `Delete ${key}`;
-                        deleteBtn.onclick = (e) => { e.stopPropagation(); deleteItem(item._path, true); };
-                        li.onclick = () => openFileInEditor(item._path);
-                    } else {
-                        nameSpan.textContent = `📁 ${key}`;
-                        const folderPath = item._path;
-                        li.dataset.foldername = folderPath;
-                        deleteBtn.title = `Delete ${key} folder`;
-                        deleteBtn.onclick = (e) => { e.stopPropagation(); deleteItem(folderPath, false); };
-                        li.onclick = () => setCurrentDirectory(folderPath);
-                    }
-                    li.appendChild(nameSpan);
-                    actionsDiv.appendChild(deleteBtn);
-                    li.appendChild(actionsDiv);
-                    fileListEl.appendChild(li);
+                const el = document.getElementById('file-list'); el.innerHTML = '';
+                const tree = {}; getAllPaths().forEach(p => { let l=tree; p.split('/').filter(Boolean).forEach((part, i, a) => { if(!l[part])l[part]={_children:{}}; if(i===a.length-1){l[part]._isFile=!p.endsWith('/'); l[part]._path=p;} l=l[part]._children;});});
+                let node = tree; currentDirectory.split('/').filter(Boolean).forEach(part => { if (node && node[part]?._children) node = node[part]._children; });
+                if (currentDirectory !== '/') { const li = document.createElement('li'); li.innerHTML = `<strong>..</strong>`; li.onclick = () => { const parts = currentDirectory.split('/').filter(Boolean); parts.pop(); setCurrentDirectory(parts.length ? `/${parts.join('/')}/` : '/'); }; el.appendChild(li); }
+                Object.keys(node || {}).sort((a,b) => (node[a]._isFile === node[b]._isFile) ? a.localeCompare(b) : node[a]._isFile ? 1 : -1).forEach(key => {
+                    const item = node[key], li = document.createElement('li'), span = document.createElement('span'); span.className = 'file-item-name'; span.textContent = `${item._isFile ? '📄' : '📁'} ${key}`;
+                    li.onclick = () => (item._isFile ? openFileInEditor(item._path) : setCurrentDirectory(item._path));
+                    const delBtn = document.createElement('button'); delBtn.textContent = '🗑️'; delBtn.style.cssText = 'background:none;border:none;color:#aaa;cursor:pointer;margin-left:auto;visibility:hidden;';
+                    li.onmouseenter = () => delBtn.style.visibility = 'visible'; li.onmouseleave = () => delBtn.style.visibility = 'hidden';
+                    delBtn.onclick = e => { e.stopPropagation(); deleteItem(item._path, item._isFile); };
+                    li.appendChild(span); li.appendChild(delBtn); el.appendChild(li);
                 });
                 updateActiveFileVisuals(currentOpenFile);
             }
             function renderTabs() {
-                const tabsContainer = document.getElementById('tabs-container');
-                tabsContainer.innerHTML = '';
+                const container = document.getElementById('tabs-container'); container.innerHTML = '';
                 openTabs.forEach(filename => {
-                    const tabEl = document.createElement('div'); tabEl.className = 'tab'; tabEl.dataset.filename = filename; tabEl.title = filename; 
-                    const nameSpan = document.createElement('span'); nameSpan.className = 'file-name'; nameSpan.textContent = filename.split('/').pop();
-                    tabEl.appendChild(nameSpan);
-                    const closeBtn = document.createElement('span'); closeBtn.className = 'close-tab'; closeBtn.innerHTML = '×';
-                    closeBtn.onclick = (e) => { e.stopPropagation(); handleCloseTabRequest(filename); };
-                    tabEl.appendChild(closeBtn);
-                    tabEl.onclick = () => openFileInEditor(filename);
-                    tabsContainer.appendChild(tabEl);
-                    checkDirtyState(filename);
+                    const tab = document.createElement('div'); tab.className = 'tab'; tab.dataset.filename = filename; tab.title = filename;
+                    const name = document.createElement('span'); name.className = 'file-name'; name.textContent = filename.split('/').pop(); tab.appendChild(name);
+                    const close = document.createElement('span'); close.textContent = '×'; close.className = 'close-tab';
+                    close.onclick = e => { e.stopPropagation(); handleCloseTabRequest(filename); };
+                    tab.appendChild(close); tab.onclick = () => openFileInEditor(filename); container.appendChild(tab); checkDirtyState(filename);
                 });
                 updateActiveFileVisuals(currentOpenFile);
             }
-            function updateActiveFileVisuals(filename) {
-                document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.filename === filename));
-                document.querySelectorAll('#file-list li').forEach(li => { li.classList.toggle('active-file-list-item', li.dataset.filename === filename); });
-                const activeTabEl = document.querySelector('.tab.active');
-                if (activeTabEl) activeTabEl.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'nearest' });
-            }
+            function updateActiveFileVisuals(filename) { document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.filename === filename)); document.querySelectorAll('#file-list li').forEach(li => li.classList.toggle('active-file-list-item', li.textContent.includes(filename?.split('/').pop() || ''))); }
             function renderAll() { renderFileList(); renderTabs(); }
-            function checkDirtyState(filename) { const tabEl = document.querySelector(`.tab[data-filename="${filename}"]`); if (!tabEl || !fileSessions.has(filename)) return; const isDirty = !fileSessions.get(filename).getUndoManager().isClean(); tabEl.classList.toggle('dirty', isDirty); }
-            
+            function checkDirtyState(filename) { const tab = document.querySelector(`.tab[data-filename="${filename}"]`); if (!tab) return; const isDirty = fileSessions.has(filename) && !fileSessions.get(filename).getUndoManager().isClean(); tab.classList.toggle('dirty', isDirty); }
+
             function openFileInEditor(filename) {
                 if (!filename || currentOpenFile === filename) return;
-
-                if (currentOpenFile) {
-                    saveFileContent(currentOpenFile, editor.getValue(), true);
-                    saveEditorState(currentOpenFile);
-                }
-                
-                if (!fileSessions.has(filename)) { 
-                    const content = lsGet('file_' + filename) ?? ""; 
-                    const modelist = ace.require("ace/ext/modelist"); 
-                    const newSession = ace.createEditSession(content, modelist.getModeForPath(filename).mode); 
-                    newSession.on('change', () => checkDirtyState(filename)); 
-                    fileSessions.set(filename, newSession); 
-                }
-
-                editor.setSession(fileSessions.get(filename));
-                restoreEditorState(filename);
-
-                editor.setReadOnly(false);
-                editor.focus();
-                currentOpenFile = filename;
-                if (!openTabs.includes(filename)) openTabs.push(filename);
-                renderAll();
+                if (currentOpenFile) { saveFileContent(currentOpenFile, editor.getValue(), true); lsSet('state_' + currentOpenFile, { scrollTop: editor.session.getScrollTop(), cursor: editor.getCursorPosition() }); }
+                if (!fileSessions.has(filename)) { const content = lsGet('file_' + filename) ?? ""; const mode = ace.require("ace/ext/modelist").getModeForPath(filename).mode; const session = ace.createEditSession(content, filename.endsWith('.htvm') ? 'ace/mode/htvm' : mode); session.on('change', () => checkDirtyState(filename)); fileSessions.set(filename, session); }
+                editor.setSession(fileSessions.get(filename)); const state = lsGet('state_' + filename); if (state) { setTimeout(() => { editor.gotoLine(state.cursor.row + 1, state.cursor.column, false); editor.session.setScrollTop(state.scrollTop); }, 1); }
+                editor.setReadOnly(false); editor.focus(); currentOpenFile = filename; if (!openTabs.includes(filename)) openTabs.push(filename);
+                renderAll(); updateEditorModeForHtvm();
             }
-
             function closeTab(filenameToClose, force = false) {
-                if (filenameToClose === currentOpenFile) {
-                    saveEditorState(filenameToClose);
-                }
-
-                const tabIndex = openTabs.indexOf(filenameToClose); if (tabIndex === -1) return;
-                if (!force) recentlyClosedTabs.push(filenameToClose);
-                openTabs.splice(tabIndex, 1);
-                if (currentOpenFile === filenameToClose) {
-                    currentOpenFile = null;
-                    if (openTabs.length > 0) {
-                        openFileInEditor(openTabs[Math.max(0, tabIndex - 1)]);
-                    } else {
-                        editor.setSession(ace.createEditSession("// No file open. Use 'New File' or Ctrl+Shift+T to reopen a closed tab."));
-                        editor.setReadOnly(true);
-                    }
-                }
+                if (!force && fileSessions.has(filenameToClose) && !fileSessions.get(filenameToClose).getUndoManager().isClean()) if (!confirm("You have unsaved changes. Close anyway?")) return;
+                const index = openTabs.indexOf(filenameToClose); if (index === -1) return; if (!force) recentlyClosedTabs.push(filenameToClose); openTabs.splice(index, 1);
+                if (currentOpenFile === filenameToClose) { currentOpenFile = null; if (openTabs.length > 0) openFileInEditor(openTabs[Math.max(0, index - 1)]); else { editor.setSession(ace.createEditSession("// No file open.")); editor.setReadOnly(true); document.getElementById('htvm-controls').style.display = 'none'; } }
                 renderAll();
             }
-            function handleNewFile() {
-                const name = prompt("Enter new file name:");
-                if (name && name.trim()) {
-                    const filename = name.trim();
-                    const path = currentDirectory === '/' ? filename : `${currentDirectory}${filename}`;
-                    if (getAllPaths().includes(path)) { alert(`File "${path}" already exists.`); return; }
-                    saveFileContent(path, "", true);
-                    openFileInEditor(path);
-                }
-            }
-            function handleNewFolder() {
-                const name = prompt("Enter new folder name:");
-                if (name && name.trim()) {
-                    const foldername = name.trim();
-                    const path = currentDirectory === '/' ? foldername : `${currentDirectory}${foldername}`;
-                    const pathWithSlash = path + '/';
-                    if (getAllPaths().some(p => p.startsWith(pathWithSlash))) { alert(`Folder "${path}" or a sub-item already exists.`); return; }
-                    lsSet(`folder_${pathWithSlash}`, true);
-                    term.writeln(`\x1b[32mFolder created: ${path}\x1b[0m`);
-                    renderFileList();
-                }
-            }
-            function handleRun() { if (currentOpenFile && !editor.getReadOnly()) { saveFileContent(currentOpenFile, editor.getValue()); term.writeln(`\x1b[36mRunning ${currentOpenFile}...\x1b[0m`); } }
-            function handleCloseTabRequest(filename) { if (!filename) return; if (fileSessions.has(filename)) { const session = fileSessions.get(filename); if (session && !session.getUndoManager().isClean()) saveFileContent(filename, session.getValue(), true); } closeTab(filename); }
-            function handleReopenTab() { const fileToReopen = recentlyClosedTabs.pop(); if (fileToReopen && getAllPaths().includes(fileToReopen)) { openFileInEditor(fileToReopen); } }
+            function handleNewFile() { const name = prompt("File name:"); if (name?.trim()) { const path = currentDirectory === '/' ? name : `${currentDirectory}${name}`; if (getAllPaths().includes(path)) { alert("File exists."); return; } saveFileContent(path, path.endsWith('.htvm') ? '; Welcome!' : '', true); openFileInEditor(path); } }
+            function handleNewFolder() { const name = prompt("Folder name:"); if (name?.trim()) { const path = (currentDirectory === '/' ? name : `${currentDirectory}${name}`) + '/'; if (getAllPaths().some(p => p.startsWith(path))) { alert("Folder exists."); return; } lsSet(`folder_${path}`, true); renderFileList(); } }
             
             function openSessionModal(mode) {
                 const overlay = document.getElementById('modal-overlay');
-                const title = document.getElementById('modal-title');
-                const saveContent = document.getElementById('modal-save-content');
-                const loadContent = document.getElementById('modal-load-content');
-                const confirmBtn = document.getElementById('modal-confirm-btn');
-                const input = document.getElementById('modal-input');
+                overlay.innerHTML = `<div class="modal-box"><h3 id="modal-title"></h3><div id="modal-save-content" style="display:none;"><p>Enter/overwrite session name:</p><input type="text" id="modal-input" style="width:calc(100% - 22px);padding:10px;margin-bottom:15px;background-color:#252525;border:1px solid #333;color:#e0e0e0;"></div><ul class="modal-list" id="modal-list"></ul><div class="modal-buttons"><button id="modal-cancel-btn">Cancel</button><button id="modal-confirm-btn" style="margin-left:8px;">Save</button></div></div>`;
                 const list = document.getElementById('modal-list');
-                const closeModal = () => { overlay.style.display = 'none'; confirmBtn.onclick = null; };
-                document.getElementById('modal-cancel-btn').onclick = closeModal;
-                overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
-                const populateSessionList = (clickCallback) => {
-                    list.innerHTML = '';
-                    const sessionList = lsGet('session_list') || [];
-                    if (sessionList.length === 0) {
-                        list.innerHTML = "<li class='no-sessions'>No saved sessions found.</li>";
-                    } else {
-                        sessionList.forEach(name => {
-                            const li = document.createElement('li');
-                            const nameSpan = document.createElement('span');
-                            nameSpan.className = 'session-name';
-                            nameSpan.textContent = name;
-                            nameSpan.onclick = () => clickCallback(name);
-                            li.appendChild(nameSpan);
-                            const deleteBtn = document.createElement('button');
-                            deleteBtn.className = 'delete-session-btn';
-                            deleteBtn.innerHTML = '🗑️';
-                            deleteBtn.title = `Delete session "${name}"`;
-                            deleteBtn.onclick = (e) => {
-                                e.stopPropagation();
-                                if (confirm(`Are you sure you want to delete the session "${name}"?`)) {
-                                    lsRemove(`session_${name}`);
-                                    const newList = sessionList.filter(s => s !== name);
-                                    lsSet('session_list', newList);
-                                    term.writeln(`\x1b[31mSession "${name}" deleted.\x1b[0m`);
-                                    populateSessionList(clickCallback);
-                                }
-                            };
-                            li.appendChild(deleteBtn);
-                            list.appendChild(li);
-                        });
-                    }
-                };
-                if (mode === 'save') {
-                    title.textContent = "Save/Overwrite Session";
-                    saveContent.style.display = 'block';
-                    loadContent.style.display = 'block';
-                    confirmBtn.style.display = 'inline-block';
-                    input.value = '';
-                    input.focus();
-                    confirmBtn.textContent = 'Save as New';
-                    const saveAction = (sessionName) => {
-                        let sessionList = lsGet('session_list') || [];
-                        if (!sessionList.includes(sessionName)) sessionList.push(sessionName);
-                        lsSet('session_list', sessionList);
-                        lsSet(`session_${sessionName}`, openTabs);
-                        term.writeln(`\x1b[32mSession "${sessionName}" saved.\x1b[0m`);
-                        closeModal();
-                    };
-                    populateSessionList((name) => saveAction(name));
-                    confirmBtn.onclick = () => {
-                        const sessionName = input.value.trim();
-                        if (sessionName) saveAction(sessionName);
-                        else alert("Session name cannot be empty.");
+                const populate = (cb) => { list.innerHTML = ''; const sessions = lsGet('session_list') || []; if (!sessions.length) {list.innerHTML = "<li class='no-sessions'>No sessions found.</li>"; return;} sessions.forEach(name => { const li = document.createElement('li'); li.onclick=()=>cb(name); const nameSpan = document.createElement('span'); nameSpan.textContent = name; const delBtn = document.createElement('button'); delBtn.textContent='🗑️'; delBtn.style.cssText='background:none;border:none;color:#aaa;'; delBtn.onclick=(e)=>{e.stopPropagation();if(confirm(`Delete session "${name}"?`)){let s=lsGet('session_list').filter(i=>i!==name);lsSet('session_list',s);lsRemove(`session_data_${name}`);populate(cb);}}; li.appendChild(nameSpan); li.appendChild(delBtn); list.appendChild(li); }); };
+                document.getElementById('modal-cancel-btn').onclick = () => overlay.style.display = 'none';
+                if(mode === 'save') {
+                    document.getElementById('modal-title').textContent = 'Save Session'; document.getElementById('modal-save-content').style.display = 'block'; document.getElementById('modal-confirm-btn').textContent = 'Save';
+                    populate(name => document.getElementById('modal-input').value = name);
+                    document.getElementById('modal-confirm-btn').onclick = () => {
+                        const name = document.getElementById('modal-input').value.trim(); if(!name) return alert('Name cannot be empty.');
+                        let sessions = lsGet('session_list') || []; if(!sessions.includes(name)) sessions.push(name); lsSet('session_list', sessions); lsSet(`session_data_${name}`, openTabs); overlay.style.display = 'none'; term.writeln(`\x1b[32mSession '${name}' saved.\x1b[0m`);
                     };
                 } else {
-                    title.textContent = "Load Session";
-                    saveContent.style.display = 'none';
-                    loadContent.style.display = 'block';
-                    confirmBtn.style.display = 'none';
-                    populateSessionList((name) => {
-                        const savedTabs = lsGet(`session_${name}`);
-                        if (savedTabs) {
-                            [...openTabs].forEach(f => closeTab(f, true));
-                            savedTabs.forEach(f => { if (getAllPaths().includes(f)) openFileInEditor(f); });
-                            term.writeln(`\x1b[32mSession "${name}" loaded.\x1b[0m`);
-                            closeModal();
-                        }
+                    document.getElementById('modal-title').textContent = 'Load Session'; document.getElementById('modal-save-content').style.display = 'none'; document.getElementById('modal-confirm-btn').style.display = 'none';
+                    populate(name => {
+                        const tabs = lsGet(`session_data_${name}`); if(tabs) { [...openTabs].forEach(t => closeTab(t, true)); tabs.forEach(t => { if(getAllPaths().includes(t)) openFileInEditor(t); }); }
+                        overlay.style.display = 'none'; term.writeln(`\x1b[32mSession '${name}' loaded.\x1b[0m`);
                     });
                 }
                 overlay.style.display = 'flex';
             }
-
-            // --- Initializer ---
-            const savedSidebarWidth = lsGet('sidebarWidth');
-            if (savedSidebarWidth) document.querySelector('.sidebar').style.width = savedSidebarWidth;
-            const savedTerminalHeight = lsGet('terminalHeight');
-            if (savedTerminalHeight) document.getElementById('terminal-container').style.height = savedTerminalHeight;
             
-            ace.require("ace/ext/language_tools");
-            editor = ace.edit("editor");
-            editor.setTheme("ace/theme/monokai");
-            editor.setOptions({ enableBasicAutocompletion: true, enableSnippets: true, enableLiveAutocompletion: true, fontSize: "14px", showPrintMargin: false });
-            
-            const VIM_MODE_KEY = 'vimModeEnabled';
-            function toggleVimMode() {
-                const isVimEnabled = editor.getKeyboardHandler().$id === "ace/keyboard/vim";
-                if (isVimEnabled) {
-                    editor.setKeyboardHandler(null);
-                    lsSet(VIM_MODE_KEY, false);
-                    term.writeln('\x1b[33mVim mode disabled.\x1b[0m');
-                } else {
-                    editor.setKeyboardHandler("ace/keyboard/vim");
-                    lsSet(VIM_MODE_KEY, true);
-                    term.writeln('\x1b[32mVim mode enabled.\x1b[0m');
-                }
-            }
-            editor.commands.addCommand({
-              name: "toggleVimMode",
-              bindKey: { win: "Ctrl-Alt-Shift-V", mac: "Command-Alt-Shift-V" },
-              exec: toggleVimMode,
-            });
-            if (lsGet(VIM_MODE_KEY) === true) {
-                editor.setKeyboardHandler("ace/keyboard/vim");
-            }
-
-            const addCustomCss = () => {
-                const css = `
-                    .ace-monokai .ace_marker-layer .ace_active-line { background-color: #103010 !important; }
-                    .ace-monokai { background-color: #050505 !important; color: #f8f8f2; }
-                    .ace-monokai .ace_gutter { background: #204020 !important; color: #cbcdc3 !important; }
-                    .ace-monokai .ace_gutter-active-line { background-color: transparent !important; }
-                    .ace-monokai .ace_entity.ace_name.ace_tag, .ace-monokai .ace_keyword, .ace-monokai .ace_meta.ace_tag, .ace-monokai .ace_storage { color: #40a0e0 !important; }
-                    .ace-monokai .ace_entity.ace_name.ace_function, .ace-monokai .ace_entity.ace_other, .ace-monokai .ace_entity.ace_other.ace_attribute-name, .ace-monokai .ace_variable { color: #ff80df !important; }
-                    .ace-monokai .ace_comment { color: #40d080 !important; font-style: italic !important; }
-                    .ace-monokai .ace_programmingBlocksAndImport { color: #f51000 !important; font-weight: bold !important; }
-                    .ace-monokai .ace_commentOpen_Close { color: #40d080 !important; font-style: italic !important; }
-                    .ace-monokai .ace_variables { color: #ffffff !important; }
-                    .ace-monokai .ace_functions { color: #80dfff !important; }
-                    .ace-monokai .ace_keywords { color: #8080e0 !important; font-weight: bold !important; }
-                    .ace-monokai .ace_braces_Open, .ace-monokai .ace_braces_Close { color: #FFFFff !important; }
-                    .ace-monokai .ace_arrayMethods { color: #FAB820 !important; }
-                    .ace-monokai .ace_BuildInFunc { color: #ff80df !important; }
-                    .ace-monokai .ace_command { color: #40a0e0 !important; font-weight: bold !important; }
-                    .ace-monokai .ace_static_types { color: #569cd6 !important; font-weight: bold !important; }
-                    .ace-monokai .ace_string { color: #ffa0a0 !important; font-weight: lighter !important; }
-                    .ace-monokai .ace_operators, .ace-monokai .ace_trueANDfalse { color: #00ffff !important; font-weight: lighter !important; }
-                    .ace-monokai .ace_escape-char { color: #ff8000 !important; font-weight: bold !important; }
-                    .ace-monokai .ace_punctuation, .ace-monokai .ace_punctuation.ace _tag { color: #ffa0a0 !important; }
-                    
-                    *::-webkit-scrollbar {
-                        width: 16px;
-                        height: 16px;
-                    }
-                    *::-webkit-scrollbar-track {
-                        background: #1e1e1e;
-                    }
-                    *::-webkit-scrollbar-thumb {
-                        background-color: #4A90E2; 
-                        border-radius: 3px;
-                    }
-                    *::-webkit-scrollbar-thumb:hover {
-                        background-color: #0078D4;
-                    }
-                `;
-                var style = document.createElement("style");
-                style.type = "text/css";
-                style.appendChild(document.createTextNode(css));
-                document.head.appendChild(style);
-            };
-            addCustomCss();
-
-            term = new Terminal({ cursorBlink: true, fontFamily: 'monospace', fontSize: 13, theme: { background: '#000000', foreground: '#00DD00', cursor: '#00FF00', selectionBackground: '#225522' } });
-            fitAddon = new FitAddon.FitAddon();
-            term.loadAddon(fitAddon);
-            term.open(document.getElementById('terminal'));
-            fitAddon.fit();
-            term.writeln('\x1b[1;32mWelcome to HT-IDE Terminal!\x1b[0m');
-            term.write('$ ');
-            
-            let command = '';
-            term.onKey(({ key, domEvent }) => {
-                const printable = !domEvent.altKey && !domEvent.ctrlKey && !domEvent.metaKey;
-                if (domEvent.keyCode === 13) {
-                    term.writeln('');
-                    if (command.trim() === 'clear') { term.clear(); term.writeln('\x1b[1;32mWelcome!\x1b[0m');
-                    } else if (command.trim()) { term.writeln(`\x1b[33mEcho: ${command}\x1b[0m`); }
-                    command = '';
-                    term.write('$ ');
-                } else if (domEvent.keyCode === 8) {
-                    if (term.buffer.active.cursorX > 2) { term.write('\b \b'); command = command.slice(0, -1); }
-                } else if (printable && key.length === 1) { command += key; term.write(key); }
-            });
-            
-            document.getElementById('new-file-btn').addEventListener('click', handleNewFile);
-            document.getElementById('new-folder-btn').addEventListener('click', handleNewFolder);
-            document.getElementById('save-session-btn').addEventListener('click', () => openSessionModal('save'));
-            document.getElementById('load-session-btn').addEventListener('click', () => openSessionModal('load'));
-            document.getElementById('open-folder-btn').addEventListener('click', () => alert("This feature uses the real file system in the desktop version."));
-            document.getElementById('run-btn').addEventListener('click', handleRun);
-            
-            document.addEventListener('keydown', (e) => {
-                const isCtrlOrCmd = e.ctrlKey || e.metaKey;
-                if (isCtrlOrCmd && e.key.toLowerCase() === 's') { e.preventDefault(); if(currentOpenFile) saveFileContent(currentOpenFile, editor.getValue()); } 
-                else if (isCtrlOrCmd && e.key.toLowerCase() === 'w') { e.preventDefault(); handleCloseTabRequest(currentOpenFile); } 
-                else if (isCtrlOrCmd && e.key.toLowerCase() === 'enter') { e.preventDefault(); handleRun(); } 
-                else if (isCtrlOrCmd && e.shiftKey && e.key.toLowerCase() === 't') { e.preventDefault(); handleReopenTab(); } 
-                else if (isCtrlOrCmd && e.key.toLowerCase() === 'b') { e.preventDefault(); document.getElementById('main-toggle-sidebar-btn').click(); } 
-                else if (e.key === 'F5') { e.preventDefault(); handleRun(); }
-            });
-
-            const initTerminalResizer = () => { 
-                const r = document.getElementById('terminal-resizer'), c = document.getElementById('terminal-container'); 
-                r.onmousedown = (e) => { 
-                    e.preventDefault(); 
-                    const y = e.clientY, h = c.offsetHeight; 
-                    const d = (m) => { 
-                        const n = h - (m.clientY - y); 
-                        if (n >= 40 && n < (window.innerHeight - 100)) { 
-                            c.style.height = `${n}px`; 
-                            editor.resize(); 
-                            fitAddon.fit(); 
-                        }
-                    }; 
-                    const s = () => { 
-                        window.removeEventListener('mousemove', d); 
-                        window.removeEventListener('mouseup', s); 
-                        lsSet('terminalHeight', c.style.height);
-                    }; 
-                    window.addEventListener('mousemove', d); window.addEventListener('mouseup', s); 
-                };
-            };
-            
-            const initSidebarResizer = () => {
-                const resizer = document.getElementById('sidebar-resizer');
-                const sidebar = document.querySelector('.sidebar');
+            function openSettingsModal() {
+                const overlay = document.getElementById('modal-overlay');
+                overlay.innerHTML = `<div class="modal-box" style="display:flex;flex-direction:column;gap:15px;">
+                    <h3>Settings + Help</h3>
+                    <div style="border-top:1px solid #333;padding-top:15px;">
+                        <h4>Editor</h4>
+                        <div><label for="font-size-input">Font Size: </label><input type="number" id="font-size-input" style="width:60px;background:#252525;color:#e0e0e0;border:1px solid #333;"></div>
+                        <div><label><input type="checkbox" id="vim-mode-checkbox"> Vim Mode</label></div>
+                        <div><label><input type="checkbox" id="auto-pair-checkbox"> Auto-pair Brackets/Quotes</label></div>
+                        <div><label><input type="checkbox" id="print-margin-checkbox"> Show Vertical Guide Line</label></div>
+                        <div style="padding-left: 20px;"><label for="print-margin-column-input">Guide Line Column: </label><input type="number" id="print-margin-column-input" style="width:60px;background:#252525;color:#e0e0e0;border:1px solid #333;"></div>
+                    </div>
+                    <div style="border-top:1px solid #333;padding-top:15px;">
+                        <h4>Syntax Highlighting</h4>
+                        <div><label><input type="checkbox" id="symbol-operator-highlighting-checkbox"> Highlight Symbol Operators (e.g., :=, ++, *)</label></div>
+                    </div>
+                    <div style="border-top:1px solid #333;padding-top:15px;">
+                        <h4>Autocomplete</h4>
+                        <div><label><input type="checkbox" id="autocomplete-master-checkbox"> Enable Autocomplete</label></div>
+                        <div style="padding-left: 20px;"><label><input type="checkbox" id="autocomplete-keywords-checkbox"> HTVM Keywords/Functions</label></div>
+                        <div style="padding-left: 20px;"><label><input type="checkbox" id="autocomplete-local-checkbox"> Words from document</label></div>
+                    </div>
+                    <div id="settings-help" style="border-top:1px solid #333;padding-top:15px;">
+                        <h4>Hotkeys</h4>
+                        <ul style="padding-left:20px;margin:0;"><li><b>Ctrl+Enter / F5:</b> Run File</li><li><b>Ctrl+S:</b> Save File</li><li><b>Ctrl+W:</b> Close Tab</li><li><b>Ctrl+Shift+T:</b> Re-open last closed tab</li><li><b>Ctrl+B:</b> Toggle Sidebar</li></ul>
+                    </div>
+                    <div class="modal-buttons"><button id="modal-ok-btn">OK</button></div>
+                </div>`;
                 
-                resizer.onmousedown = (e) => {
-                    e.preventDefault();
-                    document.body.style.userSelect = 'none';
-                    document.body.style.cursor = 'ew-resize';
+                // Load saved settings
+                document.getElementById('font-size-input').value = editor.getFontSize();
+                document.getElementById('vim-mode-checkbox').checked = editor.getKeyboardHandler().$id === 'ace/keyboard/vim';
+                document.getElementById('auto-pair-checkbox').checked = editor.getBehavioursEnabled();
+                document.getElementById('print-margin-checkbox').checked = editor.getShowPrintMargin();
+                document.getElementById('print-margin-column-input').value = editor.getOption('printMargin');
+                document.getElementById('symbol-operator-highlighting-checkbox').checked = lsGet('highlightSymbolOperators') !== false;
+                document.getElementById('autocomplete-master-checkbox').checked = lsGet('autocomplete-master') !== false;
+                document.getElementById('autocomplete-keywords-checkbox').checked = lsGet('autocomplete-keywords') !== false;
+                document.getElementById('autocomplete-local-checkbox').checked = lsGet('autocomplete-local') !== false;
 
-                    const startX = e.clientX;
-                    const startWidth = sidebar.offsetWidth;
+                document.getElementById('modal-ok-btn').onclick = () => {
+                    editor.setFontSize(parseInt(document.getElementById('font-size-input').value, 10)); lsSet('fontSize', editor.getFontSize());
+                    const vimMode = document.getElementById('vim-mode-checkbox').checked; if ((editor.getKeyboardHandler().$id === 'ace/keyboard/vim') !== vimMode) { editor.setKeyboardHandler(vimMode ? "ace/keyboard/vim" : null); lsSet('vimMode', vimMode); }
+                    editor.setBehavioursEnabled(document.getElementById('auto-pair-checkbox').checked); lsSet('autoPair', editor.getBehavioursEnabled());
+                    
+                    const shouldShowMargin = document.getElementById('print-margin-checkbox').checked;
+                    editor.setShowPrintMargin(shouldShowMargin);
+                    lsSet('showPrintMargin', shouldShowMargin);
+                    
+                    editor.setOption('printMargin', parseInt(document.getElementById('print-margin-column-input').value, 10) || 80); lsSet('printMarginColumn', editor.getOption('printMargin'));
+                    
+                    const highlightOperators = document.getElementById('symbol-operator-highlighting-checkbox').checked;
+                    if ((lsGet('highlightSymbolOperators') !== false) !== highlightOperators) { lsSet('highlightSymbolOperators', highlightOperators); loadHtvmInstructions(); } // Reload mode to apply change
+                    
+                    lsSet('autocomplete-master', document.getElementById('autocomplete-master-checkbox').checked);
+                    lsSet('autocomplete-keywords', document.getElementById('autocomplete-keywords-checkbox').checked);
+                    lsSet('autocomplete-local', document.getElementById('autocomplete-local-checkbox').checked);
 
-                    const doDrag = (moveEvent) => {
-                        const newWidth = startWidth + (moveEvent.clientX - startX);
-                        if (newWidth >= 150 && newWidth <= (window.innerWidth - 200)) {
-                            sidebar.style.width = `${newWidth}px`;
-                            editor.resize();
-                            if (fitAddon) fitAddon.fit();
-                        }
-                    };
-
-                    const stopDrag = () => {
-                        document.body.style.userSelect = 'auto';
-                        document.body.style.cursor = 'default';
-                        window.removeEventListener('mousemove', doDrag);
-                        window.removeEventListener('mouseup', stopDrag);
-                        lsSet('sidebarWidth', sidebar.style.width);
-                    };
-
-                    window.addEventListener('mousemove', doDrag);
-                    window.addEventListener('mouseup', stopDrag);
+                    overlay.style.display = 'none';
                 };
-            };
-
-            const initSidebarToggle = () => { 
-                const t = document.getElementById('main-toggle-sidebar-btn'), s = document.querySelector('.sidebar'); 
-                const ts = () => { 
-                    s.classList.toggle('collapsed'); 
-                    lsSet('sidebarCollapsed', s.classList.contains('collapsed')); 
-                    setTimeout(() => { editor.resize(); fitAddon.fit(); }, 310); 
-                }; 
-                if (t) t.onclick = ts; 
-                if (lsGet('sidebarCollapsed')) s.classList.add('collapsed'); 
-                setTimeout(() => { document.body.classList.remove('preload'); }, 50); 
-            };
-            
-            initTerminalResizer();
-            initSidebarResizer();
-            initSidebarToggle();
-            
-            window.addEventListener('resize', debounce(() => { if(editor && fitAddon) { editor.resize(); fitAddon.fit(); } }, 100));
-
-            const savedOpenTabs = lsGet('openTabs');
-            if (savedOpenTabs && Array.isArray(savedOpenTabs)) { openTabs = savedOpenTabs.filter(filename => getAllPaths().includes(filename)); }
-            const lastOpenFile = lsGet('lastOpenFile');
-            const lastCwd = lsGet('lastCwd');
-            if(lastCwd) setCurrentDirectory(lastCwd);
-            
-            renderAll();
-            if (lastOpenFile && getAllPaths().includes(lastOpenFile)) {
-                openFileInEditor(lastOpenFile); 
-            } else if (openTabs.length > 0) {
-                openFileInEditor(openTabs[0]); 
-            } else {
-                editor.setSession(ace.createEditSession("// No file open. Create a new file or folder to get started."));
-                editor.setReadOnly(true);
-                renderAll();
+                overlay.style.display = 'flex';
             }
 
-            window.addEventListener('beforeunload', () => {
-                if (currentOpenFile) {
-                    saveFileContent(currentOpenFile, editor.getValue(), true);
-                    saveEditorState(currentOpenFile);
+            function runJsCode(code) { term.writeln(`\x1b[1;33m--- JS Execution ---\x1b[0m`); const originalLog = console.log; try { console.log = (...args) => term.writeln(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)).join(' ')); new Function(code)(); } catch (e) { term.writeln(`\x1b[31mError: ${e.message}\x1b[0m`); } finally { console.log = originalLog; } }
+            function runHtvmCode(code) {
+                const lang = lsGet('selectedLangExtension') || 'js';
+                let instructionSet = JSON.parse(localStorage.getItem(`htvm_lang_${IDE_ID}`) || '[]');
+                const isFullHtml = lang === 'js' && document.getElementById('full-html-checkbox').checked;
+
+                if (isFullHtml) {
+                    if (Array.isArray(instructionSet) && instructionSet.length > 158) {
+                        instructionSet[158] = "on"; // useJavaScriptInAfullHTMLfile is at line 159 (index 158)
+                    }
                 }
-                lsSet('openTabs', openTabs);
-                lsSet('lastOpenFile', currentOpenFile);
-                lsSet('lastCwd', currentDirectory);
-            });
+                
+                term.writeln(`\x1b[32mTranspiling HTVM to ${isFullHtml ? 'HTML' : lang.toUpperCase()}...\x1b[0m`); 
+                const compiled = compiler(code, instructionSet.join('\n'), "full", lang); 
+                resetGlobalVarsOfHTVMjs(); 
+                
+                const newFileExt = isFullHtml ? 'html' : lang;
+                const newFile = currentOpenFile.replace(/\.htvm$/, `.${newFileExt}`); 
+
+                saveFileContent(newFile, compiled, false); 
+                if (!openTabs.includes(newFile)) openFileInEditor(newFile); 
+                
+                if (document.getElementById('run-js-after-htvm').checked) {
+                    if (isFullHtml) {
+                        runHtmlCode(compiled);
+                    } else if (lang === 'js') {
+                        runJsCode(compiled);
+                    }
+                }
+            }
+            function runHtmlCode(code) { const panel = document.getElementById('output-panel'); const iframe = document.getElementById('html-output'); iframe.srcdoc = code; panel.classList.add('visible'); }
+            function handleRun(e) { e?.preventDefault(); if (!currentOpenFile) return; saveFileContent(currentOpenFile, editor.getValue()); term.writeln(`\x1b[36m> Running ${currentOpenFile}...\x1b[0m`); const ext = currentOpenFile.split('.').pop(); if (ext === 'js') runJsCode(editor.getValue()); else if (ext === 'htvm') runHtvmCode(editor.getValue()); else if (ext === 'html') runHtmlCode(editor.getValue()); else term.writeln(`\x1b[31mError: Cannot execute ".${ext}" files.\x1b[0m`); }
+            function handleCloseTabRequest(filename) { if (!filename) return; if (fileSessions.has(filename)) { if (!fileSessions.get(filename).getUndoManager().isClean()) saveFileContent(filename, editor.getValue(), true); } closeTab(filename); }
+            const handleReopenTab = () => { const f = recentlyClosedTabs.pop(); if (f && getAllPaths().includes(f)) openFileInEditor(f); };
+
+            function updateEditorModeForHtvm() {
+                const htvmControls = document.getElementById('htvm-controls'); if (!currentOpenFile || !currentOpenFile.endsWith('.htvm')) { htvmControls.style.display = 'none'; return; }
+                htvmControls.style.display = 'flex'; const keywords = JSON.parse(localStorage.getItem(`htvm_lang_${IDE_ID}`) || '[]'); if (!keywords || keywords.length < 42) return;
+                const currentLine = editor.getSelectionRange().start.row; const lines = editor.getValue().split('\n');
+                const markers = {[keywords[16]]:{lang:"js"},[keywords[14]]:{lang:"py"},[keywords[12]]:{lang:"cpp"},[keywords[18]]:{lang:"go"},[keywords[20]]:{lang:"lua"},[keywords[22]]:{lang:"cs"},[keywords[24]]:{lang:"java"},[keywords[26]]:{lang:"kt"},[keywords[28]]:{lang:"rb"},[keywords[30]]:{lang:"nim"},[keywords[32]]:{lang:"ahk"},[keywords[34]]:{lang:"swift"},[keywords[36]]:{lang:"dart"},[keywords[38]]:{lang:"ts"},[keywords[40]]:{lang:"groovy"}};
+                let lang = "htvm";
+                for (let i = currentLine; i >= 0; i--) { let foundEnd=false; for (const startMarker in markers) { if(!startMarker || startMarker === 'undefined') continue; const endMarker = keywords[keywords.indexOf(startMarker)+1]; if(lines[i].includes(endMarker)) {foundEnd=true; break;} if(lines[i].includes(startMarker)) {lang=markers[startMarker].lang; i=-1; break;} } if(foundEnd) break; }
+                const modeMap = {'js':'javascript','py':'python','cpp':'c_cpp','go':'golang','lua':'lua','cs':'csharp','java':'java','kt':'kotlin','rb':'ruby','nim':'nim','ahk':'autohotkey','swift':'swift','dart':'dart','ts':'typescript','groovy':'groovy','htvm':'htvm'};
+                const finalMode = `ace/mode/${modeMap[lang] || 'text'}`; if (editor.session.getMode().$id !== finalMode) { editor.session.setMode(finalMode); langTools.setCompleters(lang === 'htvm' ? [window.HTVMCompleter] : [langTools.textCompleter, langTools.keyWordCompleter]); }
+            }
+            
+            const toggleDropdown = () => { const el = document.getElementById('lang-dropdown'); el.style.display = el.style.display === 'block' ? 'none' : 'block'; };
+            window.toggleDropdown = toggleDropdown;
+            function changeLanguage(name, img, lang) { document.getElementById('selected-lang-name').textContent = name; document.getElementById('selected-lang-img').src = img; lsSet('selectedLangExtension', lang); toggleDropdown(); }
+            window.changeLanguage = changeLanguage;
+
+            editor.setTheme("ace/theme/monokai");
+            editor.setOptions({ enableBasicAutocompletion: true, enableLiveAutocompletion: true, behavioursEnabled: lsGet('autoPair') !== false, wrap: true, printMargin: lsGet('printMarginColumn') || 80 });
+            const savedShowPrintMargin = lsGet('showPrintMargin');
+            editor.setShowPrintMargin(savedShowPrintMargin === null ? true : savedShowPrintMargin);
+            
+            editor.setFontSize(parseInt(lsGet('fontSize') || 14, 10));
+            if(lsGet('vimMode')) editor.setKeyboardHandler("ace/keyboard/vim");
+            editor.on('changeSelection', debounce(updateEditorModeForHtvm, 200));
+            
+            term.writeln(`\x1b[1;32mWelcome to HT-IDE! (Workspace ID: ${IDE_ID})\x1b[0m`); term.write('$ ');
+            
+            document.getElementById('lang-dropdown').addEventListener('click', e => { const item = e.target.closest('.dropdown-item'); if (item) changeLanguage(item.dataset.name, item.dataset.img, item.dataset.lang); });
+            document.getElementById('run-js-after-htvm').checked = lsGet('runJsAfterHtvm') !== false;
+            document.getElementById('run-js-after-htvm').onchange = e => lsSet('runJsAfterHtvm', e.target.checked);
+            document.getElementById('full-html-checkbox').checked = lsGet('fullHtml') === true;
+            document.getElementById('full-html-checkbox').onchange = e => lsSet('fullHtml', e.target.checked);
+            const savedLang = lsGet('selectedLangExtension'); if (savedLang) { const item = document.querySelector(`.dropdown-item[data-lang="${savedLang}"]`); if (item) { document.getElementById('selected-lang-name').textContent = item.dataset.name; document.getElementById('selected-lang-img').src = item.dataset.img; } }
+            document.getElementById('new-file-btn').onclick = handleNewFile;
+            document.getElementById('new-folder-btn').onclick = handleNewFolder;
+            document.getElementById('run-btn').onclick = handleRun;
+            document.getElementById('save-session-btn').onclick = () => openSessionModal('save');
+            document.getElementById('load-session-btn').onclick = () => openSessionModal('load');
+            document.getElementById('settings-btn').onclick = openSettingsModal;
+            document.getElementById('open-folder-btn').onclick = () => alert("This feature is for the desktop version.");
+            document.getElementById('close-output-btn').onclick = () => document.getElementById('output-panel').classList.remove('visible');
+            document.getElementById('load-instructions-btn').onclick = () => document.getElementById('instruction-file-input').click();
+            document.getElementById('instruction-file-input').onchange = e => { const file = e.target.files[0]; if(file) { const reader=new FileReader(); reader.onload = async r => { term.writeln(`\x1b[32mLoading HTVM instructions from ${file.name}...\x1b[0m`); await loadHtvmInstructions(r.target.result); term.writeln(`\x1b[32mInstructions loaded and syntax refreshed.\x1b[0m`); }; reader.readAsText(file); } };
+            document.addEventListener('keydown', e => { const ctrl = e.ctrlKey || e.metaKey; if(e.key === 'F5' || (ctrl && e.key === 'Enter')) { e.preventDefault(); handleRun(); } if(ctrl && e.key === 's') { e.preventDefault(); saveFileContent(currentOpenFile, editor.getValue()); } if(ctrl && e.key === 'w') { e.preventDefault(); handleCloseTabRequest(currentOpenFile); } if(ctrl && e.key === 'b') {e.preventDefault(); document.getElementById('main-toggle-sidebar-btn').click();} if(ctrl && e.shiftKey && (e.key === 'T' || e.key === 't')) {e.preventDefault(); handleReopenTab();} });
+            document.getElementById('main-toggle-sidebar-btn').onclick = () => { const s = document.querySelector('.sidebar'); s.classList.toggle('collapsed'); lsSet('sidebarCollapsed', s.classList.contains('collapsed')); setTimeout(() => { editor.resize(); fitAddon.fit(); }, 310); };
+            
+            const initResizer = (resizerEl, containerEl, lsKey, direction) => {
+                resizerEl.onmousedown = e => { e.preventDefault(); const start = direction === 'x' ? e.clientX : e.clientY; const startSize = direction === 'x' ? containerEl.offsetWidth : containerEl.offsetHeight; const doDrag = m => { const delta = (direction === 'x' ? m.clientX - start : m.clientY - start); let newSize; if(direction === 'y') newSize = startSize - delta; else if (resizerEl.id === 'output-panel-resizer') newSize = startSize - delta; else newSize = startSize + delta; if (newSize > 100 && newSize < window[direction === 'x' ? 'innerWidth' : 'innerHeight'] - 50) { containerEl.style[direction === 'x' ? 'width' : 'height'] = `${newSize}px`; editor.resize(); fitAddon.fit(); } }; const stopDrag = () => { window.removeEventListener('mousemove', doDrag); window.removeEventListener('mouseup', stopDrag); lsSet(lsKey, containerEl.style[direction === 'x' ? 'width' : 'height']); }; window.addEventListener('mousemove', doDrag); window.addEventListener('mouseup', stopDrag); };
+            };
+            initResizer(document.getElementById('sidebar-resizer'), document.querySelector('.sidebar'), 'sidebarWidth', 'x');
+            initResizer(document.getElementById('terminal-resizer'), document.getElementById('terminal-container'), 'terminalHeight', 'y');
+            initResizer(document.getElementById('output-panel-resizer'), document.getElementById('output-panel'), 'outputPanelWidth', 'x');
+
+            const sidebarWidth = lsGet('sidebarWidth'); if(sidebarWidth) document.querySelector('.sidebar').style.width = sidebarWidth;
+            const terminalHeight = lsGet('terminalHeight'); if(terminalHeight) document.getElementById('terminal-container').style.height = terminalHeight;
+            const outputWidth = lsGet('outputPanelWidth'); if(outputWidth) document.getElementById('output-panel').style.width = outputWidth;
+            if(lsGet('sidebarCollapsed')) document.querySelector('.sidebar').classList.add('collapsed');
+
+            const lastCwd = lsGet('lastCwd') || '/'; setCurrentDirectory(lastCwd);
+            const savedOpenTabs = lsGet('openTabs') || []; openTabs = savedOpenTabs.filter(f => getAllPaths().includes(f));
+            const lastFile = lsGet('lastOpenFile'); if (lastFile && getAllPaths().includes(lastFile)) openFileInEditor(lastFile); else if (openTabs.length > 0) openFileInEditor(openTabs[0]); else { editor.setSession(ace.createEditSession("// No file open.")); editor.setReadOnly(true); renderTabs(); }
+            
+            window.addEventListener('resize', debounce(() => { editor.resize(); fitAddon.fit(); }, 200));
+            window.addEventListener('beforeunload', () => { if (currentOpenFile) { saveFileContent(currentOpenFile, editor.getValue(), true); lsSet('state_' + currentOpenFile, { scrollTop: editor.session.getScrollTop(), cursor: editor.getCursorPosition() }); } lsSet('openTabs', openTabs); lsSet('lastOpenFile', currentOpenFile); lsSet('lastCwd', currentDirectory); });
+            setTimeout(() => { document.body.classList.remove('preload'); fitAddon.fit(); }, 50);
         });
+
+        // This is YOUR function to reset your compiler's state. It is now part of the main application.
+        function resetGlobalVarsOfHTVMjs(){var str0,str00,str1,str2,str3,str4,str5,str6,str7,str8,str9,str10,str11,str12,str13,str14,str15,str16,str17,str18,str19,str20,str21,int0,int1,int2,int3,int4,int5,int6,int7,argHTVMinstrMORE,isNotHTVMfileEXTRA_INT,isNotHTVMfile2,isNotHTVMfileEXTRA_LIB_INFO,isNotHTVMfileEXTRA_FUNCS_INFO,programmingBlock_InTheTranspiledLang,programmingBlock_CPP,programmingBlock_PY,programmingBlock_JS,programmingBlock_GO,programmingBlock_LUA,programmingBlock_CS,programmingBlock_JAVA,programmingBlock_KT,programmingBlock_RB,programmingBlock_NIM,programmingBlock_AHK,programmingBlock_SWIFT,programmingBlock_DART,programmingBlock_TS,programmingBlock_GROOVY,programmingBlock_HTVM,programmingBlock_HTVMsyntax,fullLangAllOperators,fullLangAllOperators_HELP,fixExpertionLineFuncOnly,langToConvertTo,langFileExtension,commands,keyWordAlliance,keyWordCrew,keyWordProc,keyWordStruct,keyWordPorp,keyWordThis,keyWordInclude,keyWordCodeInTheTranspiledLangStart,keyWordCodeInTheTranspiledLangEnd,keyWordCodeInTheTranspiledLangStartCPP,keyWordCodeInTheTranspiledLangEndCPP,keyWordCodeInTheTranspiledLangStartPY,keyWordCodeInTheTranspiledLangEndPY,keyWordCodeInTheTranspiledLangStartJS,keyWordCodeInTheTranspiledLangEndJS,keyWordCodeInTheTranspiledLangStartGO,keyWordCodeInTheTranspiledLangEndGO,keyWordCodeInTheTranspiledLangStartLUA,keyWordCodeInTheTranspiledLangEndLUA,keyWordCodeInTheTranspiledLangStartCS,keyWordCodeInTheTranspiledLangEndCS,keyWordCodeInTheTranspiledLangStartJAVA,keyWordCodeInTheTranspiledLangEndJAVA,keyWordCodeInTheTranspiledLangStartKT,keyWordCodeInTheTranspiledLangEndKT,keyWordCodeInTheTranspiledLangStartRB,keyWordCodeInTheTranspiledLangEndRB,keyWordCodeInTheTranspiledLangStartNIM,keyWordCodeInTheTranspiledLangEndNIM,keyWordCodeInTheTranspiledLangStartAHK,keyWordCodeInTheTranspiledLangEndAHK,keyWordCodeInTheTranspiledLangStartSWIFT,keyWordCodeInTheTranspiledLangEndSWIFT,keyWordCodeInTheTranspiledLangStartDART,keyWordCodeInTheTranspiledLangEndDART,keyWordCodeInTheTranspiledLangStartTS,keyWordCodeInTheTranspiledLangEndTS,keyWordCodeInTheTranspiledLangStartGROOVY,keyWordCodeInTheTranspiledLangEndGROOVY,keyWordCodeInTheTranspiledLangStartHTVM,keyWordCodeInTheTranspiledLangEndHTVM,keyWordCodeInHTVMstart,keyWordCodeInHTVMend,keyWordCurlyBraceOpen,keyWordCurlyBraceClose,keyWordNull,keyWordTrue,keyWordFalse,keyWordVoid,keyWordDouble,keyWordChar,keyWordUint8,keyWordUint16,keyWordUint32,keyWordUint64,keyWordINT,keyWordSTR,keyWordBOOL,keyWordFLOAT,keyWordINT8,keyWordINT16,keyWordINT32,keyWordINT64,keyWordIF,keyWordElseIf,keyWordElse,keyWordWhileLoop,keyWordLoopInfinite,keyWordLoop,keyWordLoopParse,keyWordContinue,keyWordBreak,keyWordFunc,keyWordAwait,keyWordAsync,keyWordThrow,keyWordErrorMsg,keyWordTry,keyWordCatch,keyWordFinally,keyWordReturnStatement,keyWordArrayAppend,keyWordArrayPop,keyWordArraySize,keyWordArrayInsert,keyWordArrayRemove,keyWordArrayIndexOf,keyWordArrayDefinition,keyWordArrayOfIntegersDefinition,keyWordArrayOfStringsDefinition,keyWordArrayOfFloatingPointNumbersDefinition,keyWordArrayOfBooleansDefinition,keyWordVar,keyWordLet,keyWordConst,keyWordEnd,keyWordGlobal,keyWordComment,keyWordCommentOpenMultiLine,keyWordCommentCloseMultiLine,keyWordEscpaeChar,keyWordMainLabel,keyWordConcat,keyWordAdd,keyWordSub,keyWordMul,keyWordDiv,keyWordMod,keyWordExp,keyWordEqual,keyWordStrictEqual,keyWordNotEqual,keyWordGreater,keyWordLess,keyWordGreaterEqual,keyWordLessEqual,keyWordAnd,keyWordOr,keyWordNot,keyWordBitAnd,keyWordBitOr,keyWordBitXor,keyWordBitNot,keyWordShiftLeft,keyWordShiftRight,keyWordShiftUnsignedRight,keyWordAssign,keyWordAssignAdd,keyWordAssignConcat,keyWordAssignSub,keyWordAssignMul,keyWordAssignDiv,keyWordAssignMod,keyWordAssignShiftLeft,keyWordAssignShiftRight,keyWordLogicalAssignShiftRight,keyWordAssignBitAnd,keyWordAssignBitOr,keyWordAssignBitXor,keyWordTernary1,keyWordTernary2,keyWordInc,keyWordDec,AHKlikeLoopsIndexedAt,keyWordAIndex,keyWordALoopField,useFuncKeyWord,useCurlyBraces,useEnd,useSemicolon,theSemicolon,theColon,useParentheses,usePrefixTypeForTypeDefinition,usePostfixTypeForTypeDefinition,usePythonicColonSyntax,useCurlyBracesSyntaxForArrayDef,useInJavaScriptAlwaysUseVar,useJavaScriptInAfullHTMLfile,useJavaScriptAmainFuncDef,useJavaScriptAllFuncsAreAsync,useJavaScriptAlwaysTripleEqual,keyWordALoopFieldOriginal,keyWordAIndexOriginal,out_KeyWordsCommands,outTrimCode,htCode,outVarOperator,lineDone,areWeInAFuncFromInstructions,areWeInAFuncFromInstructionsLineNum,javaMainFuncSeen,csMainFuncSeen,howMany_fixAindexInGoUnused,luaContinueFix_Num,theTryCatchVarForErrors,allVarsSoWeDontReDecVars,allVarsSoWeDontReDecVars_FIX_uint8,allVarsSoWeDontReDecVars_FIX_uint16,allVarsSoWeDontReDecVars_FIX_uint32,allVarsSoWeDontReDecVars_FIX_uint64,allVarsSoWeDontReDecVars_FIX_int64,allVarsSoWeDontReDecVars_FIX_float,allVarsSoWeDontReDecVars_FIX_TOGGLE;
+            str0="nothing";str00="nothing";str1="";str2="";str3="";str4="";str5="";str6="";str7="";str8="";str9="";str10="";str11="";str12="";str13="";str14="";str15="";str16="";str17="";str18="";str19="";str20="";str21="";int0=0;int1=0;int2=0;int3=0;int4=0;int5=0;int6=0;int7=0;argHTVMinstrMORE=[];isNotHTVMfileEXTRA_INT=0;isNotHTVMfile2=0;isNotHTVMfileEXTRA_LIB_INFO="";isNotHTVMfileEXTRA_FUNCS_INFO="";programmingBlock_InTheTranspiledLang=[];programmingBlock_CPP=[];programmingBlock_PY=[];programmingBlock_JS=[];programmingBlock_GO=[];programmingBlock_LUA=[];programmingBlock_CS=[];programmingBlock_JAVA=[];programmingBlock_KT=[];programmingBlock_RB=[];programmingBlock_NIM=[];programmingBlock_AHK=[];programmingBlock_SWIFT=[];programmingBlock_DART=[];programmingBlock_TS=[];programmingBlock_GROOVY=[];programmingBlock_HTVM=[];programmingBlock_HTVMsyntax=[];fullLangAllOperators=[];fullLangAllOperators_HELP=[];fixExpertionLineFuncOnly=0;langToConvertTo="";langFileExtension="";commands="";keyWordAlliance="";keyWordCrew="";keyWordProc="";keyWordStruct="";keyWordPorp="";keyWordThis="";keyWordInclude="";keyWordCodeInTheTranspiledLangStart="";keyWordCodeInTheTranspiledLangEnd="";keyWordCodeInTheTranspiledLangStartCPP="";keyWordCodeInTheTranspiledLangEndCPP="";keyWordCodeInTheTranspiledLangStartPY="";keyWordCodeInTheTranspiledLangEndPY="";keyWordCodeInTheTranspiledLangStartJS="";keyWordCodeInTheTranspiledLangEndJS="";keyWordCodeInTheTranspiledLangStartGO="";keyWordCodeInTheTranspiledLangEndGO="";keyWordCodeInTheTranspiledLangStartLUA="";keyWordCodeInTheTranspiledLangEndLUA="";keyWordCodeInTheTranspiledLangStartCS="";keyWordCodeInTheTranspiledLangEndCS="";keyWordCodeInTheTranspiledLangStartJAVA="";keyWordCodeInTheTranspiledLangEndJAVA="";keyWordCodeInTheTranspiledLangStartKT="";keyWordCodeInTheTranspiledLangEndKT="";keyWordCodeInTheTranspiledLangStartRB="";keyWordCodeInTheTranspiledLangEndRB="";keyWordCodeInTheTranspiledLangStartNIM="";keyWordCodeInTheTranspiledLangEndNIM="";keyWordCodeInTheTranspiledLangStartAHK="";keyWordCodeInTheTranspiledLangEndAHK="";keyWordCodeInTheTranspiledLangStartSWIFT="";keyWordCodeInTheTranspiledLangEndSWIFT="";keyWordCodeInTheTranspiledLangStartDART="";keyWordCodeInTheTranspiledLangEndDART="";keyWordCodeInTheTranspiledLangStartTS="";keyWordCodeInTheTranspiledLangEndTS="";keyWordCodeInTheTranspiledLangStartGROOVY="";keyWordCodeInTheTranspiledLangEndGROOVY="";keyWordCodeInTheTranspiledLangStartHTVM="";keyWordCodeInTheTranspiledLangEndHTVM="";keyWordCodeInHTVMstart="";keyWordCodeInHTVMend="";keyWordCurlyBraceOpen="";keyWordCurlyBraceClose="";keyWordNull="";keyWordTrue="";keyWordFalse="";keyWordVoid="";keyWordDouble="";keyWordChar="";keyWordUint8="";keyWordUint16="";keyWordUint32="";keyWordUint64="";keyWordINT="";keyWordSTR="";keyWordBOOL="";keyWordFLOAT="";keyWordINT8="";keyWordINT16="";keyWordINT32="";keyWordINT64="";keyWordIF="";keyWordElseIf="";keyWordElse="";keyWordWhileLoop="";keyWordLoopInfinite="";keyWordLoop="";keyWordLoopParse="";keyWordContinue="";keyWordBreak="";keyWordFunc="";keyWordAwait="";keyWordAsync="";keyWordThrow="";keyWordErrorMsg="";keyWordTry="";keyWordCatch="";keyWordFinally="";keyWordReturnStatement="";keyWordArrayAppend="";keyWordArrayPop="";keyWordArraySize="";keyWordArrayInsert="";keyWordArrayRemove="";keyWordArrayIndexOf="";keyWordArrayDefinition="";keyWordArrayOfIntegersDefinition="";keyWordArrayOfStringsDefinition="";keyWordArrayOfFloatingPointNumbersDefinition="";keyWordArrayOfBooleansDefinition="";keyWordVar="";keyWordLet="";keyWordConst="";keyWordEnd="";keyWordGlobal="";keyWordComment="";keyWordCommentOpenMultiLine="";keyWordCommentCloseMultiLine="";keyWordEscpaeChar="";keyWordMainLabel="";keyWordConcat="";keyWordAdd="";keyWordSub="";keyWordMul="";keyWordDiv="";keyWordMod="";keyWordExp="";keyWordEqual="";keyWordStrictEqual="";keyWordNotEqual="";keyWordGreater="";keyWordLess="";keyWordGreaterEqual="";keyWordLessEqual="";keyWordAnd="";keyWordOr="";keyWordNot="";keyWordBitAnd="";keyWordBitOr="";keyWordBitXor="";keyWordBitNot="";keyWordShiftLeft="";keyWordShiftRight="";keyWordShiftUnsignedRight="";keyWordAssign="";keyWordAssignAdd="";keyWordAssignConcat="";keyWordAssignSub="";keyWordAssignMul="";keyWordAssignDiv="";keyWordAssignMod="";keyWordAssignShiftLeft="";keyWordAssignShiftRight="";keyWordLogicalAssignShiftRight="";keyWordAssignBitAnd="";keyWordAssignBitOr="";keyWordAssignBitXor="";keyWordTernary1="";keyWordTernary2="";keyWordInc="";keyWordDec="";AHKlikeLoopsIndexedAt="";keyWordAIndex="";keyWordALoopField="";useFuncKeyWord="";useCurlyBraces="";useEnd="";useSemicolon="";theSemicolon="";theColon="";useParentheses="";usePrefixTypeForTypeDefinition="";usePostfixTypeForTypeDefinition="";usePythonicColonSyntax="";useCurlyBracesSyntaxForArrayDef="";useInJavaScriptAlwaysUseVar="";useJavaScriptInAfullHTMLfile="";useJavaScriptAmainFuncDef="";useJavaScriptAllFuncsAreAsync="";useJavaScriptAlwaysTripleEqual="";
+            keyWordALoopFieldOriginal = ""; keyWordAIndexOriginal = ""; out_KeyWordsCommands = ""; outTrimCode = ""; htCode = ""; outVarOperator = ""; lineDone = 0; areWeInAFuncFromInstructions = 0; areWeInAFuncFromInstructionsLineNum = 0; javaMainFuncSeen = 0; csMainFuncSeen = 0; howMany_fixAindexInGoUnused = 0; luaContinueFix_Num = 0; theTryCatchVarForErrors = "jhku-dfsds-ds-d-ffdsf-sdfsfdsedsf"; allVarsSoWeDontReDecVars = []; allVarsSoWeDontReDecVars_FIX_uint8 = []; allVarsSoWeDontReDecVars_FIX_uint16 = []; allVarsSoWeDontReDecVars_FIX_uint32 = []; allVarsSoWeDontReDecVars_FIX_uint64 = []; allVarsSoWeDontReDecVars_FIX_int64 = []; allVarsSoWeDontReDecVars_FIX_float = []; allVarsSoWeDontReDecVars_FIX_TOGGLE = 0;
+        }
     </script>
 </body>
 </html>
