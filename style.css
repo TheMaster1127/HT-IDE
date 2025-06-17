@@ -10,24 +10,26 @@ body.preload * { transition: none !important; }
     overflow: hidden;
 }
 
-/* THE FIX PART 1: Remove overflow:hidden so our content isn't clipped */
+/* --- THE DEFINITIVE FIX: --- */
+/* 1. Make the sidebar a flex container for its children */
 .sidebar {
     width: 250px;
     min-width: 150px;
     background-color: var(--sidebar-bg);
     display: flex;
-    flex-direction: column;
+    flex-direction: column; /* Arrange children vertically */
     border-right: 1px solid var(--splitter-bg);
     transition: width 0.3s ease, min-width 0.3s ease;
+    /* Remove overflow from the parent, we will control it on the child */
 }
 
 .sidebar.collapsed { width: 0 !important; min-width: 0; padding-left: 0; padding-right: 0; overflow: hidden; border-right: none; }
 .sidebar-header {
     padding: 10px;
-    flex-shrink: 0; /* Prevent header from shrinking */
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-shrink: 0; /* 2. Prevent the header from shrinking */
 }
 .sidebar-header h2 { margin: 0; font-size: 1.1em; border-bottom: 1px solid #2c2c2c; padding-bottom: 8px; flex-grow: 1; }
 
@@ -39,14 +41,14 @@ body.preload * { transition: none !important; }
 #new-file-btn { background-color: #0e639c; }
 #new-folder-btn { background-color: var(--btn-bg); }
 
-/* THE FIX PART 2: Make the file list the only element that grows AND scrolls */
+/* 3. This is the most important part */
 #file-list {
     list-style: none;
     padding: 0;
     margin: 0;
-    flex-grow: 1; /* This makes it take up all available middle space */
-    overflow-y: auto; /* This makes IT scroll, not the whole sidebar */
-    min-height: 0; /* Crucial for flexbox scrolling bug in some browsers */
+    flex-grow: 1; /* Allow the list to take all available vertical space */
+    overflow-y: auto; /* Make ONLY the list scrollable */
+    min-height: 0; /* A flexbox hack to make scrolling work correctly in this context */
 }
 
 #file-list li { padding: 6px 10px; cursor: pointer; border-radius: 3px; font-size: 0.9em; display: flex; align-items: center; justify-content: space-between; overflow: hidden; }
@@ -54,14 +56,13 @@ body.preload * { transition: none !important; }
 #file-list li:hover { background-color: var(--hover-bg); }
 #file-list li.active-file-list-item { background-color: #005f87; color: white; }
 
-/* THE FIX PART 3: Ensure the footer does not shrink */
 .sidebar-footer {
     padding: 10px;
     border-top: 1px solid var(--splitter-bg);
     display: grid;
     gap: 5px;
     grid-template-columns: 1fr 1fr;
-    flex-shrink: 0; /* Prevent footer from shrinking */
+    flex-shrink: 0; /* 4. Prevent the footer from shrinking */
 }
 
 .sidebar-footer button { background-color: #333; color: white; border: none; padding: 8px; cursor: pointer; border-radius: 3px; font-size: 0.85em; width: 100%; }
