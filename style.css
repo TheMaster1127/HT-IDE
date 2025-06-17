@@ -92,67 +92,85 @@ body.preload * { transition: none !important; }
 .ace-monokai .ace_operators, .ace-monokai .ace_trueANDfalse { color: #00ffff !important; }
 .ace-monokai .ace_arrayMethods { color: #FAB820 !important; }
 
+/* The new backdrop for the mobile sidebar overlay */
+#sidebar-backdrop {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0,0,0,0.5);
+    z-index: 99; /* Below sidebar (100), above everything else */
+}
+
 /* --- Mobile Responsiveness --- */
 @media (max-width: 768px) {
     .top-bar {
-        flex-wrap: wrap; /* <<< THIS IS THE KEY FIX: Allows items to wrap to a new line */
+        flex-wrap: wrap; 
         padding: 5px;
-        justify-content: space-between; /* Better alignment for wrapped items */
+        justify-content: space-between; 
     }
 
-    /* Make the tabs container take the full width on its own line */
     #tabs-container {
-        order: 3; /* Move tabs below the main controls */
+        order: 3;
         width: 100%;
         flex-basis: 100%;
         margin-top: 5px;
         padding: 5px 0 0 0;
-        border-bottom: none; /* Clean up border */
+        border-bottom: none;
     }
 
-    /* Group the sidebar toggle and run button on the top line */
     #main-toggle-sidebar-btn {
         order: 1;
     }
     #run-btn {
         order: 2;
-        margin-left: 10px; /* Remove auto margin and give fixed space */
+        margin-left: 10px;
     }
 
-    /* HTVM controls now get their own row if needed, or sit between toggle/run */
     #htvm-controls {
         order: 3;
         width: 100%;
         flex-basis: 100%;
-        margin: 8px 0 0 0; /* Add top margin when it wraps */
-        justify-content: center; /* Center the controls nicely */
+        margin: 8px 0 0 0;
+        justify-content: center;
         flex-wrap: wrap;
         gap: 8px;
     }
 
     .select-container {
-        flex-grow: 1; /* Allow selector to grow and fill space */
+        flex-grow: 1;
         min-width: 130px;
     }
 
-    /* Improve the sidebar for mobile: make it an overlay */
     .sidebar {
-        position: absolute; /* Let it float over the main content */
-        z-index: 100;
+        position: absolute;
+        z-index: 100; /* Increased z-index to be on top of the backdrop */
         height: 100%;
         width: 80%;
         max-width: 300px;
         box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+        /* The transition is moved here for better visual effect with the backdrop */
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
     }
 
+    .sidebar:not(.collapsed) {
+        transform: translateX(0);
+    }
+    
     .sidebar.collapsed {
-        /* When collapsed, it should have no width and be positioned normally */
-        position: relative; 
-        width: 0 !important;
+        /* When collapsed, it should have no width and be off-screen */
+        transform: translateX(-100%);
         box-shadow: none;
+        /* we need to hide the content immediately to avoid a flash of content */
+        min-width: 0 !important;
+        width: 0 !important;
+        overflow: hidden;
     }
 
     #sidebar-resizer {
-        display: none !important; /* Hide the resizer on mobile, it's not needed */
+        display: none !important;
     }
 }
