@@ -46,41 +46,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('load-instructions-btn').onclick = openInstructionManagerModal;
     document.getElementById('open-folder-btn').onclick = () => alert("This feature is for the desktop version.");
     
-    // --- UPDATED SIDEBAR TOGGLE LOGIC ---
+    // --- FINAL SIDEBAR TOGGLE LOGIC ---
     const toggleBtn = document.getElementById('main-toggle-sidebar-btn');
     const sidebar = document.querySelector('.sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    const closeBtn = document.getElementById('sidebar-close-btn'); // Get the new button
 
-    toggleBtn.onclick = () => {
+    function toggleSidebar() {
         const isCollapsed = sidebar.classList.contains('collapsed');
         sidebar.classList.toggle('collapsed');
         lsSet('sidebarCollapsed', !isCollapsed);
 
-        // Check if we are in mobile view by checking the sidebar's position
         const isMobileView = getComputedStyle(sidebar).position === 'absolute';
-
         if (isMobileView) {
-            let backdrop = document.getElementById('sidebar-backdrop');
-            if (isCollapsed) { // It's about to OPEN
-                if (!backdrop) {
-                    backdrop = document.createElement('div');
-                    backdrop.id = 'sidebar-backdrop';
-                    document.body.appendChild(backdrop);
-                    // Add a click listener to the backdrop to close the sidebar
-                    backdrop.onclick = () => {
-                        toggleBtn.click();
-                    };
-                }
-                backdrop.style.display = 'block';
-            } else { // It's about to CLOSE
-                if (backdrop) {
-                    backdrop.style.display = 'none';
-                }
-            }
+            backdrop.style.display = isCollapsed ? 'block' : 'none';
         }
 
-        // Resize editor after transition
         setTimeout(() => { editor.resize(); fitAddon.fit(); }, 310);
-    };
+    }
+
+    toggleBtn.onclick = toggleSidebar;
+    backdrop.onclick = toggleSidebar;
+    closeBtn.onclick = toggleSidebar; // MAKE THE NEW 'X' BUTTON WORK
 
     // HTVM controls listeners
     document.getElementById('lang-dropdown').addEventListener('click', e => {
@@ -120,8 +107,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sidebarWidth = lsGet('sidebarWidth'); if (sidebarWidth) document.querySelector('.sidebar').style.width = sidebarWidth;
     const terminalHeight = lsGet('terminalHeight'); if (terminalHeight) document.getElementById('terminal-container').style.height = terminalHeight;
     const outputWidth = lsGet('outputPanelWidth'); if (outputWidth) document.getElementById('output-panel').style.width = outputWidth;
-    if (lsGet('sidebarCollapsed')) {
+    
+    if (lsGet('sidebarCollapsed') !== false) {
         document.querySelector('.sidebar').classList.add('collapsed');
+    } else {
+        document.querySelector('.sidebar').classList.remove('collapsed');
     }
 
     const savedLang = lsGet('selectedLangExtension');

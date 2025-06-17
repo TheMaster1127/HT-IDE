@@ -1,11 +1,23 @@
 :root { --bg-color: #1a1a1a; --text-color: #e0e0e0; --sidebar-bg: #121212; --hover-bg: #1f1f1f; --btn-bg: #fe6619; --btn-hover: #e65a00; --splitter-bg: #222; }
 body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #000000; color: var(--text-color); }
 body.preload * { transition: none !important; }
-.ide-container { display: flex; height: 100vh; width: 100vw; }
+
+.ide-container {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+    position: relative; 
+    overflow: hidden;
+}
+
 .sidebar { width: 250px; min-width: 150px; background-color: var(--sidebar-bg); display: flex; flex-direction: column; overflow-y: hidden; border-right: 1px solid var(--splitter-bg); transition: width 0.3s ease, min-width 0.3s ease; }
 .sidebar.collapsed { width: 0 !important; min-width: 0; padding-left: 0; padding-right: 0; overflow: hidden; border-right: none; }
-.sidebar-header { padding: 10px; flex-shrink: 0; }
+.sidebar-header { padding: 10px; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; }
 .sidebar-header h2 { margin: 0; font-size: 1.1em; border-bottom: 1px solid #2c2c2c; padding-bottom: 8px; flex-grow: 1; }
+
+/* HIDE THE NEW 'X' BUTTON BY DEFAULT (FOR DESKTOP) */
+#sidebar-close-btn { display: none; }
+
 #current-path-display { padding: 5px 10px; font-size: 0.8em; color: #aaa; background-color: #1a1a1a; border-radius: 3px; margin: 0 10px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: right; }
 .sidebar-actions { display: flex; gap: 5px; margin-bottom: 10px; padding: 0 10px; }
 #new-file-btn, #new-folder-btn { color: white; border: none; padding: 8px 10px; cursor: pointer; border-radius: 3px; font-size: 0.9em; width: 50%; }
@@ -92,7 +104,6 @@ body.preload * { transition: none !important; }
 .ace-monokai .ace_operators, .ace-monokai .ace_trueANDfalse { color: #00ffff !important; }
 .ace-monokai .ace_arrayMethods { color: #FAB820 !important; }
 
-/* The new backdrop for the mobile sidebar overlay */
 #sidebar-backdrop {
     display: none;
     position: fixed;
@@ -101,7 +112,7 @@ body.preload * { transition: none !important; }
     width: 100vw;
     height: 100vh;
     background-color: rgba(0,0,0,0.5);
-    z-index: 99; /* Below sidebar (100), above everything else */
+    z-index: 99;
 }
 
 /* --- Mobile Responsiveness --- */
@@ -146,31 +157,34 @@ body.preload * { transition: none !important; }
 
     .sidebar {
         position: absolute;
-        z-index: 100; /* Increased z-index to be on top of the backdrop */
+        z-index: 100;
         height: 100%;
         width: 80%;
         max-width: 300px;
-        box-shadow: 2px 0 10px rgba(0,0,0,0.5);
-        /* The transition is moved here for better visual effect with the backdrop */
+        min-width: 0 !important;
         transform: translateX(-100%);
-        transition: transform 0.3s ease;
-    }
-
-    .sidebar:not(.collapsed) {
-        transform: translateX(0);
+        transition: transform 0.3s ease-in-out;
+        border-right: 1px solid var(--splitter-bg);
+        box-shadow: 2px 0 10px rgba(0,0,0,0.5);
     }
     
-    .sidebar.collapsed {
-        /* When collapsed, it should have no width and be off-screen */
-        transform: translateX(-100%);
-        box-shadow: none;
-        /* we need to hide the content immediately to avoid a flash of content */
-        min-width: 0 !important;
-        width: 0 !important;
-        overflow: hidden;
+    .sidebar:not(.collapsed) {
+        transform: translateX(0);
     }
 
     #sidebar-resizer {
         display: none !important;
+    }
+
+    /* SHOW AND STYLE THE 'X' BUTTON ON MOBILE */
+    #sidebar-close-btn {
+        display: block;
+        background: none;
+        border: none;
+        color: var(--text-color);
+        font-size: 1.8em;
+        line-height: 1;
+        padding: 0 5px 5px 10px;
+        cursor: pointer;
     }
 }

@@ -10,8 +10,12 @@
 </head>
 <body>
     <div class="ide-container">
-        <div class="sidebar">
-            <div class="sidebar-header"><h2>Files</h2></div>
+        <div class="sidebar collapsed">
+            <div class="sidebar-header">
+                <h2>Files</h2>
+                <!-- THIS 'X' BUTTON IS NEW -->
+                <button id="sidebar-close-btn" title="Close Sidebar">×</button>
+            </div>
             <div id="current-path-display">/</div>
             <div class="sidebar-actions">
                 <button id="new-file-btn" title="New File">New File</button>
@@ -77,6 +81,7 @@
         </div>
     </div>
     
+    <div id="sidebar-backdrop"></div>
     <div id="modal-overlay"></div>
 
     <!-- External Libraries -->
