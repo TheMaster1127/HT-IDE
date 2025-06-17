@@ -10,25 +10,60 @@ body.preload * { transition: none !important; }
     overflow: hidden;
 }
 
-.sidebar { width: 250px; min-width: 150px; background-color: var(--sidebar-bg); display: flex; flex-direction: column; overflow-y: hidden; border-right: 1px solid var(--splitter-bg); transition: width 0.3s ease, min-width 0.3s ease; }
+/* THE FIX PART 1: Remove overflow:hidden so our content isn't clipped */
+.sidebar {
+    width: 250px;
+    min-width: 150px;
+    background-color: var(--sidebar-bg);
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--splitter-bg);
+    transition: width 0.3s ease, min-width 0.3s ease;
+}
+
 .sidebar.collapsed { width: 0 !important; min-width: 0; padding-left: 0; padding-right: 0; overflow: hidden; border-right: none; }
-.sidebar-header { padding: 10px; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; }
+.sidebar-header {
+    padding: 10px;
+    flex-shrink: 0; /* Prevent header from shrinking */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
 .sidebar-header h2 { margin: 0; font-size: 1.1em; border-bottom: 1px solid #2c2c2c; padding-bottom: 8px; flex-grow: 1; }
 
-/* HIDE THE NEW 'X' BUTTON BY DEFAULT (FOR DESKTOP) */
 #sidebar-close-btn { display: none; }
 
-#current-path-display { padding: 5px 10px; font-size: 0.8em; color: #aaa; background-color: #1a1a1a; border-radius: 3px; margin: 0 10px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: right; }
-.sidebar-actions { display: flex; gap: 5px; margin-bottom: 10px; padding: 0 10px; }
+#current-path-display { padding: 5px 10px; font-size: 0.8em; color: #aaa; background-color: #1a1a1a; border-radius: 3px; margin: 0 10px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: right; flex-shrink: 0; }
+.sidebar-actions { display: flex; gap: 5px; margin-bottom: 10px; padding: 0 10px; flex-shrink: 0; }
 #new-file-btn, #new-folder-btn { color: white; border: none; padding: 8px 10px; cursor: pointer; border-radius: 3px; font-size: 0.9em; width: 50%; }
 #new-file-btn { background-color: #0e639c; }
 #new-folder-btn { background-color: var(--btn-bg); }
-#file-list { list-style: none; padding: 0; margin: 0; flex-grow: 1; overflow-y: auto; }
+
+/* THE FIX PART 2: Make the file list the only element that grows AND scrolls */
+#file-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    flex-grow: 1; /* This makes it take up all available middle space */
+    overflow-y: auto; /* This makes IT scroll, not the whole sidebar */
+    min-height: 0; /* Crucial for flexbox scrolling bug in some browsers */
+}
+
 #file-list li { padding: 6px 10px; cursor: pointer; border-radius: 3px; font-size: 0.9em; display: flex; align-items: center; justify-content: space-between; overflow: hidden; }
 .file-item-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #file-list li:hover { background-color: var(--hover-bg); }
 #file-list li.active-file-list-item { background-color: #005f87; color: white; }
-.sidebar-footer { padding: 10px; border-top: 1px solid var(--splitter-bg); display: grid; gap: 5px; grid-template-columns: 1fr 1fr; }
+
+/* THE FIX PART 3: Ensure the footer does not shrink */
+.sidebar-footer {
+    padding: 10px;
+    border-top: 1px solid var(--splitter-bg);
+    display: grid;
+    gap: 5px;
+    grid-template-columns: 1fr 1fr;
+    flex-shrink: 0; /* Prevent footer from shrinking */
+}
+
 .sidebar-footer button { background-color: #333; color: white; border: none; padding: 8px; cursor: pointer; border-radius: 3px; font-size: 0.85em; width: 100%; }
 #load-instructions-btn { background-color: #2a8f2a; }
 #settings-btn { background-color: #555; }
@@ -176,7 +211,6 @@ body.preload * { transition: none !important; }
         display: none !important;
     }
 
-    /* SHOW AND STYLE THE 'X' BUTTON ON MOBILE */
     #sidebar-close-btn {
         display: block;
         background: none;
