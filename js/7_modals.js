@@ -612,8 +612,9 @@ function openDebuggerModal() {
             }
         });
         
-        // Drag and Drop Logic
+        // --- DRAG AND DROP LOGIC (FOR MOUSE AND TOUCH) ---
         let offsetX, offsetY;
+        
         const dragBackground = document.createElement('div');
         dragBackground.style.position = 'fixed';
         dragBackground.style.top = '0';
@@ -626,21 +627,36 @@ function openDebuggerModal() {
 
         const move = (e) => {
             e.preventDefault();
-            modalBox.style.left = `${e.clientX - offsetX}px`;
-            modalBox.style.top = `${e.clientY - offsetY}px`;
+            // Handle both mouse and touch events
+            const clientX = e.clientX || e.touches[0].clientX;
+            const clientY = e.clientY || e.touches[0].clientY;
+            modalBox.style.left = `${clientX - offsetX}px`;
+            modalBox.style.top = `${clientY - offsetY}px`;
         };
+        
         const stopMove = () => {
             dragBackground.style.display = 'none';
             document.removeEventListener('mousemove', move);
             document.removeEventListener('mouseup', stopMove);
+            document.removeEventListener('touchmove', move);
+            document.removeEventListener('touchend', stopMove);
         };
-        header.addEventListener('mousedown', (e) => {
+
+        const startMove = (e) => {
             dragBackground.style.display = 'block';
-            offsetX = e.clientX - modalBox.offsetLeft;
-            offsetY = e.clientY - modalBox.offsetTop;
+             // Handle both mouse and touch events
+            const clientX = e.clientX || e.touches[0].clientX;
+            const clientY = e.clientY || e.touches[0].clientY;
+            offsetX = clientX - modalBox.offsetLeft;
+            offsetY = clientY - modalBox.offsetTop;
             document.addEventListener('mousemove', move);
             document.addEventListener('mouseup', stopMove);
-        });
+            document.addEventListener('touchmove', move);
+            document.addEventListener('touchend', stopMove);
+        };
+        
+        header.addEventListener('mousedown', startMove);
+        header.addEventListener('touchstart', startMove);
     }
 
     const scopeContainer = modalBox.querySelector('.debugger-scope');
