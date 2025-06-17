@@ -73,7 +73,7 @@
                     const userCompletions = [...new Set(userWords)].map(word => ({
                         caption: word,
                         value: word,
-                        meta: "variable"
+                        meta: "from file"
                     }));
                     completions.push(...userCompletions);
                 }
