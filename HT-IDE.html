@@ -68,7 +68,7 @@
         #html-output { flex-grow: 1; border: none; }
         #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; }
         .modal-box { background-color: #1e1e1e; padding: 20px; border-radius: 5px; width: 90%; max-width: 500px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
-        .modal-list { list-style: none; padding: 0; margin: 0 0 15px 0; max-height: 200px; overflow-y: auto; border: 1px solid #333; border-radius: 3px; }
+        .modal-list { list-style: none; padding: 0; margin: 0 0 15px 0; max-height: 300px; overflow-y: auto; border: 1px solid #333; border-radius: 3px; }
         .modal-list li { padding: 8px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
         .modal-list li:not(.no-sessions):hover { background-color: #007acc; }
         .modal-buttons { text-align: right; }
@@ -103,7 +103,7 @@
             <div class="sidebar-footer">
                 <button id="save-session-btn" title="Save Session">Save Session</button>
                 <button id="load-session-btn" title="Load Session">Load Session</button>
-                <button id="load-instructions-btn" title="Load custom HTVM instructions">Load Instructions</button>
+                <button id="load-instructions-btn" title="Manage HTVM Instruction Sets">Manage Instructions</button>
                 <button id="settings-btn" title="Settings">Settings</button>
                 <input type="file" id="instruction-file-input" style="display: none;" accept=".txt">
                 <button id="open-folder-btn" title="This feature uses the real file system in the desktop version.">Open New Folder</button>
@@ -179,11 +179,52 @@
             const IDE_ID = getIdeId();
             const STORAGE_PREFIX = `HT-IDE-id${IDE_ID}-`;
 
+            const lsGet = key => { try { const i = localStorage.getItem(STORAGE_PREFIX + key); return i ? JSON.parse(i) : null; } catch { return null; } };
+            const lsSet = (key, value) => { try { localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value)); } catch (e) { console.error(e); } };
+            const lsRemove = key => localStorage.removeItem(STORAGE_PREFIX + key);
+
+            const instructionSetKeys = {
+                list: 'instruction_sets_list',
+                contentPrefix: 'instruction_set_content_',
+                activeId: 'active_instruction_set_id',
+                legacyKey: `htvm_lang_${IDE_ID}`
+            };
+
+            function initializeInstructionSetManagement() {
+                const legacyDataRaw = localStorage.getItem(instructionSetKeys.legacyKey);
+                if (legacyDataRaw && !lsGet(instructionSetKeys.list)) {
+                    const newId = 'default_migrated_' + Date.now();
+                    const newList = [{ name: 'Default', id: newId }];
+                    let legacyContentAsString = '';
+                    try {
+                        const legacyDataParsed = JSON.parse(legacyDataRaw);
+                        legacyContentAsString = Array.isArray(legacyDataParsed) ? legacyDataParsed.join('\n') : '';
+                    } catch {
+                        legacyContentAsString = legacyDataRaw; // Assume it was already a string
+                    }
+                    lsSet(instructionSetKeys.list, newList);
+                    localStorage.setItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + newId, legacyContentAsString);
+                    lsSet(instructionSetKeys.activeId, newId);
+                    localStorage.removeItem(instructionSetKeys.legacyKey);
+                    console.log("Migrated legacy instruction set to new management system.");
+                }
+
+                const activeId = lsGet(instructionSetKeys.activeId);
+                let activeContent = "";
+                if (activeId) {
+                    activeContent = localStorage.getItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + activeId) || "";
+                }
+                localStorage.setItem(instructionSetKeys.legacyKey, JSON.stringify(activeContent.split('\n')));
+            }
+
+            initializeInstructionSetManagement();
+
             let currentOpenFile = null, currentDirectory = '/', openTabs = [], recentlyClosedTabs = [];
             const fileSessions = new Map();
             const langTools = ace.require("ace/ext/language_tools");
             
             async function loadDefinitions(instructionContent = null) {
+                // When called with null (like on startup), it will use the legacy key we pre-populated.
                 await window.initializeHtvmMode(IDE_ID, instructionContent);
                 await window.initializeCompleters(IDE_ID, editor);
                 if (editor && currentOpenFile && currentOpenFile.endsWith('.htvm')) {
@@ -197,9 +238,6 @@
             fitAddon = new FitAddon.FitAddon(); term.loadAddon(fitAddon); term.open(document.getElementById('terminal')); fitAddon.fit();
             
             const debounce = (func, delay) => { let timeout; return (...args) => { clearTimeout(timeout); timeout = setTimeout(() => func.apply(this, args), delay); }; };
-            const lsGet = key => { try { const i = localStorage.getItem(STORAGE_PREFIX + key); return i ? JSON.parse(i) : null; } catch { return null; } };
-            const lsSet = (key, value) => { try { localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value)); } catch (e) { console.error(e); } };
-            const lsRemove = key => localStorage.removeItem(STORAGE_PREFIX + key);
 
             const draftCompletions = {
                 javascript: ['const', 'let', 'var', 'function', 'async', 'await', 'return', 'class', 'extends', 'import', 'export', 'default', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break', 'continue', 'try', 'catch', 'finally', 'throw', 'new', 'this', 'super', 'document', 'window', 'console', 'log', 'alert', 'fetch', 'Promise'],
@@ -312,8 +350,7 @@
                     }
                     let newFileContent = '';
                     if (path.endsWith('.htvm')) {
-                        const instructions = JSON.parse(localStorage.getItem(`htvm_lang_${IDE_ID}`) || '[]');
-                        // Line 101 in a file is index 100 in a zero-based array
+                        const instructions = JSON.parse(localStorage.getItem(instructionSetKeys.legacyKey) || '[]');
                         const commentChar = (instructions && instructions.length > 100) ? instructions[100] : ';';
                         newFileContent = `${commentChar.trim()} Welcome!`;
                     }
@@ -346,6 +383,131 @@
                 overlay.style.display = 'flex';
             }
             
+            function openInstructionManagerModal() {
+                const overlay = document.getElementById('modal-overlay');
+                overlay.innerHTML = `<div class="modal-box" style="width:90%; max-width:600px;">
+                    <h3>HTVM Instruction Sets</h3>
+                    <ul class="modal-list" id="instruction-sets-list"></ul>
+                    <div class="modal-buttons">
+                         <button id="instr-add-new-btn" style="float:left; background-color:#2a8f2a;">Add New from File</button>
+                         <button id="instr-cancel-btn">Close</button>
+                    </div>
+                </div>`;
+                
+                const listEl = document.getElementById('instruction-sets-list');
+                const populateList = () => {
+                    listEl.innerHTML = '';
+                    let sets = lsGet(instructionSetKeys.list) || [];
+                    const activeId = lsGet(instructionSetKeys.activeId);
+
+                    if (!sets.length) {
+                        listEl.innerHTML = "<li class='no-sessions' style='text-align:center; padding: 20px;'>No instruction sets found. Click 'Add New' to begin.</li>";
+                        return;
+                    }
+                    
+                    sets.forEach(set => {
+                        const li = document.createElement('li');
+                        const isActive = set.id === activeId;
+                        li.style.cssText = `display:flex; align-items:center; gap:10px; ${isActive ? 'background-color:#004a6e; font-weight:bold;' : ''}`;
+                        
+                        const nameSpan = document.createElement('span');
+                        nameSpan.textContent = `${set.name} ${isActive ? '(Active)' : ''}`;
+                        nameSpan.style.flexGrow = '1';
+                        
+                        const btnGroup = document.createElement('div');
+
+                        if (!isActive) {
+                            const applyBtn = document.createElement('button');
+                            applyBtn.textContent = 'Apply';
+                            applyBtn.style.backgroundColor = '#0e639c';
+                            applyBtn.onclick = () => {
+                                if (confirm(`This will apply the "${set.name}" instruction set and reload the IDE.\n\nYour current work will be saved, but undo/redo history will be lost.\n\nContinue?`)) {
+                                    lsSet(instructionSetKeys.activeId, set.id);
+                                    window.dispatchEvent(new Event('beforeunload')); // Trigger saving logic
+                                    window.location.reload();
+                                }
+                            };
+                            btnGroup.appendChild(applyBtn);
+                        }
+                        
+                        const renameBtn = document.createElement('button');
+                        renameBtn.textContent = '✏️';
+                        renameBtn.title = 'Rename';
+                        renameBtn.style.marginLeft = '8px';
+                        renameBtn.onclick = () => {
+                            let newName = prompt(`Rename instruction set "${set.name}":`, set.name);
+                            if (newName && newName.trim() && newName !== set.name) {
+                                newName = newName.trim();
+                                if (sets.some(s => s.name === newName && s.id !== set.id)) {
+                                    alert("An instruction set with that name already exists.");
+                                    return;
+                                }
+                                set.name = newName;
+                                lsSet(instructionSetKeys.list, sets);
+                                populateList();
+                            }
+                        };
+                        btnGroup.appendChild(renameBtn);
+
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.textContent = '🗑️';
+                        deleteBtn.title = 'Delete';
+                        if (isActive) {
+                             deleteBtn.disabled = true;
+                             deleteBtn.title = "Cannot delete the active set.";
+                        }
+                        deleteBtn.onclick = () => {
+                            if (confirm(`Are you sure you want to delete the instruction set "${set.name}"? This cannot be undone.`)) {
+                                const newSets = sets.filter(s => s.id !== set.id);
+                                lsSet(instructionSetKeys.list, newSets);
+                                localStorage.removeItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + set.id);
+                                populateList();
+                            }
+                        };
+                        btnGroup.appendChild(deleteBtn);
+                        
+                        li.appendChild(nameSpan);
+                        li.appendChild(btnGroup);
+                        listEl.appendChild(li);
+                    });
+                };
+                
+                document.getElementById('instr-add-new-btn').onclick = () => {
+                    const fileInput = document.getElementById('instruction-file-input');
+                    fileInput.onchange = e => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+
+                        let sets = lsGet(instructionSetKeys.list) || [];
+                        let newName = prompt("Enter a name for this new instruction set:", file.name.replace(/\.[^/.]+$/, ""));
+                        
+                        if (!newName || !newName.trim()) return;
+                        newName = newName.trim();
+                        
+                        if (sets.some(s => s.name === newName)) return alert("An instruction set with that name already exists.");
+
+                        const reader = new FileReader();
+                        reader.onload = r => {
+                            const content = r.target.result;
+                            const newId = 'custom_' + Date.now();
+                            sets.push({ name: newName, id: newId });
+                            lsSet(instructionSetKeys.list, sets);
+                            localStorage.setItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + newId, content);
+                            if(sets.length === 1) lsSet(instructionSetKeys.activeId, newId);
+                            populateList();
+                        };
+                        reader.readAsText(file);
+                        fileInput.value = ''; 
+                    };
+                    fileInput.click();
+                };
+
+                document.getElementById('instr-cancel-btn').onclick = () => overlay.style.display = 'none';
+
+                populateList();
+                overlay.style.display = 'flex';
+            }
+
             function openSettingsModal() {
                 const overlay = document.getElementById('modal-overlay');
                 overlay.innerHTML = `<div class="modal-box" style="max-width: 850px;">
@@ -455,7 +617,7 @@
 
             async function runHtvmCode(code) {
                 const lang = lsGet('selectedLangExtension') || 'js';
-                let instructionSet = JSON.parse(localStorage.getItem(`htvm_lang_${IDE_ID}`) || '[]');
+                let instructionSet = JSON.parse(localStorage.getItem(instructionSetKeys.legacyKey) || '[]');
                 const isFullHtml = lang === 'js' && document.getElementById('full-html-checkbox').checked;
                 if (isFullHtml && Array.isArray(instructionSet) && instructionSet.length > 158) {
                     instructionSet[158] = "on";
@@ -534,7 +696,7 @@
 
             function updateEditorModeForHtvm() {
                 const htvmControls = document.getElementById('htvm-controls'); if (!currentOpenFile || !currentOpenFile.endsWith('.htvm')) { htvmControls.style.display = 'none'; return; }
-                htvmControls.style.display = 'flex'; const keywords = JSON.parse(localStorage.getItem(`htvm_lang_${IDE_ID}`) || '[]'); if (!keywords || keywords.length < 42) return;
+                htvmControls.style.display = 'flex'; const keywords = JSON.parse(localStorage.getItem(instructionSetKeys.legacyKey) || '[]'); if (!keywords || keywords.length < 42) return;
                 const currentLine = editor.getSelectionRange().start.row; const lines = editor.getValue().split('\n');
                 const markers = {[keywords[16]]:{lang:"js"},[keywords[14]]:{lang:"py"},[keywords[12]]:{lang:"cpp"},[keywords[18]]:{lang:"go"},[keywords[20]]:{lang:"lua"},[keywords[22]]:{lang:"cs"},[keywords[24]]:{lang:"java"},[keywords[26]]:{lang:"kt"},[keywords[28]]:{lang:"rb"},[keywords[30]]:{lang:"nim"},[keywords[32]]:{lang:"ahk"},[keywords[34]]:{lang:"swift"},[keywords[36]]:{lang:"dart"},[keywords[38]]:{lang:"ts"},[keywords[40]]:{lang:"groovy"}};
                 let lang = "htvm";
@@ -573,8 +735,11 @@
             document.getElementById('open-folder-btn').onclick = () => alert("This feature is for the desktop version.");
             document.getElementById('close-output-btn').onclick = () => document.getElementById('output-panel').classList.remove('visible');
             document.getElementById('download-html-btn').onclick = handleDownloadHtml;
-            document.getElementById('load-instructions-btn').onclick = () => document.getElementById('instruction-file-input').click();
-            document.getElementById('instruction-file-input').onchange = e => { const file = e.target.files[0]; if(file) { const reader=new FileReader(); reader.onload = async r => { term.writeln(`\x1b[32mLoading HTVM instructions from ${file.name}...\x1b[0m`); await loadDefinitions(r.target.result); term.writeln(`\x1b[32mDefinitions loaded and syntax refreshed.\x1b[0m`); }; reader.readAsText(file); } };
+            document.getElementById('load-instructions-btn').onclick = openInstructionManagerModal;
+            
+            // The old onchange handler for the file input is no longer directly needed by the button,
+            // but the manager modal re-purposes the input. We can remove the old handler.
+            document.getElementById('instruction-file-input').onchange = null;
             
             document.addEventListener('keydown', e => {
                 const ctrl = e.ctrlKey || e.metaKey;
