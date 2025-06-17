@@ -471,8 +471,8 @@ function openSettingsModal() {
     const overlay = document.getElementById('modal-overlay');
     overlay.innerHTML = `<div class="modal-box" style="max-width: 850px;">
         <h3>Settings + Help</h3>
-        <div id="settings-columns-container" style="display: flex; gap: 20px; border-top: 1px solid #333; padding-top: 15px;">
-            <div class="settings-column" style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+        <div id="settings-columns-container" style="display: flex; gap: 20px; border-top: 1px solid #333; padding-top: 15px; overflow-x: auto; padding-bottom: 15px;">
+            <div class="settings-column" style="flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 240px;">
                 <h4>Editor</h4>
                 <div><label for="font-size-input">Font Size: </label><input type="number" id="font-size-input" style="width:60px;background:#252525;color:#e0e0e0;border:1px solid #333;"></div>
                 <div><label><input type="checkbox" id="vim-mode-checkbox"> Vim Mode</label></div>
@@ -480,7 +480,7 @@ function openSettingsModal() {
                 <div><label><input type="checkbox" id="print-margin-checkbox"> Show Vertical Guide Line</label></div>
                 <div style="padding-left: 20px;"><label for="print-margin-column-input">Guide Line Column: </label><input type="number" id="print-margin-column-input" style="width:60px;background:#252525;color:#e0e0e0;border:1px solid #333;"></div>
             </div>
-            <div class="settings-column" style="flex: 1.2; padding-left: 20px; border-left: 1px solid #333; display: flex; flex-direction: column; gap: 15px;">
+            <div class="settings-column" style="flex: 1.2; padding-left: 20px; border-left: 1px solid #333; display: flex; flex-direction: column; gap: 15px; min-width: 280px;">
                 <div>
                     <h4>Syntax Highlighting</h4>
                     <div><label><input type="checkbox" id="symbol-operator-highlighting-checkbox"> Highlight Symbol Operators (e.g., :=, ++, *)</label></div>
@@ -496,7 +496,7 @@ function openSettingsModal() {
                     <div style="padding-left: 20px;"><label><input type="checkbox" id="autocomplete-local-checkbox"> Words from document</label></div>
                 </div>
             </div>
-            <div class="settings-column" style="flex: 1; padding-left: 20px; border-left: 1px solid #333;">
+            <div class="settings-column" style="flex: 1; padding-left: 20px; border-left: 1px solid #333; min-width: 220px;">
                  <h4>Hotkeys</h4>
                  <ul style="padding-left:20px;margin:0; font-size: 0.9em; list-style-type: none;">
                     <li><b>Ctrl+Enter / F5:</b> Run File</li>
