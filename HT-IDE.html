@@ -182,9 +182,13 @@
             const fileSessions = new Map();
             const langTools = ace.require("ace/ext/language_tools");
             
-            async function loadHtvmInstructions(instructionContent = null) {
+            async function loadDefinitions(instructionContent = null) {
+                // 1. Initialize/Refresh the syntax highlighting rules (especially for HTVM)
                 await window.initializeHtvmMode(IDE_ID, instructionContent);
-                await window.initializeHtvmAutocomplete(IDE_ID, editor);
+                // 2. Initialize/Refresh the autocompletion keywords for all languages
+                await window.initializeCompleters(IDE_ID, editor);
+                
+                // 3. If an HTVM file is open, force the editor to re-apply the syntax highlighting
                 if (editor && currentOpenFile && currentOpenFile.endsWith('.htvm')) {
                     editor.session.setMode("ace/mode/text");
                     editor.session.setMode("ace/mode/htvm");
@@ -195,12 +199,57 @@
             term = new Terminal({ cursorBlink: true, fontFamily: 'monospace', fontSize: 13, theme: { background: '#000000', foreground: '#00DD00', cursor: '#00FF00' } });
             fitAddon = new FitAddon.FitAddon(); term.loadAddon(fitAddon); term.open(document.getElementById('terminal')); fitAddon.fit();
             
-            await loadHtvmInstructions(); 
-            
             const debounce = (func, delay) => { let timeout; return (...args) => { clearTimeout(timeout); timeout = setTimeout(() => func.apply(this, args), delay); }; };
             const lsGet = key => { try { const i = localStorage.getItem(STORAGE_PREFIX + key); return i ? JSON.parse(i) : null; } catch { return null; } };
             const lsSet = (key, value) => { try { localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value)); } catch (e) { console.error(e); } };
             const lsRemove = key => localStorage.removeItem(STORAGE_PREFIX + key);
+
+            // DRAFT: Pre-populate keyword completions for common languages to demonstrate the new system.
+            // A future implementation could load these from user-provided files.
+            const draftCompletions = {
+                // Core languages and all 15 supported languages from the dropdown + HTML
+                javascript: ['const', 'let', 'var', 'function', 'async', 'await', 'return', 'class', 'extends', 'import', 'export', 'default', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break', 'continue', 'try', 'catch', 'finally', 'throw', 'new', 'this', 'super', 'document', 'window', 'console', 'log', 'alert', 'fetch', 'Promise'],
+                python: ['def', 'class', 'import', 'from', 'as', 'if', 'elif', 'else', 'for', 'in', 'while', 'break', 'continue', 'pass', 'try', 'except', 'finally', 'raise', 'with', 'return', 'yield', 'lambda', 'True', 'False', 'None', 'print', 'len', 'range', 'list', 'dict', 'str', 'int', 'float'],
+                c_cpp: ['#include', '#define', 'using', 'namespace', 'std', 'int', 'char', 'float', 'double', 'bool', 'void', 'long', 'short', 'unsigned', 'signed', 'class', 'struct', 'public', 'private', 'protected', 'virtual', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break', 'continue', 'return', 'const', 'static', 'new', 'delete', 'this', 'cout', 'cin', 'endl'],
+                golang: ['package', 'import', 'func', 'var', 'const', 'type', 'struct', 'interface', 'map', 'range', 'go', 'chan', 'select', 'for', 'if', 'else', 'switch', 'case', 'default', 'break', 'continue', 'fallthrough', 'return', 'defer', 'make', 'new', 'len', 'cap', 'append', 'copy', 'delete', 'panic', 'recover', 'int', 'string', 'bool', 'float64'],
+                lua: ['local', 'function', 'end', 'if', 'then', 'elseif', 'else', 'for', 'in', 'do', 'while', 'repeat', 'until', 'return', 'break', 'and', 'or', 'not', 'true', 'false', 'nil', 'pcall', 'ipairs', 'pairs', 'print', 'require', 'tostring', 'tonumber', 'table'],
+                csharp: ['using', 'namespace', 'class', 'struct', 'interface', 'enum', 'public', 'private', 'protected', 'internal', 'static', 'void', 'int', 'string', 'bool', 'double', 'float', 'char', 'var', 'const', 'new', 'if', 'else', 'for', 'foreach', 'in', 'while', 'do', 'switch', 'case', 'break', 'continue', 'return', 'try', 'catch', 'finally', 'throw', 'async', 'await', 'get', 'set', 'Console', 'WriteLine'],
+                java: ['package', 'import', 'public', 'private', 'protected', 'static', 'class', 'interface', 'enum', 'extends', 'implements', 'final', 'void', 'int', 'String', 'boolean', 'double', 'char', 'new', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break', 'continue', 'return', 'try', 'catch', 'finally', 'throw', 'throws', 'super', 'this', 'System', 'out', 'println'],
+                kotlin: ['package', 'import', 'fun', 'val', 'var', 'class', 'interface', 'object', 'data', 'enum', 'public', 'private', 'protected', 'internal', 'override', 'open', 'final', 'abstract', 'when', 'if', 'else', 'for', 'in', 'while', 'do', 'break', 'continue', 'return', 'try', 'catch', 'finally', 'throw', 'Int', 'String', 'Boolean', 'Double', 'println'],
+                ruby: ['def', 'end', 'class', 'module', 'require', 'include', 'if', 'elsif', 'else', 'unless', 'while', 'until', 'for', 'in', 'do', 'case', 'when', 'break', 'next', 'redo', 'retry', 'return', 'yield', 'true', 'false', 'nil', 'self', 'puts', 'print', 'gets', 'each', 'map', 'collect'],
+                nim: ['var', 'let', 'const', 'type', 'proc', 'func', 'method', 'template', 'macro', 'import', 'export', 'from', 'if', 'elif', 'else', 'case', 'of', 'when', 'for', 'in', 'while', 'block', 'return', 'yield', 'discard', 'break', 'continue', 'try', 'except', 'finally', 'raise', 'int', 'string', 'bool', 'float', 'echo'],
+                autohotkey: ['MsgBox', 'Send', 'Click', 'Sleep', 'Loop', 'FileRead', 'If', 'Else', 'Gosub', 'Return', 'ExitApp', 'Reload', 'KeyWait', 'GetKeyState', 'SetTimer', 'WinActivate', 'WinWait', 'WinClose', 'ControlSend', 'class', 'extends', 'new', 'static', 'try', 'catch', 'A_Index', 'A_LoopField', 'ErrorLevel', 'true', 'false'],
+                swift: ['import', 'let', 'var', 'func', 'class', 'struct', 'enum', 'protocol', 'extension', 'public', 'private', 'fileprivate', 'internal', 'static', 'if', 'else', 'guard', 'for', 'in', 'while', 'repeat', 'switch', 'case', 'default', 'break', 'continue', 'fallthrough', 'return', 'inout', 'throws', 'rethrows', 'try', 'catch', 'do', 'Int', 'String', 'Bool', 'Double', 'print'],
+                dart: ['import', 'export', 'part', 'library', 'var', 'final', 'const', 'late', 'void', 'class', 'mixin', 'enum', 'extends', 'implements', 'with', 'if', 'else', 'for', 'in', 'while', 'do', 'switch', 'case', 'break', 'continue', 'return', 'try', 'catch', 'on', 'finally', 'throw', 'async', 'await', 'yield', 'sync', 'Future', 'Stream', 'print'],
+                typescript: ['const', 'let', 'var', 'function', 'async', 'await', 'return', 'class', 'extends', 'implements', 'interface', 'type', 'enum', 'public', 'private', 'protected', 'readonly', 'static', 'import', 'export', 'from', 'default', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break', 'continue', 'try', 'catch', 'finally', 'throw', 'new', 'this', 'super', 'string', 'number', 'boolean', 'any', 'void', 'null', 'undefined'],
+                groovy: ['def', 'class', 'interface', 'enum', 'trait', 'import', 'package', 'as', 'in', 'if', 'else', 'for', 'while', 'switch', 'case', 'break', 'continue', 'return', 'try', 'catch', 'finally', 'throw', 'new', 'this', 'super', 'true', 'false', 'null', 'int', 'String', 'boolean', 'println', 'each'],
+                
+                // Bonus language
+                html: ['html', 'head', 'body', 'title', 'meta', 'link', 'style', 'script', 'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'img', 'ul', 'ol', 'li', 'form', 'input', 'button', 'textarea', 'label', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'footer', 'header', 'nav', 'section', 'article', 'aside', 'main', 'iframe', 'class=', 'id=', 'src=', 'href=', 'style=', 'alt=', 'type=', 'placeholder=', 'value=']
+            };
+
+            // Set the completions for each language in localStorage
+            // The key corresponds to the Ace editor mode name (e.g., 'c_cpp', 'csharp')
+            lsSet('lang_completions_javascript', draftCompletions.javascript);
+            lsSet('lang_completions_python', draftCompletions.python);
+            lsSet('lang_completions_c_cpp', draftCompletions.c_cpp);
+            lsSet('lang_completions_golang', draftCompletions.golang);
+            lsSet('lang_completions_lua', draftCompletions.lua);
+            lsSet('lang_completions_csharp', draftCompletions.csharp);
+            lsSet('lang_completions_java', draftCompletions.java);
+            lsSet('lang_completions_kotlin', draftCompletions.kotlin);
+            lsSet('lang_completions_ruby', draftCompletions.ruby);
+            lsSet('lang_completions_nim', draftCompletions.nim);
+            lsSet('lang_completions_autohotkey', draftCompletions.autohotkey);
+            lsSet('lang_completions_swift', draftCompletions.swift);
+            lsSet('lang_completions_dart', draftCompletions.dart);
+            lsSet('lang_completions_typescript', draftCompletions.typescript);
+            lsSet('lang_completions_groovy', draftCompletions.groovy);
+            lsSet('lang_completions_html', draftCompletions.html);
+
+            // Initial load of all language definitions and autocompletion
+            await loadDefinitions(); 
+            
             const getAllPaths = () => { const p = new Set(); for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k?.startsWith(STORAGE_PREFIX)) { const tp = k.substring(STORAGE_PREFIX.length); if (tp.startsWith('file_')) p.add(tp.substring(5)); if (tp.startsWith('folder_')) p.add(tp.substring(7)); } } return Array.from(p).sort((a,b) => a.localeCompare(b, void 0, {numeric:true})); };
             
             function saveFileContent(filename, content, silent = false) { if (!filename) return; lsSet('file_' + filename, content); if (fileSessions.has(filename)) { fileSessions.get(filename).getUndoManager().markClean(); checkDirtyState(filename); } if (!silent && term) term.writeln(`\x1b[32mFile saved: ${filename}\x1b[0m`); }
@@ -309,7 +358,8 @@
                     <div style="border-top:1px solid #333;padding-top:15px;">
                         <h4>Autocomplete</h4>
                         <div><label><input type="checkbox" id="autocomplete-master-checkbox"> Enable Autocomplete</label></div>
-                        <div style="padding-left: 20px;"><label><input type="checkbox" id="autocomplete-keywords-checkbox"> HTVM Keywords/Functions</label></div>
+                        <!-- UI TEXT CHANGE HERE -->
+                        <div style="padding-left: 20px;"><label><input type="checkbox" id="autocomplete-keywords-checkbox"> Language Keywords/Functions</label></div>
                         <div style="padding-left: 20px;"><label><input type="checkbox" id="autocomplete-local-checkbox"> Words from document</label></div>
                     </div>
                     <div id="settings-help" style="border-top:1px solid #333;padding-top:15px;">
@@ -342,7 +392,7 @@
                     editor.setOption('printMargin', parseInt(document.getElementById('print-margin-column-input').value, 10) || 80); lsSet('printMarginColumn', editor.getOption('printMargin'));
                     
                     const highlightOperators = document.getElementById('symbol-operator-highlighting-checkbox').checked;
-                    if ((lsGet('highlightSymbolOperators') !== false) !== highlightOperators) { lsSet('highlightSymbolOperators', highlightOperators); loadHtvmInstructions(); } // Reload mode to apply change
+                    if ((lsGet('highlightSymbolOperators') !== false) !== highlightOperators) { lsSet('highlightSymbolOperators', highlightOperators); loadDefinitions(); } // Reload definitions to apply change
                     
                     lsSet('autocomplete-master', document.getElementById('autocomplete-master-checkbox').checked);
                     lsSet('autocomplete-keywords', document.getElementById('autocomplete-keywords-checkbox').checked);
@@ -423,7 +473,11 @@
                 let lang = "htvm";
                 for (let i = currentLine; i >= 0; i--) { let foundEnd=false; for (const startMarker in markers) { if(!startMarker || startMarker === 'undefined') continue; const endMarker = keywords[keywords.indexOf(startMarker)+1]; if(lines[i].includes(endMarker)) {foundEnd=true; break;} if(lines[i].includes(startMarker)) {lang=markers[startMarker].lang; i=-1; break;} } if(foundEnd) break; }
                 const modeMap = {'js':'javascript','py':'python','cpp':'c_cpp','go':'golang','lua':'lua','cs':'csharp','java':'java','kt':'kotlin','rb':'ruby','nim':'nim','ahk':'autohotkey','swift':'swift','dart':'dart','ts':'typescript','groovy':'groovy','htvm':'htvm'};
-                const finalMode = `ace/mode/${modeMap[lang] || 'text'}`; if (editor.session.getMode().$id !== finalMode) { editor.session.setMode(finalMode); langTools.setCompleters(lang === 'htvm' ? [window.HTVMCompleter] : [langTools.textCompleter, langTools.keyWordCompleter]); }
+                const finalMode = `ace/mode/${modeMap[lang] || 'text'}`; 
+                // The completer is now universal, so no need to switch it. We only switch the syntax mode.
+                if (editor.session.getMode().$id !== finalMode) { 
+                    editor.session.setMode(finalMode);
+                }
             }
             
             const toggleDropdown = () => { const el = document.getElementById('lang-dropdown'); el.style.display = el.style.display === 'block' ? 'none' : 'block'; };
@@ -458,7 +512,7 @@
             document.getElementById('close-output-btn').onclick = () => document.getElementById('output-panel').classList.remove('visible');
             document.getElementById('download-html-btn').onclick = handleDownloadHtml;
             document.getElementById('load-instructions-btn').onclick = () => document.getElementById('instruction-file-input').click();
-            document.getElementById('instruction-file-input').onchange = e => { const file = e.target.files[0]; if(file) { const reader=new FileReader(); reader.onload = async r => { term.writeln(`\x1b[32mLoading HTVM instructions from ${file.name}...\x1b[0m`); await loadHtvmInstructions(r.target.result); term.writeln(`\x1b[32mInstructions loaded and syntax refreshed.\x1b[0m`); }; reader.readAsText(file); } };
+            document.getElementById('instruction-file-input').onchange = e => { const file = e.target.files[0]; if(file) { const reader=new FileReader(); reader.onload = async r => { term.writeln(`\x1b[32mLoading HTVM instructions from ${file.name}...\x1b[0m`); await loadDefinitions(r.target.result); term.writeln(`\x1b[32mDefinitions loaded and syntax refreshed.\x1b[0m`); }; reader.readAsText(file); } };
             document.addEventListener('keydown', e => { const ctrl = e.ctrlKey || e.metaKey; if(e.key === 'F5' || (ctrl && e.key === 'Enter')) { e.preventDefault(); handleRun(); } if(ctrl && e.key === 's') { e.preventDefault(); saveFileContent(currentOpenFile, editor.getValue()); } if(ctrl && e.key === 'w') { e.preventDefault(); handleCloseTabRequest(currentOpenFile); } if(ctrl && e.key === 'b') {e.preventDefault(); document.getElementById('main-toggle-sidebar-btn').click();} if(ctrl && e.shiftKey && (e.key === 'T' || e.key === 't')) {e.preventDefault(); handleReopenTab();} });
             document.getElementById('main-toggle-sidebar-btn').onclick = () => { const s = document.querySelector('.sidebar'); s.classList.toggle('collapsed'); lsSet('sidebarCollapsed', s.classList.contains('collapsed')); setTimeout(() => { editor.resize(); fitAddon.fit(); }, 310); };
             
