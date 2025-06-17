@@ -92,15 +92,12 @@ body.preload * { transition: none !important; }
 .tab.active { background-color: #000; color: #fff; }
 .tab.dirty .file-name::after { content: " *"; color: #007acc; font-weight: bold; }
 .tab .close-tab { margin-left: 8px; font-weight: bold; cursor: pointer; }
-
-/* --- DRAG & DROP STYLES --- */
 .tab.dragging {
     opacity: 0.5;
 }
 .tab.drag-over {
     border-bottom: 2px solid var(--btn-bg);
 }
-
 #run-btn { margin-left: auto; background-color: #3d8b40; color: white; font-weight: bold; border: none; padding: 8px 16px; border-radius: 3px; cursor: pointer; flex-shrink: 0; }
 #htvm-controls { display: none; align-items: center; gap: 10px; margin-left: 15px; margin-right: 15px; flex-shrink: 0; }
 .select-container { position: relative; display: inline-block; width: 140px; }
@@ -159,6 +156,97 @@ body.preload * { transition: none !important; }
 .ace-monokai .ace_string { color: #ffa0a0 !important; }
 .ace-monokai .ace_operators, .ace-monokai .ace_trueANDfalse { color: #00ffff !important; }
 .ace-monokai .ace_arrayMethods { color: #FAB820 !important; }
+
+/* --- DEBUGGER STYLES --- */
+.ace_debugger_active_line {
+    position: absolute;
+    background: rgba(255, 255, 0, 0.2);
+    z-index: 20;
+}
+.debugger-modal {
+    position: absolute;
+    max-width: 800px;
+    width: 90%;
+    display: flex;
+    flex-direction: column;
+    max-height: 80vh;
+    resize: both;
+    overflow: hidden;
+    transition: opacity 0.2s ease-in-out;
+    border-radius: 5px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    background-color: #1e1e1e;
+    z-index: 1002; /* Above overlay */
+}
+.debugger-header {
+    background-color: #2c2c2c;
+    color: white;
+    padding: 8px 12px;
+    cursor: move;
+    border-bottom: 1px solid #444;
+    user-select: none;
+    font-weight: bold;
+}
+.debugger-controls {
+    display: flex;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #333;
+}
+.debugger-controls button {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 3px;
+    color: white;
+    cursor: pointer;
+}
+#debugger-resume-btn { background-color: #3d8b40; }
+#debugger-step-btn { background-color: #0e639c; }
+#debugger-stop-btn { background-color: #c12a2a; }
+.debugger-content {
+    display: flex;
+    gap: 20px;
+    overflow: hidden;
+    flex-grow: 1;
+    padding: 10px;
+}
+.debugger-scope, .debugger-stack {
+    flex: 1;
+    overflow-y: auto;
+    border: 1px solid #333;
+    padding: 10px;
+    background-color: #1a1a1a;
+}
+.debugger-scope-item, .debugger-stack-item {
+    margin-bottom: 5px;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+.debugger-scope-name { color: #9cdcfe; }
+.debugger-scope-value { color: #ce9178; }
+
+#value-tooltip {
+    position: fixed;
+    display: none;
+    background-color: #333;
+    color: white;
+    border: 1px solid #555;
+    padding: 5px 8px;
+    border-radius: 3px;
+    z-index: 9999;
+    pointer-events: none;
+    font-family: monospace;
+    max-width: 400px;
+    max-height: 300px;
+    overflow: auto;
+}
+
+.ace_gutter-cell.ace_breakpoint {
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15"><circle cx="7.5" cy="7.5" r="6" fill="%23e53935"/></svg>');
+    background-repeat: no-repeat;
+    background-position: 3px center;
+    background-size: 15px 15px;
+}
 
 #sidebar-backdrop {
     display: none;

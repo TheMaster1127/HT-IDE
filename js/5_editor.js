@@ -1,5 +1,27 @@
 // --- Editor and Tab Management ---
 
+function setupGutterEvents() {
+    editor.on("guttermousedown", function(e) {
+        const target = e.domEvent.target;
+        if (target.className.indexOf("ace_gutter-cell") == -1) return;
+        if (!editor.isFocused()) return;
+        if (e.clientX > 25 + target.getBoundingClientRect().left) return;
+
+        const row = e.getDocumentPosition().row;
+        const currentBreakpoints = fileBreakpoints.get(currentOpenFile) || new Set();
+
+        if (currentBreakpoints.has(row)) {
+            editor.session.clearBreakpoint(row);
+            currentBreakpoints.delete(row);
+        } else {
+            editor.session.setBreakpoint(row, "ace_breakpoint");
+            currentBreakpoints.add(row);
+        }
+        fileBreakpoints.set(currentOpenFile, currentBreakpoints);
+        e.stop();
+    });
+}
+
 function openFileInEditor(filename) {
     if (!filename || currentOpenFile === filename) return;
     if (currentOpenFile) {
@@ -19,6 +41,14 @@ function openFileInEditor(filename) {
     }
 
     editor.setSession(fileSessions.get(filename));
+
+    // RENDER BREAKPOINTS FOR THE OPENED FILE
+    const breakpoints = fileBreakpoints.get(filename) || new Set();
+    editor.session.clearBreakpoints();
+    breakpoints.forEach(row => {
+        editor.session.setBreakpoint(row, "ace_breakpoint");
+    });
+
     const state = lsGet('state_' + filename);
     if (state) {
         setTimeout(() => {

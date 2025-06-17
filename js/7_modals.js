@@ -2,6 +2,11 @@
 
 function openSessionModal(mode) {
     const overlay = document.getElementById('modal-overlay');
+    overlay.style.pointerEvents = 'auto';
+    overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+
     overlay.innerHTML = `<div class="modal-box"><h3 id="modal-title"></h3><div id="modal-save-content" style="display:none;"><p>Enter/overwrite session name:</p><input type="text" id="modal-input" style="width:calc(100% - 22px);padding:10px;margin-bottom:15px;background-color:#252525;border:1px solid #333;color:#e0e0e0;"></div><ul class="modal-list" id="modal-list"></ul><div class="modal-buttons"><button id="modal-cancel-btn">Cancel</button><button id="modal-confirm-btn" style="margin-left:8px;">Save</button></div></div>`;
     
     const list = document.getElementById('modal-list');
@@ -35,7 +40,9 @@ function openSessionModal(mode) {
         });
     };
 
-    document.getElementById('modal-cancel-btn').onclick = () => overlay.style.display = 'none';
+    document.getElementById('modal-cancel-btn').onclick = () => {
+        overlay.style.display = 'none';
+    };
 
     if (mode === 'save') {
         document.getElementById('modal-title').textContent = 'Save Session';
@@ -73,6 +80,10 @@ function openSessionModal(mode) {
 
 function openInstructionManagerModal() {
     const overlay = document.getElementById('modal-overlay');
+    overlay.style.pointerEvents = 'auto';
+    overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
     overlay.innerHTML = `<div class="modal-box" style="width:90%; max-width:600px;">
         <h3>HTVM Instruction Sets</h3>
         <ul class="modal-list" id="instruction-sets-list"></ul>
@@ -210,6 +221,7 @@ function openInstructionEditorModal(setId, setName) {
     const langOptions = "cpp,py,js,go,lua,cs,java,kt,rb,nim,ahk,swift,dart,ts,groovy".split(',');
     const langToAceModeMap = {'js':'javascript','py':'python','cpp':'c_cpp','go':'golang','lua':'lua','cs':'csharp','java':'java','kt':'kotlin','rb':'ruby','nim':'nim','ahk':'autohotkey','swift':'swift','dart':'dart','ts':'typescript','groovy':'groovy'};
     const overlay = document.getElementById('modal-overlay');
+    overlay.style.pointerEvents = 'auto';
     overlay.innerHTML = `<div class="modal-box instr-editor-modal">
         <h3>Editing: ${setName}</h3>
         <div class="instr-editor-content">
@@ -464,11 +476,11 @@ function openInstructionEditorModal(setId, setName) {
     populateList();
     if (instructions.length > 0) displayFunc(instructions[0].id);
     overlay.style.display = 'flex';
-    bodyEditor.resize();
 }
 
 function openSettingsModal() {
     const overlay = document.getElementById('modal-overlay');
+    overlay.style.pointerEvents = 'auto';
     overlay.innerHTML = `<div class="modal-box" style="max-width: 850px;">
         <h3>Settings + Help</h3>
         <div id="settings-columns-container" style="display: flex; gap: 20px; border-top: 1px solid #333; padding-top: 15px; overflow-x: auto; padding-bottom: 15px;">
@@ -504,7 +516,7 @@ function openSettingsModal() {
                     <li><b>Ctrl+W:</b> Close Tab</li>
                     <li><b>Ctrl+Shift+T:</b> Re-open last closed tab</li>
                     <li><b>Ctrl+B:</b> Toggle Sidebar</li>
-                </ul>
+                 </ul>
             </div>
         </div>
         <div class="modal-buttons" style="margin-top: 20px;"><button id="modal-ok-btn" style="padding: 10px 24px; font-size: 1.1em; font-weight: bold;">OK</button></div>
@@ -536,4 +548,122 @@ function openSettingsModal() {
         overlay.style.display = 'none';
     };
     overlay.style.display = 'flex';
+}
+
+// --- DEBUGGER MODAL ---
+function openDebuggerModal() {
+    const overlay = document.getElementById('modal-overlay');
+    let modalBox = document.querySelector('.debugger-modal');
+    
+    if (!modalBox) {
+        // Create elements once and append them to the body to avoid innerHTML wipes
+        modalBox = document.createElement('div');
+        modalBox.className = 'debugger-modal';
+        modalBox.style.top = '20px';
+        modalBox.style.left = '20px';
+        modalBox.style.display = 'none'; // Start hidden
+
+        modalBox.innerHTML = `
+            <div class="debugger-header">Debugger Paused (Drag to Move)</div>
+            <div class="debugger-controls">
+                <button id="debugger-resume-btn">▶ Resume (F8)</button>
+                <button id="debugger-stop-btn">⏹ Stop</button>
+            </div>
+            <div class="debugger-content">
+                <div style="flex:1">
+                    <h4>Scope Variables</h4>
+                    <div class="debugger-scope"></div>
+                </div>
+            </div>`;
+        
+        let tooltip = document.getElementById('value-tooltip');
+        if (!tooltip) {
+            tooltip = document.createElement('div');
+            tooltip.id = 'value-tooltip';
+            document.body.appendChild(tooltip);
+        }
+
+        document.body.appendChild(modalBox);
+        const header = modalBox.querySelector('.debugger-header');
+
+        const resumeAndHide = () => {
+            if (debuggerState.resolve) {
+                debuggerState.isPaused = false;
+                debuggerState.resolve();
+            }
+            overlay.style.display = 'none';
+            modalBox.style.display = 'none';
+            clearHighlight();
+        };
+
+        const stopAndHide = () => {
+            stopDebugger();
+            overlay.style.display = 'none';
+            modalBox.style.display = 'none';
+        }
+
+        document.getElementById('debugger-resume-btn').onclick = resumeAndHide;
+        document.getElementById('debugger-stop-btn').onclick = stopAndHide;
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'F8' && debuggerState.isPaused) {
+                e.preventDefault();
+                resumeAndHide();
+            }
+        });
+        
+        // Drag and Drop Logic
+        let offsetX, offsetY;
+        const dragBackground = document.createElement('div');
+        dragBackground.style.position = 'fixed';
+        dragBackground.style.top = '0';
+        dragBackground.style.left = '0';
+        dragBackground.style.width = '100vw';
+        dragBackground.style.height = '100vh';
+        dragBackground.style.zIndex = '1001';
+        dragBackground.style.display = 'none';
+        document.body.appendChild(dragBackground);
+
+        const move = (e) => {
+            e.preventDefault();
+            modalBox.style.left = `${e.clientX - offsetX}px`;
+            modalBox.style.top = `${e.clientY - offsetY}px`;
+        };
+        const stopMove = () => {
+            dragBackground.style.display = 'none';
+            document.removeEventListener('mousemove', move);
+            document.removeEventListener('mouseup', stopMove);
+        };
+        header.addEventListener('mousedown', (e) => {
+            dragBackground.style.display = 'block';
+            offsetX = e.clientX - modalBox.offsetLeft;
+            offsetY = e.clientY - modalBox.offsetTop;
+            document.addEventListener('mousemove', move);
+            document.addEventListener('mouseup', stopMove);
+        });
+    }
+
+    const scopeContainer = modalBox.querySelector('.debugger-scope');
+    scopeContainer.innerHTML = '';
+    if (debuggerState.scope && Object.keys(debuggerState.scope).length > 0) {
+        for (const key in debuggerState.scope) {
+            let valueStr;
+            try {
+                const fullStr = JSON.stringify(debuggerState.scope[key], null, 2);
+                valueStr = fullStr.length > 250 ? fullStr.substring(0, 250) + '...' : fullStr;
+            } catch (e) {
+                valueStr = `[Circular]`;
+            }
+            
+            const item = document.createElement('div');
+            item.className = 'debugger-scope-item';
+            item.innerHTML = `<span class="debugger-scope-name">${key}:</span> <span class="debugger-scope-value">${valueStr}</span>`;
+            scopeContainer.appendChild(item);
+        }
+    } else {
+        scopeContainer.innerHTML = '<i>No user-defined variables in the current scope.</i>';
+    }
+    
+    // Display the debugger window without blocking the UI
+    modalBox.style.display = 'flex';
 }

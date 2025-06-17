@@ -33,6 +33,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     editor.setShowPrintMargin(lsGet('showPrintMargin') ?? true);
     editor.setFontSize(parseInt(lsGet('fontSize') || 14, 10));
     if (lsGet('vimMode')) editor.setKeyboardHandler("ace/keyboard/vim");
+    
+    setupGutterEvents();
 
     // --- Event Listeners ---
     editor.on('changeSelection', debounce(updateEditorModeForHtvm, 200));
@@ -46,11 +48,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('load-instructions-btn').onclick = openInstructionManagerModal;
     document.getElementById('open-folder-btn').onclick = () => alert("This feature is for the desktop version.");
     
-    // --- FINAL SIDEBAR TOGGLE LOGIC ---
     const toggleBtn = document.getElementById('main-toggle-sidebar-btn');
     const sidebar = document.querySelector('.sidebar');
     const backdrop = document.getElementById('sidebar-backdrop');
-    const closeBtn = document.getElementById('sidebar-close-btn'); // Get the new button
+    const closeBtn = document.getElementById('sidebar-close-btn');
 
     function toggleSidebar() {
         const isCollapsed = sidebar.classList.contains('collapsed');
@@ -67,7 +68,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     toggleBtn.onclick = toggleSidebar;
     backdrop.onclick = toggleSidebar;
-    closeBtn.onclick = toggleSidebar; // MAKE THE NEW 'X' BUTTON WORK
+    closeBtn.onclick = toggleSidebar;
 
     // HTVM controls listeners
     document.getElementById('lang-dropdown').addEventListener('click', e => {
@@ -102,6 +103,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     // --- Application Startup Logic ---
     term.writeln(`\x1b[1;32mWelcome to HT-IDE! (Workspace ID: ${IDE_ID})\x1b[0m`);
     term.write('$ ');
+
+    // --- LOAD BREAKPOINTS ---
+    const savedBreakpoints = lsGet('fileBreakpoints');
+    if (savedBreakpoints) {
+        for (const file in savedBreakpoints) {
+            fileBreakpoints.set(file, new Set(savedBreakpoints[file]));
+        }
+    }
 
     // Restore UI state from localStorage
     const sidebarWidth = lsGet('sidebarWidth'); if (sidebarWidth) document.querySelector('.sidebar').style.width = sidebarWidth;
@@ -150,6 +159,48 @@ document.addEventListener('DOMContentLoaded', async () => {
         lsSet('openTabs', openTabs);
         lsSet('lastOpenFile', currentOpenFile);
         lsSet('lastCwd', currentDirectory);
+
+        const serializableBreakpoints = {};
+        for (const [file, bpSet] of fileBreakpoints.entries()) {
+            serializableBreakpoints[file] = Array.from(bpSet);
+        }
+        lsSet('fileBreakpoints', serializableBreakpoints);
+    });
+
+    // --- DEBUGGER VALUE HOVER ---
+    editor.on('mousemove', function (e) {
+        const tooltip = document.getElementById('value-tooltip');
+        if (!tooltip || !debuggerState.isPaused) {
+            if (tooltip) tooltip.style.display = 'none';
+            return;
+        }
+        
+        const pos = e.getDocumentPosition();
+        const token = editor.session.getTokenAt(pos.row, pos.column);
+
+        if (token && (token.type.includes('variable') || token.type.includes('identifier'))) {
+            const varName = token.value;
+            if (debuggerState.scope && debuggerState.scope.hasOwnProperty(varName)) {
+                let value = debuggerState.scope[varName];
+                try {
+                    value = JSON.stringify(value, null, 2);
+                    if (value && value.length > 200) {
+                        value = value.substring(0, 200) + '...';
+                    }
+                } catch {
+                    value = String(value);
+                }
+
+                tooltip.innerText = `${varName}: ${value}`;
+                tooltip.style.display = 'block';
+                tooltip.style.left = (e.clientX + 15) + 'px';
+                tooltip.style.top = (e.clientY + 15) + 'px';
+            } else {
+                tooltip.style.display = 'none';
+            }
+        } else {
+            tooltip.style.display = 'none';
+        }
     });
 
     // Final UI adjustments
