@@ -92,7 +92,7 @@
                 const trimmedLine = Trim(A_LoopField3);
                 if (trimmedLine) {
                     const originalLineNum = A_Index3 + 3 - 1;
-                    if (originalLineNum >= 4 && originalLineNum <= 45) {
+                    if (originalLineNum >= 9 && originalLineNum <= 45) {
                         programmingBlocksAndImport_temp += trimmedLine + "|";
                     } else if ([48, 49, 50, 69].includes(originalLineNum)) {
                         htvm_trueFalseGlobalNull_temp += trimmedLine + "|";
@@ -101,6 +101,8 @@
                     } else if (originalLineNum >= 66 && originalLineNum <= 68) {
                         htvmKeywords_temp += trimmedLine + "|";
                     } else if (originalLineNum >= 70 && originalLineNum <= 83) {
+                        htvmKeywords_temp += trimmedLine + "|";
+                    } else if (originalLineNum >= 3 & originalLineNum <= 7) {
                         htvmKeywords_temp += trimmedLine + "|";
                     } else if (originalLineNum >= 84 && originalLineNum <= 89) {
                         arrayMethods_temp += Trim(StrReplace(trimmedLine, ".", "")) + "|";
@@ -120,13 +122,23 @@
                         } else {
                             symbol_operators_temp += trimmedLine + "|";
                         }
-                    } else if ([9, 147, 148].includes(originalLineNum)) {
+                    } else if ([8, 147, 148].includes(originalLineNum)) {
                         builtInVars_temp += trimmedLine + "|";
                     }
                 }
             });
 
             const cleanAndBuild = (str, boundary=true) => { const p = str.split('|').filter(Boolean).map(s => s.trim().replace(/[.*+?^${}()|[\]\\]/g,'\\$&')); return p.length ? (boundary ? `\\b(?:${p.join('|')})\\b` : `(?:${p.join('|')})`) : "(?!)"; };
+
+const cleanAndBuildComma = (str) => {
+    const p = str.split('|')
+        .filter(Boolean)
+        .map(s => s.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    return p.length
+        ? `\\b(?:${p.join('|')})(?=,)` // match only if a comma immediately follows
+        : "(?!)";
+};
+
             
             const final_word_operators = cleanAndBuild(word_operators_temp, true);
             const final_symbol_operators = cleanAndBuild(symbol_operators_temp, false);
@@ -150,7 +162,7 @@
                     // 4. Keywords, Types, and other specific word-based tokens
                     { token: "keyword", regex: cleanAndBuild(htvmKeywords_temp) },
                     { token: "BuildInFunc", regex: cleanAndBuild(builtInVars_temp) },                    
-                    { token: "command", regex: cleanAndBuild(builtInCommands_temp) },
+                    { token: "command", regex: cleanAndBuildComma(builtInCommands_temp) },
                     { token: "arrayMethods", regex: "\\." + cleanAndBuild(arrayMethods_temp) },
                     { token: "static_types", regex: cleanAndBuild(staticTypes_temp) },
                     { token: "programmingBlocksAndImport", regex: cleanAndBuild(programmingBlocksAndImport_temp) },

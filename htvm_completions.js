@@ -6,48 +6,43 @@
     let htvmKeywordCompletions = [];
 
     // This function is now specifically for parsing the complex HTVM instruction file.
-    function parseHtvmInstructions(allKeyWordsIn) {
-        if (!Array.isArray(allKeyWordsIn)) allKeyWordsIn = [];
-        
-        const keywords = new Set();
+function parseHtvmInstructions(allKeyWordsIn) {
+    if (!Array.isArray(allKeyWordsIn)) allKeyWordsIn = [];
+    
+    const keywords = new Set();
 
-        // Process keywords based on the specific rules from the instruction file
-        allKeyWordsIn.forEach((line, index) => {
-            const trimmedLine = line.trim();
-            if (!trimmedLine) return;
+    allKeyWordsIn.forEach((line, index) => {
+        const trimmedLine = line.trim();
+        if (!trimmedLine) return;
 
-            // Rule: Process Commands from Line 3 (index 2)
-            if (index === 2) {
-                const commandGroups = trimmedLine.split('|');
-                commandGroups.forEach(group => {
-                    const firstCommand = group.split(',')[0].trim();
-                    if (firstCommand) keywords.add(firstCommand);
-                });
-                return; // Stop processing this line
+        if (index === 2) {
+            const commandGroups = trimmedLine.split('|');
+            commandGroups.forEach(group => {
+                const firstCommand = group.split(',')[0].trim();
+                if (firstCommand) keywords.add(firstCommand.replace(/^\./, '')); // 🔧 FIXED
+            });
+            return;
+        }
+
+        if (index > 2 && index < 162) {
+            if (index === 146 || index >= 149) return;
+            if (trimmedLine && !/[[\]]/.test(trimmedLine)) {
+                keywords.add(trimmedLine.replace(/^\./, '')); // 🔧 FIXED
             }
+        }
 
-            // Rule: General Keyword processing (lines 4-162, excluding specific ones)
-            if (index > 2 && index < 162) {
-                // Exclude line 147 (index 146) and 150-162 (settings)
-                if (index === 146 || index >= 149) return;
-                if (trimmedLine && !/[[\]]/.test(trimmedLine)) {
-                    keywords.add(trimmedLine);
-                }
+        if (index >= 162) {
+            if (trimmedLine.startsWith("name:")) {
+                const funcNamesLine = trimmedLine.substring(5).trim();
+                const funcNames = funcNamesLine.split(',').map(f => f.trim()).filter(Boolean);
+                funcNames.forEach(name => keywords.add(name.replace(/^\./, ''))); // 🔧 FIXED
             }
+        }
+    });
 
-            // Rule: Process Functions from line 163 (index 162) onwards
-            if (index >= 162) {
-                if (trimmedLine.startsWith("name:")) {
-                    const funcNamesLine = trimmedLine.substring(5).trim();
-                    // Handle comma-separated function names
-                    const funcNames = funcNamesLine.split(',').map(f => f.trim()).filter(Boolean);
-                    funcNames.forEach(name => keywords.add(name));
-                }
-            }
-        });
+    return Array.from(keywords).map(name => ({ caption: name, value: name, meta: "htvm" }));
+}
 
-        return Array.from(keywords).map(name => ({ caption: name, value: name, meta: "htvm" }));
-    }
 
     // This is the main initialization function, renamed for clarity.
     // It prepares ALL completions and sets up the universal completer.
@@ -94,7 +89,7 @@
                 
                 // === Words from the local file ===
                 if (lsGet('autocomplete-local') !== false) {
-                    const userWords = session.getValue().match(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g) || [];
+                    const userWords = session.getValue().match(/\.?[a-zA-Z_][a-zA-Z0-9_]*/g) || [];
                     const userCompletions = [...new Set(userWords)].map(word => ({
                         caption: word,
                         value: word,
