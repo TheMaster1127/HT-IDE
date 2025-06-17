@@ -183,12 +183,8 @@
             const langTools = ace.require("ace/ext/language_tools");
             
             async function loadDefinitions(instructionContent = null) {
-                // 1. Initialize/Refresh the syntax highlighting rules (especially for HTVM)
                 await window.initializeHtvmMode(IDE_ID, instructionContent);
-                // 2. Initialize/Refresh the autocompletion keywords for all languages
                 await window.initializeCompleters(IDE_ID, editor);
-                
-                // 3. If an HTVM file is open, force the editor to re-apply the syntax highlighting
                 if (editor && currentOpenFile && currentOpenFile.endsWith('.htvm')) {
                     editor.session.setMode("ace/mode/text");
                     editor.session.setMode("ace/mode/htvm");
@@ -204,10 +200,7 @@
             const lsSet = (key, value) => { try { localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value)); } catch (e) { console.error(e); } };
             const lsRemove = key => localStorage.removeItem(STORAGE_PREFIX + key);
 
-            // DRAFT: Pre-populate keyword completions for common languages to demonstrate the new system.
-            // A future implementation could load these from user-provided files.
             const draftCompletions = {
-                // Core languages and all 15 supported languages from the dropdown + HTML
                 javascript: ['const', 'let', 'var', 'function', 'async', 'await', 'return', 'class', 'extends', 'import', 'export', 'default', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break', 'continue', 'try', 'catch', 'finally', 'throw', 'new', 'this', 'super', 'document', 'window', 'console', 'log', 'alert', 'fetch', 'Promise'],
                 python: ['def', 'class', 'import', 'from', 'as', 'if', 'elif', 'else', 'for', 'in', 'while', 'break', 'continue', 'pass', 'try', 'except', 'finally', 'raise', 'with', 'return', 'yield', 'lambda', 'True', 'False', 'None', 'print', 'len', 'range', 'list', 'dict', 'str', 'int', 'float'],
                 c_cpp: ['#include', '#define', 'using', 'namespace', 'std', 'int', 'char', 'float', 'double', 'bool', 'void', 'long', 'short', 'unsigned', 'signed', 'class', 'struct', 'public', 'private', 'protected', 'virtual', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break', 'continue', 'return', 'const', 'static', 'new', 'delete', 'this', 'cout', 'cin', 'endl'],
@@ -223,13 +216,9 @@
                 dart: ['import', 'export', 'part', 'library', 'var', 'final', 'const', 'late', 'void', 'class', 'mixin', 'enum', 'extends', 'implements', 'with', 'if', 'else', 'for', 'in', 'while', 'do', 'switch', 'case', 'break', 'continue', 'return', 'try', 'catch', 'on', 'finally', 'throw', 'async', 'await', 'yield', 'sync', 'Future', 'Stream', 'print'],
                 typescript: ['const', 'let', 'var', 'function', 'async', 'await', 'return', 'class', 'extends', 'implements', 'interface', 'type', 'enum', 'public', 'private', 'protected', 'readonly', 'static', 'import', 'export', 'from', 'default', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break', 'continue', 'try', 'catch', 'finally', 'throw', 'new', 'this', 'super', 'string', 'number', 'boolean', 'any', 'void', 'null', 'undefined'],
                 groovy: ['def', 'class', 'interface', 'enum', 'trait', 'import', 'package', 'as', 'in', 'if', 'else', 'for', 'while', 'switch', 'case', 'break', 'continue', 'return', 'try', 'catch', 'finally', 'throw', 'new', 'this', 'super', 'true', 'false', 'null', 'int', 'String', 'boolean', 'println', 'each'],
-                
-                // Bonus language
                 html: ['html', 'head', 'body', 'title', 'meta', 'link', 'style', 'script', 'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'img', 'ul', 'ol', 'li', 'form', 'input', 'button', 'textarea', 'label', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'footer', 'header', 'nav', 'section', 'article', 'aside', 'main', 'iframe', 'class=', 'id=', 'src=', 'href=', 'style=', 'alt=', 'type=', 'placeholder=', 'value=']
             };
 
-            // Set the completions for each language in localStorage
-            // The key corresponds to the Ace editor mode name (e.g., 'c_cpp', 'csharp')
             lsSet('lang_completions_javascript', draftCompletions.javascript);
             lsSet('lang_completions_python', draftCompletions.python);
             lsSet('lang_completions_c_cpp', draftCompletions.c_cpp);
@@ -247,7 +236,6 @@
             lsSet('lang_completions_groovy', draftCompletions.groovy);
             lsSet('lang_completions_html', draftCompletions.html);
 
-            // Initial load of all language definitions and autocompletion
             await loadDefinitions(); 
             
             const getAllPaths = () => { const p = new Set(); for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k?.startsWith(STORAGE_PREFIX)) { const tp = k.substring(STORAGE_PREFIX.length); if (tp.startsWith('file_')) p.add(tp.substring(5)); if (tp.startsWith('folder_')) p.add(tp.substring(7)); } } return Array.from(p).sort((a,b) => a.localeCompare(b, void 0, {numeric:true})); };
@@ -341,41 +329,61 @@
             
             function openSettingsModal() {
                 const overlay = document.getElementById('modal-overlay');
-                overlay.innerHTML = `<div class="modal-box" style="display:flex;flex-direction:column;gap:15px;">
+                overlay.innerHTML = `<div class="modal-box" style="max-width: 850px;">
                     <h3>Settings + Help</h3>
-                    <div style="border-top:1px solid #333;padding-top:15px;">
-                        <h4>Editor</h4>
-                        <div><label for="font-size-input">Font Size: </label><input type="number" id="font-size-input" style="width:60px;background:#252525;color:#e0e0e0;border:1px solid #333;"></div>
-                        <div><label><input type="checkbox" id="vim-mode-checkbox"> Vim Mode</label></div>
-                        <div><label><input type="checkbox" id="auto-pair-checkbox"> Auto-pair Brackets/Quotes</label></div>
-                        <div><label><input type="checkbox" id="print-margin-checkbox"> Show Vertical Guide Line</label></div>
-                        <div style="padding-left: 20px;"><label for="print-margin-column-input">Guide Line Column: </label><input type="number" id="print-margin-column-input" style="width:60px;background:#252525;color:#e0e0e0;border:1px solid #333;"></div>
+                    <div id="settings-columns-container" style="display: flex; gap: 20px; border-top: 1px solid #333; padding-top: 15px;">
+                        
+                        <!-- Column 1: Editor -->
+                        <div class="settings-column" style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+                            <h4>Editor</h4>
+                            <div><label for="font-size-input">Font Size: </label><input type="number" id="font-size-input" style="width:60px;background:#252525;color:#e0e0e0;border:1px solid #333;"></div>
+                            <div><label><input type="checkbox" id="vim-mode-checkbox"> Vim Mode</label></div>
+                            <div><label><input type="checkbox" id="auto-pair-checkbox"> Auto-pair Brackets/Quotes</label></div>
+                            <div><label><input type="checkbox" id="print-margin-checkbox"> Show Vertical Guide Line</label></div>
+                            <div style="padding-left: 20px;"><label for="print-margin-column-input">Guide Line Column: </label><input type="number" id="print-margin-column-input" style="width:60px;background:#252525;color:#e0e0e0;border:1px solid #333;"></div>
+                        </div>
+
+                        <!-- Column 2: Behavior -->
+                        <div class="settings-column" style="flex: 1.2; padding-left: 20px; border-left: 1px solid #333; display: flex; flex-direction: column; gap: 15px;">
+                            <div>
+                                <h4>Syntax Highlighting</h4>
+                                <div><label><input type="checkbox" id="symbol-operator-highlighting-checkbox"> Highlight Symbol Operators (e.g., :=, ++, *)</label></div>
+                            </div>
+                            <div>
+                                <h4>Terminal</h4>
+                                <div><label><input type="checkbox" id="clear-terminal-on-run-checkbox"> Clear terminal before each run</label></div>
+                            </div>
+                             <div>
+                                <h4>Autocomplete</h4>
+                                <div><label><input type="checkbox" id="autocomplete-master-checkbox"> Enable Autocomplete</label></div>
+                                <div style="padding-left: 20px;"><label><input type="checkbox" id="autocomplete-keywords-checkbox"> Language Keywords/Functions</label></div>
+                                <div style="padding-left: 20px;"><label><input type="checkbox" id="autocomplete-local-checkbox"> Words from document</label></div>
+                            </div>
+                        </div>
+
+                        <!-- Column 3: Help -->
+                        <div class="settings-column" style="flex: 1; padding-left: 20px; border-left: 1px solid #333;">
+                             <h4>Hotkeys</h4>
+                             <ul style="padding-left:20px;margin:0; font-size: 0.9em; list-style-type: none;">
+                                <li><b>Ctrl+Enter / F5:</b> Run File</li>
+                                <li><b>Ctrl+S:</b> Save File</li>
+                                <li><b>Ctrl+W:</b> Close Tab</li>
+                                <li><b>Ctrl+Shift+T:</b> Re-open last closed tab</li>
+                                <li><b>Ctrl+B:</b> Toggle Sidebar</li>
+                            </ul>
+                        </div>
+
                     </div>
-                    <div style="border-top:1px solid #333;padding-top:15px;">
-                        <h4>Syntax Highlighting</h4>
-                        <div><label><input type="checkbox" id="symbol-operator-highlighting-checkbox"> Highlight Symbol Operators (e.g., :=, ++, *)</label></div>
-                    </div>
-                    <div style="border-top:1px solid #333;padding-top:15px;">
-                        <h4>Autocomplete</h4>
-                        <div><label><input type="checkbox" id="autocomplete-master-checkbox"> Enable Autocomplete</label></div>
-                        <!-- UI TEXT CHANGE HERE -->
-                        <div style="padding-left: 20px;"><label><input type="checkbox" id="autocomplete-keywords-checkbox"> Language Keywords/Functions</label></div>
-                        <div style="padding-left: 20px;"><label><input type="checkbox" id="autocomplete-local-checkbox"> Words from document</label></div>
-                    </div>
-                    <div id="settings-help" style="border-top:1px solid #333;padding-top:15px;">
-                        <h4>Hotkeys</h4>
-                        <ul style="padding-left:20px;margin:0;"><li><b>Ctrl+Enter / F5:</b> Run File</li><li><b>Ctrl+S:</b> Save File</li><li><b>Ctrl+W:</b> Close Tab</li><li><b>Ctrl+Shift+T:</b> Re-open last closed tab</li><li><b>Ctrl+B:</b> Toggle Sidebar</li></ul>
-                    </div>
-                    <div class="modal-buttons"><button id="modal-ok-btn">OK</button></div>
+                    <div class="modal-buttons" style="margin-top: 20px;"><button id="modal-ok-btn" style="padding: 10px 24px; font-size: 1.1em; font-weight: bold;">OK</button></div>
                 </div>`;
                 
-                // Load saved settings
                 document.getElementById('font-size-input').value = editor.getFontSize();
                 document.getElementById('vim-mode-checkbox').checked = editor.getKeyboardHandler().$id === 'ace/keyboard/vim';
                 document.getElementById('auto-pair-checkbox').checked = editor.getBehavioursEnabled();
                 document.getElementById('print-margin-checkbox').checked = editor.getShowPrintMargin();
                 document.getElementById('print-margin-column-input').value = editor.getOption('printMargin');
                 document.getElementById('symbol-operator-highlighting-checkbox').checked = lsGet('highlightSymbolOperators') !== false;
+                document.getElementById('clear-terminal-on-run-checkbox').checked = lsGet('clearTerminalOnRun') === true;
                 document.getElementById('autocomplete-master-checkbox').checked = lsGet('autocomplete-master') !== false;
                 document.getElementById('autocomplete-keywords-checkbox').checked = lsGet('autocomplete-keywords') !== false;
                 document.getElementById('autocomplete-local-checkbox').checked = lsGet('autocomplete-local') !== false;
@@ -384,35 +392,54 @@
                     editor.setFontSize(parseInt(document.getElementById('font-size-input').value, 10)); lsSet('fontSize', editor.getFontSize());
                     const vimMode = document.getElementById('vim-mode-checkbox').checked; if ((editor.getKeyboardHandler().$id === 'ace/keyboard/vim') !== vimMode) { editor.setKeyboardHandler(vimMode ? "ace/keyboard/vim" : null); lsSet('vimMode', vimMode); }
                     editor.setBehavioursEnabled(document.getElementById('auto-pair-checkbox').checked); lsSet('autoPair', editor.getBehavioursEnabled());
-                    
-                    const shouldShowMargin = document.getElementById('print-margin-checkbox').checked;
-                    editor.setShowPrintMargin(shouldShowMargin);
-                    lsSet('showPrintMargin', shouldShowMargin);
-                    
+                    editor.setShowPrintMargin(document.getElementById('print-margin-checkbox').checked); lsSet('showPrintMargin', editor.getShowPrintMargin());
                     editor.setOption('printMargin', parseInt(document.getElementById('print-margin-column-input').value, 10) || 80); lsSet('printMarginColumn', editor.getOption('printMargin'));
-                    
                     const highlightOperators = document.getElementById('symbol-operator-highlighting-checkbox').checked;
-                    if ((lsGet('highlightSymbolOperators') !== false) !== highlightOperators) { lsSet('highlightSymbolOperators', highlightOperators); loadDefinitions(); } // Reload definitions to apply change
-                    
+                    if ((lsGet('highlightSymbolOperators') !== false) !== highlightOperators) { lsSet('highlightSymbolOperators', highlightOperators); loadDefinitions(); }
+                    lsSet('clearTerminalOnRun', document.getElementById('clear-terminal-on-run-checkbox').checked);
                     lsSet('autocomplete-master', document.getElementById('autocomplete-master-checkbox').checked);
                     lsSet('autocomplete-keywords', document.getElementById('autocomplete-keywords-checkbox').checked);
                     lsSet('autocomplete-local', document.getElementById('autocomplete-local-checkbox').checked);
-
                     overlay.style.display = 'none';
                 };
                 overlay.style.display = 'flex';
             }
+            
+            function printExecutionEndMessage() {
+                if (lsGet('clearTerminalOnRun') === true) {
+                    term.writeln(`\n\x1b[1;31m=== Execution is over ===\x1b[0m`);
+                    term.write('$ ');
+                }
+            }
 
-            function runJsCode(code) { term.writeln(`\x1b[1;33m--- JS Execution ---\x1b[0m`); const originalLog = console.log; try { console.log = (...args) => term.writeln(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)).join(' ')); new Function(code)(); } catch (e) { term.writeln(`\x1b[31mError: ${e.message}\x1b[0m`); } finally { console.log = originalLog; } }
-            function runHtvmCode(code) {
+            async function runJsCode(code) {
+                term.writeln(`\x1b[1;33m--- JS Execution ---\x1b[0m`);
+                const originalLog = window.console.log; // Capture the global console.log
+                try {
+                    // Temporarily hijack the global console.log
+                    window.console.log = (...args) => term.writeln(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)).join(' '));
+                    
+                    // Create a true async function from the user's code
+                    const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+                    const userFunc = new AsyncFunction(code);
+                    
+                    // Await the function to ensure all promises within it resolve
+                    await userFunc();
+                } catch (e) {
+                    term.writeln(`\x1b[31mError: ${e.stack}\x1b[0m`);
+                } finally {
+                    // CRITICAL: Always restore the original console.log
+                    window.console.log = originalLog;
+                    printExecutionEndMessage();
+                }
+            }
+
+            async function runHtvmCode(code) {
                 const lang = lsGet('selectedLangExtension') || 'js';
                 let instructionSet = JSON.parse(localStorage.getItem(`htvm_lang_${IDE_ID}`) || '[]');
                 const isFullHtml = lang === 'js' && document.getElementById('full-html-checkbox').checked;
-
-                if (isFullHtml) {
-                    if (Array.isArray(instructionSet) && instructionSet.length > 158) {
-                        instructionSet[158] = "on"; // useJavaScriptInAfullHTMLfile is at line 159 (index 158)
-                    }
+                if (isFullHtml && Array.isArray(instructionSet) && instructionSet.length > 158) {
+                    instructionSet[158] = "on";
                 }
                 
                 term.writeln(`\x1b[32mTranspiling HTVM to ${isFullHtml ? 'HTML' : lang.toUpperCase()}...\x1b[0m`); 
@@ -425,43 +452,64 @@
                 saveFileContent(newFile, compiled, false); 
                 if (!openTabs.includes(newFile)) openFileInEditor(newFile); 
                 
-                if (document.getElementById('run-js-after-htvm').checked) {
+                const shouldRunAfter = document.getElementById('run-js-after-htvm').checked;
+                if (shouldRunAfter) {
                     if (isFullHtml) {
                         runHtmlCode(compiled);
                     } else if (lang === 'js') {
-                        runJsCode(compiled);
+                        await runJsCode(compiled);
+                    } else {
+                        printExecutionEndMessage();
                     }
+                } else {
+                    printExecutionEndMessage();
                 }
             }
-            function runHtmlCode(code) { const panel = document.getElementById('output-panel'); const iframe = document.getElementById('html-output'); iframe.srcdoc = code; panel.classList.add('visible'); }
+
+            function runHtmlCode(code) {
+                const panel = document.getElementById('output-panel');
+                const iframe = document.getElementById('html-output');
+                iframe.srcdoc = code;
+                panel.classList.add('visible');
+                printExecutionEndMessage();
+            }
+
             function handleDownloadHtml() {
                 const iframe = document.getElementById('html-output');
                 const htmlContent = iframe.srcdoc;
-                if (!htmlContent) {
-                    alert('No HTML content to download.');
-                    return;
-                }
-                let fileName = prompt("Please enter a name for the HTML file:", "output.html");
-                if (fileName === null) {
-                    return; 
-                }
-                fileName = fileName.trim();
-                if (!fileName) {
-                    fileName = "output.html";
-                }
-                if (!fileName.toLowerCase().endsWith('.html')) {
-                    fileName += '.html';
-                }
+                if (!htmlContent) return alert('No HTML content to download.');
+                let fileName = prompt("Please enter a name for the HTML file:", "output.html")?.trim();
+                if (!fileName) return; 
+                if (!fileName.toLowerCase().endsWith('.html')) fileName += '.html';
                 const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
                 link.download = fileName;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+                document.body.appendChild(link); link.click(); document.body.removeChild(link);
                 URL.revokeObjectURL(link.href);
             }
-            function handleRun(e) { e?.preventDefault(); if (!currentOpenFile) return; saveFileContent(currentOpenFile, editor.getValue()); term.writeln(`\x1b[36m> Running ${currentOpenFile}...\x1b[0m`); const ext = currentOpenFile.split('.').pop(); if (ext === 'js') runJsCode(editor.getValue()); else if (ext === 'htvm') runHtvmCode(editor.getValue()); else if (ext === 'html') runHtmlCode(editor.getValue()); else term.writeln(`\x1b[31mError: Cannot execute ".${ext}" files.\x1b[0m`); }
+
+            async function handleRun(e) {
+                e?.preventDefault();
+                if (!currentOpenFile) return;
+                
+                if (lsGet('clearTerminalOnRun') === true) {
+                    term.clear();
+                }
+
+                saveFileContent(currentOpenFile, editor.getValue());
+                term.writeln(`\x1b[36m> Running ${currentOpenFile}...\x1b[0m`);
+                const ext = currentOpenFile.split('.').pop();
+                
+                if (ext === 'js') await runJsCode(editor.getValue());
+                else if (ext === 'htvm') await runHtvmCode(editor.getValue());
+                else if (ext === 'html') runHtmlCode(editor.getValue());
+                else {
+                    term.writeln(`\x1b[31mError: Cannot execute ".${ext}" files.\x1b[0m`);
+                    printExecutionEndMessage();
+                }
+            }
+
             function handleCloseTabRequest(filename) { if (!filename) return; if (fileSessions.has(filename)) { if (!fileSessions.get(filename).getUndoManager().isClean()) saveFileContent(filename, editor.getValue(), true); } closeTab(filename); }
             const handleReopenTab = () => { const f = recentlyClosedTabs.pop(); if (f && getAllPaths().includes(f)) openFileInEditor(f); };
 
@@ -474,10 +522,7 @@
                 for (let i = currentLine; i >= 0; i--) { let foundEnd=false; for (const startMarker in markers) { if(!startMarker || startMarker === 'undefined') continue; const endMarker = keywords[keywords.indexOf(startMarker)+1]; if(lines[i].includes(endMarker)) {foundEnd=true; break;} if(lines[i].includes(startMarker)) {lang=markers[startMarker].lang; i=-1; break;} } if(foundEnd) break; }
                 const modeMap = {'js':'javascript','py':'python','cpp':'c_cpp','go':'golang','lua':'lua','cs':'csharp','java':'java','kt':'kotlin','rb':'ruby','nim':'nim','ahk':'autohotkey','swift':'swift','dart':'dart','ts':'typescript','groovy':'groovy','htvm':'htvm'};
                 const finalMode = `ace/mode/${modeMap[lang] || 'text'}`; 
-                // The completer is now universal, so no need to switch it. We only switch the syntax mode.
-                if (editor.session.getMode().$id !== finalMode) { 
-                    editor.session.setMode(finalMode);
-                }
+                if (editor.session.getMode().$id !== finalMode) editor.session.setMode(finalMode);
             }
             
             const toggleDropdown = () => { const el = document.getElementById('lang-dropdown'); el.style.display = el.style.display === 'block' ? 'none' : 'block'; };
@@ -487,9 +532,7 @@
 
             editor.setTheme("ace/theme/monokai");
             editor.setOptions({ enableBasicAutocompletion: true, enableLiveAutocompletion: true, behavioursEnabled: lsGet('autoPair') !== false, wrap: true, printMargin: lsGet('printMarginColumn') || 80 });
-            const savedShowPrintMargin = lsGet('showPrintMargin');
-            editor.setShowPrintMargin(savedShowPrintMargin === null ? true : savedShowPrintMargin);
-            
+            editor.setShowPrintMargin(lsGet('showPrintMargin') ?? true);
             editor.setFontSize(parseInt(lsGet('fontSize') || 14, 10));
             if(lsGet('vimMode')) editor.setKeyboardHandler("ace/keyboard/vim");
             editor.on('changeSelection', debounce(updateEditorModeForHtvm, 200));
@@ -537,7 +580,6 @@
             setTimeout(() => { document.body.classList.remove('preload'); fitAddon.fit(); }, 50);
         });
 
-        // This is YOUR function to reset your compiler's state. It is now part of the main application.
         function resetGlobalVarsOfHTVMjs(){var str0,str00,str1,str2,str3,str4,str5,str6,str7,str8,str9,str10,str11,str12,str13,str14,str15,str16,str17,str18,str19,str20,str21,int0,int1,int2,int3,int4,int5,int6,int7,argHTVMinstrMORE,isNotHTVMfileEXTRA_INT,isNotHTVMfile2,isNotHTVMfileEXTRA_LIB_INFO,isNotHTVMfileEXTRA_FUNCS_INFO,programmingBlock_InTheTranspiledLang,programmingBlock_CPP,programmingBlock_PY,programmingBlock_JS,programmingBlock_GO,programmingBlock_LUA,programmingBlock_CS,programmingBlock_JAVA,programmingBlock_KT,programmingBlock_RB,programmingBlock_NIM,programmingBlock_AHK,programmingBlock_SWIFT,programmingBlock_DART,programmingBlock_TS,programmingBlock_GROOVY,programmingBlock_HTVM,programmingBlock_HTVMsyntax,fullLangAllOperators,fullLangAllOperators_HELP,fixExpertionLineFuncOnly,langToConvertTo,langFileExtension,commands,keyWordAlliance,keyWordCrew,keyWordProc,keyWordStruct,keyWordPorp,keyWordThis,keyWordInclude,keyWordCodeInTheTranspiledLangStart,keyWordCodeInTheTranspiledLangEnd,keyWordCodeInTheTranspiledLangStartCPP,keyWordCodeInTheTranspiledLangEndCPP,keyWordCodeInTheTranspiledLangStartPY,keyWordCodeInTheTranspiledLangEndPY,keyWordCodeInTheTranspiledLangStartJS,keyWordCodeInTheTranspiledLangEndJS,keyWordCodeInTheTranspiledLangStartGO,keyWordCodeInTheTranspiledLangEndGO,keyWordCodeInTheTranspiledLangStartLUA,keyWordCodeInTheTranspiledLangEndLUA,keyWordCodeInTheTranspiledLangStartCS,keyWordCodeInTheTranspiledLangEndCS,keyWordCodeInTheTranspiledLangStartJAVA,keyWordCodeInTheTranspiledLangEndJAVA,keyWordCodeInTheTranspiledLangStartKT,keyWordCodeInTheTranspiledLangEndKT,keyWordCodeInTheTranspiledLangStartRB,keyWordCodeInTheTranspiledLangEndRB,keyWordCodeInTheTranspiledLangStartNIM,keyWordCodeInTheTranspiledLangEndNIM,keyWordCodeInTheTranspiledLangStartAHK,keyWordCodeInTheTranspiledLangEndAHK,keyWordCodeInTheTranspiledLangStartSWIFT,keyWordCodeInTheTranspiledLangEndSWIFT,keyWordCodeInTheTranspiledLangStartDART,keyWordCodeInTheTranspiledLangEndDART,keyWordCodeInTheTranspiledLangStartTS,keyWordCodeInTheTranspiledLangEndTS,keyWordCodeInTheTranspiledLangStartGROOVY,keyWordCodeInTheTranspiledLangEndGROOVY,keyWordCodeInTheTranspiledLangStartHTVM,keyWordCodeInTheTranspiledLangEndHTVM,keyWordCodeInHTVMstart,keyWordCodeInHTVMend,keyWordCurlyBraceOpen,keyWordCurlyBraceClose,keyWordNull,keyWordTrue,keyWordFalse,keyWordVoid,keyWordDouble,keyWordChar,keyWordUint8,keyWordUint16,keyWordUint32,keyWordUint64,keyWordINT,keyWordSTR,keyWordBOOL,keyWordFLOAT,keyWordINT8,keyWordINT16,keyWordINT32,keyWordINT64,keyWordIF,keyWordElseIf,keyWordElse,keyWordWhileLoop,keyWordLoopInfinite,keyWordLoop,keyWordLoopParse,keyWordContinue,keyWordBreak,keyWordFunc,keyWordAwait,keyWordAsync,keyWordThrow,keyWordErrorMsg,keyWordTry,keyWordCatch,keyWordFinally,keyWordReturnStatement,keyWordArrayAppend,keyWordArrayPop,keyWordArraySize,keyWordArrayInsert,keyWordArrayRemove,keyWordArrayIndexOf,keyWordArrayDefinition,keyWordArrayOfIntegersDefinition,keyWordArrayOfStringsDefinition,keyWordArrayOfFloatingPointNumbersDefinition,keyWordArrayOfBooleansDefinition,keyWordVar,keyWordLet,keyWordConst,keyWordEnd,keyWordGlobal,keyWordComment,keyWordCommentOpenMultiLine,keyWordCommentCloseMultiLine,keyWordEscpaeChar,keyWordMainLabel,keyWordConcat,keyWordAdd,keyWordSub,keyWordMul,keyWordDiv,keyWordMod,keyWordExp,keyWordEqual,keyWordStrictEqual,keyWordNotEqual,keyWordGreater,keyWordLess,keyWordGreaterEqual,keyWordLessEqual,keyWordAnd,keyWordOr,keyWordNot,keyWordBitAnd,keyWordBitOr,keyWordBitXor,keyWordBitNot,keyWordShiftLeft,keyWordShiftRight,keyWordShiftUnsignedRight,keyWordAssign,keyWordAssignAdd,keyWordAssignConcat,keyWordAssignSub,keyWordAssignMul,keyWordAssignDiv,keyWordAssignMod,keyWordAssignShiftLeft,keyWordAssignShiftRight,keyWordLogicalAssignShiftRight,keyWordAssignBitAnd,keyWordAssignBitOr,keyWordAssignBitXor,keyWordTernary1,keyWordTernary2,keyWordInc,keyWordDec,AHKlikeLoopsIndexedAt,keyWordAIndex,keyWordALoopField,useFuncKeyWord,useCurlyBraces,useEnd,useSemicolon,theSemicolon,theColon,useParentheses,usePrefixTypeForTypeDefinition,usePostfixTypeForTypeDefinition,usePythonicColonSyntax,useCurlyBracesSyntaxForArrayDef,useInJavaScriptAlwaysUseVar,useJavaScriptInAfullHTMLfile,useJavaScriptAmainFuncDef,useJavaScriptAllFuncsAreAsync,useJavaScriptAlwaysTripleEqual,keyWordALoopFieldOriginal,keyWordAIndexOriginal,out_KeyWordsCommands,outTrimCode,htCode,outVarOperator,lineDone,areWeInAFuncFromInstructions,areWeInAFuncFromInstructionsLineNum,javaMainFuncSeen,csMainFuncSeen,howMany_fixAindexInGoUnused,luaContinueFix_Num,theTryCatchVarForErrors,allVarsSoWeDontReDecVars,allVarsSoWeDontReDecVars_FIX_uint8,allVarsSoWeDontReDecVars_FIX_uint16,allVarsSoWeDontReDecVars_FIX_uint32,allVarsSoWeDontReDecVars_FIX_uint64,allVarsSoWeDontReDecVars_FIX_int64,allVarsSoWeDontReDecVars_FIX_float,allVarsSoWeDontReDecVars_FIX_TOGGLE;
             str0="nothing";str00="nothing";str1="";str2="";str3="";str4="";str5="";str6="";str7="";str8="";str9="";str10="";str11="";str12="";str13="";str14="";str15="";str16="";str17="";str18="";str19="";str20="";str21="";int0=0;int1=0;int2=0;int3=0;int4=0;int5=0;int6=0;int7=0;argHTVMinstrMORE=[];isNotHTVMfileEXTRA_INT=0;isNotHTVMfile2=0;isNotHTVMfileEXTRA_LIB_INFO="";isNotHTVMfileEXTRA_FUNCS_INFO="";programmingBlock_InTheTranspiledLang=[];programmingBlock_CPP=[];programmingBlock_PY=[];programmingBlock_JS=[];programmingBlock_GO=[];programmingBlock_LUA=[];programmingBlock_CS=[];programmingBlock_JAVA=[];programmingBlock_KT=[];programmingBlock_RB=[];programmingBlock_NIM=[];programmingBlock_AHK=[];programmingBlock_SWIFT=[];programmingBlock_DART=[];programmingBlock_TS=[];programmingBlock_GROOVY=[];programmingBlock_HTVM=[];programmingBlock_HTVMsyntax=[];fullLangAllOperators=[];fullLangAllOperators_HELP=[];fixExpertionLineFuncOnly=0;langToConvertTo="";langFileExtension="";commands="";keyWordAlliance="";keyWordCrew="";keyWordProc="";keyWordStruct="";keyWordPorp="";keyWordThis="";keyWordInclude="";keyWordCodeInTheTranspiledLangStart="";keyWordCodeInTheTranspiledLangEnd="";keyWordCodeInTheTranspiledLangStartCPP="";keyWordCodeInTheTranspiledLangEndCPP="";keyWordCodeInTheTranspiledLangStartPY="";keyWordCodeInTheTranspiledLangEndPY="";keyWordCodeInTheTranspiledLangStartJS="";keyWordCodeInTheTranspiledLangEndJS="";keyWordCodeInTheTranspiledLangStartGO="";keyWordCodeInTheTranspiledLangEndGO="";keyWordCodeInTheTranspiledLangStartLUA="";keyWordCodeInTheTranspiledLangEndLUA="";keyWordCodeInTheTranspiledLangStartCS="";keyWordCodeInTheTranspiledLangEndCS="";keyWordCodeInTheTranspiledLangStartJAVA="";keyWordCodeInTheTranspiledLangEndJAVA="";keyWordCodeInTheTranspiledLangStartKT="";keyWordCodeInTheTranspiledLangEndKT="";keyWordCodeInTheTranspiledLangStartRB="";keyWordCodeInTheTranspiledLangEndRB="";keyWordCodeInTheTranspiledLangStartNIM="";keyWordCodeInTheTranspiledLangEndNIM="";keyWordCodeInTheTranspiledLangStartAHK="";keyWordCodeInTheTranspiledLangEndAHK="";keyWordCodeInTheTranspiledLangStartSWIFT="";keyWordCodeInTheTranspiledLangEndSWIFT="";keyWordCodeInTheTranspiledLangStartDART="";keyWordCodeInTheTranspiledLangEndDART="";keyWordCodeInTheTranspiledLangStartTS="";keyWordCodeInTheTranspiledLangEndTS="";keyWordCodeInTheTranspiledLangStartGROOVY="";keyWordCodeInTheTranspiledLangEndGROOVY="";keyWordCodeInTheTranspiledLangStartHTVM="";keyWordCodeInTheTranspiledLangEndHTVM="";keyWordCodeInHTVMstart="";keyWordCodeInHTVMend="";keyWordCurlyBraceOpen="";keyWordCurlyBraceClose="";keyWordNull="";keyWordTrue="";keyWordFalse="";keyWordVoid="";keyWordDouble="";keyWordChar="";keyWordUint8="";keyWordUint16="";keyWordUint32="";keyWordUint64="";keyWordINT="";keyWordSTR="";keyWordBOOL="";keyWordFLOAT="";keyWordINT8="";keyWordINT16="";keyWordINT32="";keyWordINT64="";keyWordIF="";keyWordElseIf="";keyWordElse="";keyWordWhileLoop="";keyWordLoopInfinite="";keyWordLoop="";keyWordLoopParse="";keyWordContinue="";keyWordBreak="";keyWordFunc="";keyWordAwait="";keyWordAsync="";keyWordThrow="";keyWordErrorMsg="";keyWordTry="";keyWordCatch="";keyWordFinally="";keyWordReturnStatement="";keyWordArrayAppend="";keyWordArrayPop="";keyWordArraySize="";keyWordArrayInsert="";keyWordArrayRemove="";keyWordArrayIndexOf="";keyWordArrayDefinition="";keyWordArrayOfIntegersDefinition="";keyWordArrayOfStringsDefinition="";keyWordArrayOfFloatingPointNumbersDefinition="";keyWordArrayOfBooleansDefinition="";keyWordVar="";keyWordLet="";keyWordConst="";keyWordEnd="";keyWordGlobal="";keyWordComment="";keyWordCommentOpenMultiLine="";keyWordCommentCloseMultiLine="";keyWordEscpaeChar="";keyWordMainLabel="";keyWordConcat="";keyWordAdd="";keyWordSub="";keyWordMul="";keyWordDiv="";keyWordMod="";keyWordExp="";keyWordEqual="";keyWordStrictEqual="";keyWordNotEqual="";keyWordGreater="";keyWordLess="";keyWordGreaterEqual="";keyWordLessEqual="";keyWordAnd="";keyWordOr="";keyWordNot="";keyWordBitAnd="";keyWordBitOr="";keyWordBitXor="";keyWordBitNot="";keyWordShiftLeft="";keyWordShiftRight="";keyWordShiftUnsignedRight="";keyWordAssign="";keyWordAssignAdd="";keyWordAssignConcat="";keyWordAssignSub="";keyWordAssignMul="";keyWordAssignDiv="";keyWordAssignMod="";keyWordAssignShiftLeft="";keyWordAssignShiftRight="";keyWordLogicalAssignShiftRight="";keyWordAssignBitAnd="";keyWordAssignBitOr="";keyWordAssignBitXor="";keyWordTernary1="";keyWordTernary2="";keyWordInc="";keyWordDec="";AHKlikeLoopsIndexedAt="";keyWordAIndex="";keyWordALoopField="";useFuncKeyWord="";useCurlyBraces="";useEnd="";useSemicolon="";theSemicolon="";theColon="";useParentheses="";usePrefixTypeForTypeDefinition="";usePostfixTypeForTypeDefinition="";usePythonicColonSyntax="";useCurlyBracesSyntaxForArrayDef="";useInJavaScriptAlwaysUseVar="";useJavaScriptInAfullHTMLfile="";useJavaScriptAmainFuncDef="";useJavaScriptAllFuncsAreAsync="";useJavaScriptAlwaysTripleEqual="";
             keyWordALoopFieldOriginal = ""; keyWordAIndexOriginal = ""; out_KeyWordsCommands = ""; outTrimCode = ""; htCode = ""; outVarOperator = ""; lineDone = 0; areWeInAFuncFromInstructions = 0; areWeInAFuncFromInstructionsLineNum = 0; javaMainFuncSeen = 0; csMainFuncSeen = 0; howMany_fixAindexInGoUnused = 0; luaContinueFix_Num = 0; theTryCatchVarForErrors = "jhku-dfsds-ds-d-ffdsf-sdfsfdsedsf"; allVarsSoWeDontReDecVars = []; allVarsSoWeDontReDecVars_FIX_uint8 = []; allVarsSoWeDontReDecVars_FIX_uint16 = []; allVarsSoWeDontReDecVars_FIX_uint32 = []; allVarsSoWeDontReDecVars_FIX_uint64 = []; allVarsSoWeDontReDecVars_FIX_int64 = []; allVarsSoWeDontReDecVars_FIX_float = []; allVarsSoWeDontReDecVars_FIX_TOGGLE = 0;
