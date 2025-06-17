@@ -4,4 +4,5 @@ The IDE of the future — seamlessly built for HTVM, customizable, efficient, an
 
 **WARNING: THIS PROJECT IS IN EARLY DEVELOPMENT. THE CODE IS NOT COMPLETE!**
 
-![image](https://github.com/user-attachments/assets/f34be824-dce8-4295-9918-d68ba83e2bc1)
+![image](https://github.com/user-attachments/assets/e0d0dbbc-4a34-4997-af28-689a29924a90)
+
