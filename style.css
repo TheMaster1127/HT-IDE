@@ -1,10 +1,9 @@
 :root { --bg-color: #1a1a1a; --text-color: #e0e0e0; --sidebar-bg: #121212; --hover-bg: #1f1f1f; --btn-bg: #fe6619; --btn-hover: #e65a00; --splitter-bg: #222; }
 
-/* THE DEFINITIVE FIX PART 1: Set html and body to 100% height */
 html, body {
     margin: 0;
     padding: 0;
-    height: 100%; /* Use percentage instead of vh */
+    height: 100%;
     width: 100%;
     overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -14,10 +13,9 @@ html, body {
 
 body.preload * { transition: none !important; }
 
-/* THE DEFINITIVE FIX PART 2: Make the container inherit that 100% height */
 .ide-container {
     display: flex;
-    height: 100%; /* Use percentage instead of vh */
+    height: 100%;
     width: 100vw;
     position: relative; 
     overflow: hidden;
@@ -89,11 +87,20 @@ body.preload * { transition: none !important; }
 .top-bar { display: flex; align-items: center; background-color: #1a1a1a; flex-shrink: 0; padding: 0 8px; flex-wrap: nowrap; }
 #main-toggle-sidebar-btn { background: none; border: none; color: #e0e0e0; font-size: 1.2em; cursor: pointer; padding: 10px 12px; }
 #tabs-container { display: flex; background-color: #1a1a1a; padding: 5px 0 0 5px; overflow-x: auto; flex-grow: 1; border-bottom: 1px solid #000; min-width: 0; }
-.tab { padding: 8px 12px; background-color: #252525; color: #ccc; margin-right: 2px; cursor: pointer; border-radius: 4px 4px 0 0; font-size: 0.85em; display: flex; align-items: center; flex-shrink: 0; }
+.tab { padding: 8px 12px; background-color: #252525; color: #ccc; margin-right: 2px; cursor: pointer; border-radius: 4px 4px 0 0; font-size: 0.85em; display: flex; align-items: center; flex-shrink: 0; transition: opacity 0.2s ease, border-bottom 0.2s ease; }
 .tab .file-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tab.active { background-color: #000; color: #fff; }
 .tab.dirty .file-name::after { content: " *"; color: #007acc; font-weight: bold; }
 .tab .close-tab { margin-left: 8px; font-weight: bold; cursor: pointer; }
+
+/* --- DRAG & DROP STYLES --- */
+.tab.dragging {
+    opacity: 0.5;
+}
+.tab.drag-over {
+    border-bottom: 2px solid var(--btn-bg);
+}
+
 #run-btn { margin-left: auto; background-color: #3d8b40; color: white; font-weight: bold; border: none; padding: 8px 16px; border-radius: 3px; cursor: pointer; flex-shrink: 0; }
 #htvm-controls { display: none; align-items: center; gap: 10px; margin-left: 15px; margin-right: 15px; flex-shrink: 0; }
 .select-container { position: relative; display: inline-block; width: 140px; }
@@ -207,7 +214,7 @@ body.preload * { transition: none !important; }
     .sidebar {
         position: absolute;
         z-index: 100;
-        height: 100%; /* The height will now be correct because its parent is correct */
+        height: 100%;
         width: 80%;
         max-width: 300px;
         min-width: 0 !important;

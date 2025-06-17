@@ -1,5 +1,7 @@
-// --- UI Rendering Functions ---
+// --- Drag & Drop State ---
+let draggedTab = null;
 
+// --- UI Rendering Functions ---
 function renderAll() {
     renderFileList();
     renderTabs();
@@ -70,6 +72,7 @@ function renderTabs() {
         tab.className = 'tab';
         tab.dataset.filename = filename;
         tab.title = filename;
+        tab.draggable = true; // Make the tab draggable
 
         const name = document.createElement('span');
         name.className = 'file-name';
@@ -84,6 +87,14 @@ function renderTabs() {
             handleCloseTabRequest(filename);
         };
         tab.appendChild(close);
+        
+        // Add event listeners for drag-and-drop
+        tab.addEventListener('dragstart', handleDragStart);
+        tab.addEventListener('dragend', handleDragEnd);
+        tab.addEventListener('dragover', handleDragOver);
+        tab.addEventListener('dragleave', handleDragLeave);
+        tab.addEventListener('drop', handleDrop);
+        
         tab.onclick = () => openFileInEditor(filename);
         container.appendChild(tab);
         checkDirtyState(filename);
@@ -181,4 +192,52 @@ function handleDownloadHtml() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
+}
+
+// --- Drag & Drop Handlers ---
+function handleDragStart(e) {
+    draggedTab = e.target;
+    e.target.classList.add('dragging');
+}
+
+function handleDragEnd(e) {
+    e.target.classList.remove('dragging');
+    document.querySelectorAll('.tab.drag-over').forEach(tab => tab.classList.remove('drag-over'));
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    const target = e.target.closest('.tab');
+    if (target && target !== draggedTab) {
+        target.classList.add('drag-over');
+    }
+}
+
+function handleDragLeave(e) {
+    const target = e.target.closest('.tab');
+    if (target) {
+        target.classList.remove('drag-over');
+    }
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    const targetTab = e.target.closest('.tab');
+    if (!targetTab || targetTab === draggedTab) {
+        return;
+    }
+
+    const draggedFilename = draggedTab.dataset.filename;
+    const targetFilename = targetTab.dataset.filename;
+
+    const draggedIndex = openTabs.indexOf(draggedFilename);
+    const targetIndex = openTabs.indexOf(targetFilename);
+    
+    // Remove the dragged tab from its original position
+    openTabs.splice(draggedIndex, 1);
+    // Insert it at the new position
+    openTabs.splice(targetIndex, 0, draggedFilename);
+
+    // Re-render the tabs in the new order
+    renderTabs();
 }
