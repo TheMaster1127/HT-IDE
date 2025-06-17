@@ -31,13 +31,21 @@ function parseHtvmInstructions(allKeyWordsIn) {
             }
         }
 
-        if (index >= 162) {
-            if (trimmedLine.startsWith("name:")) {
-                const funcNamesLine = trimmedLine.substring(5).trim();
-                const funcNames = funcNamesLine.split(',').map(f => f.trim()).filter(Boolean);
-                funcNames.forEach(name => keywords.add(name.replace(/^\./, ''))); // 🔧 FIXED
-            }
+if (index >= 162) {
+    if (trimmedLine.startsWith("name:")) {
+        // Check the description line two lines below, if exists
+        const descLine = allKeyWordsIn[index + 2]?.trim() || "";
+        const isDescriptionNull = descLine.toLowerCase() === "description: null";
+
+        if (!isDescriptionNull) {
+            const funcNamesLine = trimmedLine.substring(5).trim();
+            const funcNames = funcNamesLine.split(',').map(f => f.trim()).filter(Boolean);
+            funcNames.forEach(name => keywords.add(name.replace(/^\./, '')));
         }
+        // else skip adding since description is null
+    }
+}
+
     });
 
     return Array.from(keywords).map(name => ({ caption: name, value: name, meta: "htvm" }));
