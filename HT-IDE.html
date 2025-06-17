@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HT-IDE</title>
+    <link rel="icon" type="image/png" href="icon.png">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
     <style>
         :root { --bg-color: #1a1a1a; --text-color: #e0e0e0; --sidebar-bg: #121212; --hover-bg: #1f1f1f; --btn-bg: #fe6619; --btn-hover: #e65a00; --splitter-bg: #222; }
@@ -301,7 +302,25 @@
                 if (currentOpenFile === filenameToClose) { currentOpenFile = null; if (openTabs.length > 0) openFileInEditor(openTabs[Math.max(0, index - 1)]); else { editor.setSession(ace.createEditSession("// No file open.")); editor.setReadOnly(true); document.getElementById('htvm-controls').style.display = 'none'; } }
                 renderAll();
             }
-            function handleNewFile() { const name = prompt("File name:"); if (name?.trim()) { const path = currentDirectory === '/' ? name : `${currentDirectory}${name}`; if (getAllPaths().includes(path)) { alert("File exists."); return; } saveFileContent(path, path.endsWith('.htvm') ? '; Welcome!' : '', true); openFileInEditor(path); } }
+            function handleNewFile() {
+                const name = prompt("File name:");
+                if (name?.trim()) {
+                    const path = currentDirectory === '/' ? name : `${currentDirectory}${name}`;
+                    if (getAllPaths().includes(path)) {
+                        alert("File exists.");
+                        return;
+                    }
+                    let newFileContent = '';
+                    if (path.endsWith('.htvm')) {
+                        const instructions = JSON.parse(localStorage.getItem(`htvm_lang_${IDE_ID}`) || '[]');
+                        // Line 101 in a file is index 100 in a zero-based array
+                        const commentChar = (instructions && instructions.length > 100) ? instructions[100] : ';';
+                        newFileContent = `${commentChar.trim()} Welcome!`;
+                    }
+                    saveFileContent(path, newFileContent, true);
+                    openFileInEditor(path);
+                }
+            }
             function handleNewFolder() { const name = prompt("Folder name:"); if (name?.trim()) { const path = (currentDirectory === '/' ? name : `${currentDirectory}${name}`) + '/'; if (getAllPaths().some(p => p.startsWith(path))) { alert("Folder exists."); return; } lsSet(`folder_${path}`, true); renderFileList(); } }
             
             function openSessionModal(mode) {
@@ -556,7 +575,27 @@
             document.getElementById('download-html-btn').onclick = handleDownloadHtml;
             document.getElementById('load-instructions-btn').onclick = () => document.getElementById('instruction-file-input').click();
             document.getElementById('instruction-file-input').onchange = e => { const file = e.target.files[0]; if(file) { const reader=new FileReader(); reader.onload = async r => { term.writeln(`\x1b[32mLoading HTVM instructions from ${file.name}...\x1b[0m`); await loadDefinitions(r.target.result); term.writeln(`\x1b[32mDefinitions loaded and syntax refreshed.\x1b[0m`); }; reader.readAsText(file); } };
-            document.addEventListener('keydown', e => { const ctrl = e.ctrlKey || e.metaKey; if(e.key === 'F5' || (ctrl && e.key === 'Enter')) { e.preventDefault(); handleRun(); } if(ctrl && e.key === 's') { e.preventDefault(); saveFileContent(currentOpenFile, editor.getValue()); } if(ctrl && e.key === 'w') { e.preventDefault(); handleCloseTabRequest(currentOpenFile); } if(ctrl && e.key === 'b') {e.preventDefault(); document.getElementById('main-toggle-sidebar-btn').click();} if(ctrl && e.shiftKey && (e.key === 'T' || e.key === 't')) {e.preventDefault(); handleReopenTab();} });
+            
+            document.addEventListener('keydown', e => {
+                const ctrl = e.ctrlKey || e.metaKey;
+                if (e.key === 'F5' || (ctrl && e.key === 'Enter')) {
+                    e.preventDefault();
+                    handleRun(e);
+                } else if (ctrl && e.key.toLowerCase() === 's') {
+                    e.preventDefault();
+                    saveFileContent(currentOpenFile, editor.getValue());
+                } else if (ctrl && e.key.toLowerCase() === 'w') {
+                    e.preventDefault();
+                    handleCloseTabRequest(currentOpenFile);
+                } else if (ctrl && e.key.toLowerCase() === 'b') {
+                    e.preventDefault();
+                    document.getElementById('main-toggle-sidebar-btn').click();
+                } else if (ctrl && e.shiftKey && e.key.toLowerCase() === 't') {
+                    e.preventDefault();
+                    handleReopenTab();
+                }
+            });
+
             document.getElementById('main-toggle-sidebar-btn').onclick = () => { const s = document.querySelector('.sidebar'); s.classList.toggle('collapsed'); lsSet('sidebarCollapsed', s.classList.contains('collapsed')); setTimeout(() => { editor.resize(); fitAddon.fit(); }, 310); };
             
             const initResizer = (resizerEl, containerEl, lsKey, direction) => {
