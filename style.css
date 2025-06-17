@@ -1,16 +1,28 @@
 :root { --bg-color: #1a1a1a; --text-color: #e0e0e0; --sidebar-bg: #121212; --hover-bg: #1f1f1f; --btn-bg: #fe6619; --btn-hover: #e65a00; --splitter-bg: #222; }
-body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #000000; color: var(--text-color); }
+
+/* THE DEFINITIVE FIX PART 1: Set html and body to 100% height */
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%; /* Use percentage instead of vh */
+    width: 100%;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #000000;
+    color: var(--text-color);
+}
+
 body.preload * { transition: none !important; }
 
+/* THE DEFINITIVE FIX PART 2: Make the container inherit that 100% height */
 .ide-container {
     display: flex;
-    height: 100vh;
+    height: 100%; /* Use percentage instead of vh */
     width: 100vw;
     position: relative; 
     overflow: hidden;
 }
 
-/* Make the sidebar a flex container to arrange its three main children */
 .sidebar {
     width: 250px;
     min-width: 150px;
@@ -23,9 +35,8 @@ body.preload * { transition: none !important; }
 
 .sidebar.collapsed { width: 0 !important; min-width: 0; padding-left: 0; padding-right: 0; overflow: hidden; border-right: none; }
 
-/* THIS IS THE NEW WRAPPER FOR THE TOP SECTION */
 .sidebar-top-section {
-    flex-shrink: 0; /* Prevents this section from shrinking */
+    flex-shrink: 0;
 }
 
 .sidebar-header {
@@ -44,14 +55,13 @@ body.preload * { transition: none !important; }
 #new-file-btn { background-color: #0e639c; }
 #new-folder-btn { background-color: var(--btn-bg); }
 
-/* THIS IS THE SCROLLABLE MIDDLE SECTION */
 #file-list {
     list-style: none;
     padding: 0;
     margin: 0;
-    flex-grow: 1; /* Allows it to take all available space */
-    overflow-y: auto; /* Makes only this part scroll */
-    min-height: 0; /* A crucial fix for flexbox scrolling bugs */
+    flex-grow: 1;
+    overflow-y: auto;
+    min-height: 0;
 }
 
 #file-list li { padding: 6px 10px; cursor: pointer; border-radius: 3px; font-size: 0.9em; display: flex; align-items: center; justify-content: space-between; overflow: hidden; }
@@ -59,14 +69,13 @@ body.preload * { transition: none !important; }
 #file-list li:hover { background-color: var(--hover-bg); }
 #file-list li.active-file-list-item { background-color: #005f87; color: white; }
 
-/* THIS IS THE STATIC FOOTER */
 .sidebar-footer {
     padding: 10px;
     border-top: 1px solid var(--splitter-bg);
     display: grid;
     gap: 5px;
     grid-template-columns: 1fr 1fr;
-    flex-shrink: 0; /* Prevents the footer from shrinking */
+    flex-shrink: 0;
 }
 
 .sidebar-footer button { background-color: #333; color: white; border: none; padding: 8px; cursor: pointer; border-radius: 3px; font-size: 0.85em; width: 100%; }
@@ -198,7 +207,7 @@ body.preload * { transition: none !important; }
     .sidebar {
         position: absolute;
         z-index: 100;
-        height: 100%;
+        height: 100%; /* The height will now be correct because its parent is correct */
         width: 80%;
         max-width: 300px;
         min-width: 0 !important;
