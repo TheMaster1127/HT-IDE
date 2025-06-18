@@ -24,7 +24,16 @@ function initializeInstructionSetManagement() {
     if (activeId) {
         activeContent = localStorage.getItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + activeId) || "";
     }
-    localStorage.setItem(instructionSetKeys.legacyKey, JSON.stringify(activeContent.split('\n')));
+    
+    // --- THE REAL FIX IS HERE ---
+    // The "insane undefined behavior" was caused by Windows-style line endings (\r\n)
+    // in uploaded instruction files. The old code would split by '\n', leaving a poison
+    // carriage return character ('\r') at the end of every keyword.
+    // This line normalizes all line endings to a simple '\n' before processing,
+    // stripping out all '\r' characters and fixing the root cause of the bug.
+    const sanitizedContent = activeContent.replace(/\r\n?/g, '\n');
+
+    localStorage.setItem(instructionSetKeys.legacyKey, JSON.stringify(sanitizedContent.split('\n')));
 }
 
 async function loadDefinitions(instructionContent = null) {
@@ -72,7 +81,6 @@ function stopDebugger() {
     debuggerState.isActive = false;
     debuggerState.isPaused = false;
     clearHighlight();
-    document.getElementById('modal-overlay').style.display = 'none';
     printExecutionEndMessage();
 }
 
@@ -176,6 +184,13 @@ async function runHtvmCode(code) {
 async function handleRun(e) {
     e?.preventDefault();
     if (!currentOpenFile) return;
+
+    if (debuggerState.isActive) {
+        term.writeln(`\x1b[31mError: Cannot start a new execution while the debugger is active.\x1b[0m`);
+        term.writeln(`\x1b[33mPlease 'Resume' or 'Stop' the current debugging session first.\x1b[0m`);
+        term.write('$ ');
+        return;
+    }
     
     if (lsGet('clearTerminalOnRun') === true) {
         term.clear();

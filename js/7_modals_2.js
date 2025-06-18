@@ -1,83 +1,3 @@
-// --- Modal Dialog Functions ---
-
-function openSessionModal(mode) {
-    const overlay = document.getElementById('modal-overlay');
-    overlay.style.pointerEvents = 'auto';
-    overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
-    overlay.style.alignItems = 'center';
-    overlay.style.justifyContent = 'center';
-
-    overlay.innerHTML = `<div class="modal-box"><h3 id="modal-title"></h3><div id="modal-save-content" style="display:none;"><p>Enter/overwrite session name:</p><input type="text" id="modal-input" style="width:calc(100% - 22px);padding:10px;margin-bottom:15px;background-color:#252525;border:1px solid #333;color:#e0e0e0;"></div><ul class="modal-list" id="modal-list"></ul><div class="modal-buttons"><button id="modal-cancel-btn">Cancel</button><button id="modal-confirm-btn" style="margin-left:8px;">Save</button></div></div>`;
-    
-    const list = document.getElementById('modal-list');
-    const populate = (cb) => {
-        list.innerHTML = '';
-        const sessions = lsGet('session_list') || [];
-        if (!sessions.length) {
-            list.innerHTML = "<li class='no-sessions'>No sessions found.</li>";
-            return;
-        }
-        sessions.forEach(name => {
-            const li = document.createElement('li');
-            li.onclick = () => cb(name);
-            const nameSpan = document.createElement('span');
-            nameSpan.textContent = name;
-            const delBtn = document.createElement('button');
-            delBtn.textContent = '🗑️';
-            delBtn.style.cssText = 'background:none;border:none;color:#aaa;';
-            delBtn.onclick = (e) => {
-                e.stopPropagation();
-                if (confirm(`Delete session "${name}"?`)) {
-                    let s = lsGet('session_list').filter(i => i !== name);
-                    lsSet('session_list', s);
-                    lsRemove(`session_data_${name}`);
-                    populate(cb);
-                }
-            };
-            li.appendChild(nameSpan);
-            li.appendChild(delBtn);
-            list.appendChild(li);
-        });
-    };
-
-    document.getElementById('modal-cancel-btn').onclick = () => {
-        overlay.style.display = 'none';
-    };
-
-    if (mode === 'save') {
-        document.getElementById('modal-title').textContent = 'Save Session';
-        document.getElementById('modal-save-content').style.display = 'block';
-        document.getElementById('modal-confirm-btn').textContent = 'Save';
-        populate(name => document.getElementById('modal-input').value = name);
-        document.getElementById('modal-confirm-btn').onclick = () => {
-            const name = document.getElementById('modal-input').value.trim();
-            if (!name) return alert('Name cannot be empty.');
-            let sessions = lsGet('session_list') || [];
-            if (!sessions.includes(name)) sessions.push(name);
-            lsSet('session_list', sessions);
-            lsSet(`session_data_${name}`, openTabs);
-            overlay.style.display = 'none';
-            term.writeln(`\x1b[32mSession '${name}' saved.\x1b[0m`);
-        };
-    } else { // 'load' mode
-        document.getElementById('modal-title').textContent = 'Load Session';
-        document.getElementById('modal-save-content').style.display = 'none';
-        document.getElementById('modal-confirm-btn').style.display = 'none';
-        populate(name => {
-            const tabs = lsGet(`session_data_${name}`);
-            if (tabs) {
-                [...openTabs].forEach(t => closeTab(t, true));
-                tabs.forEach(t => {
-                    if (getAllPaths().includes(t)) openFileInEditor(t);
-                });
-            }
-            overlay.style.display = 'none';
-            term.writeln(`\x1b[32mSession '${name}' loaded.\x1b[0m`);
-        });
-    }
-    overlay.style.display = 'flex';
-}
-
 function openInstructionManagerModal() {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
@@ -478,208 +398,137 @@ function openInstructionEditorModal(setId, setName) {
     overlay.style.display = 'flex';
 }
 
-function openSettingsModal() {
+function openHtvmToHtvmModal() {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
-    overlay.innerHTML = `<div class="modal-box" style="max-width: 850px;">
-        <h3>Settings + Help</h3>
-        <div id="settings-columns-container" style="display: flex; gap: 20px; border-top: 1px solid #333; padding-top: 15px; overflow-x: auto; padding-bottom: 15px;">
-            <div class="settings-column" style="flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 240px;">
-                <h4>Editor</h4>
-                <div><label for="font-size-input">Font Size: </label><input type="number" id="font-size-input" style="width:60px;background:#252525;color:#e0e0e0;border:1px solid #333;"></div>
-                <div><label><input type="checkbox" id="vim-mode-checkbox"> Vim Mode</label></div>
-                <div><label><input type="checkbox" id="auto-pair-checkbox"> Auto-pair Brackets/Quotes</label></div>
-                <div><label><input type="checkbox" id="print-margin-checkbox"> Show Vertical Guide Line</label></div>
-                <div style="padding-left: 20px;"><label for="print-margin-column-input">Guide Line Column: </label><input type="number" id="print-margin-column-input" style="width:60px;background:#252525;color:#e0e0e0;border:1px solid #333;"></div>
-            </div>
-            <div class="settings-column" style="flex: 1.2; padding-left: 20px; border-left: 1px solid #333; display: flex; flex-direction: column; gap: 15px; min-width: 280px;">
-                <div>
-                    <h4>Syntax Highlighting</h4>
-                    <div><label><input type="checkbox" id="symbol-operator-highlighting-checkbox"> Highlight Symbol Operators (e.g., :=, ++, *)</label></div>
-                </div>
-                <div>
-                    <h4>Terminal</h4>
-                    <div><label><input type="checkbox" id="clear-terminal-on-run-checkbox"> Clear terminal before each run</label></div>
-                </div>
-                 <div>
-                    <h4>Autocomplete</h4>
-                    <div><label><input type="checkbox" id="autocomplete-master-checkbox"> Enable Autocomplete</label></div>
-                    <div style="padding-left: 20px;"><label><input type="checkbox" id="autocomplete-keywords-checkbox"> Language Keywords/Functions</label></div>
-                    <div style="padding-left: 20px;"><label><input type="checkbox" id="autocomplete-local-checkbox"> Words from document</label></div>
-                </div>
-            </div>
-            <div class="settings-column" style="flex: 1; padding-left: 20px; border-left: 1px solid #333; min-width: 220px;">
-                 <h4>Hotkeys</h4>
-                 <ul style="padding-left:20px;margin:0; font-size: 0.9em; list-style-type: none;">
-                    <li><b>Ctrl+Enter / F5:</b> Run File</li>
-                    <li><b>Ctrl+S:</b> Save File</li>
-                    <li><b>Ctrl+W:</b> Close Tab</li>
-                    <li><b>Ctrl+Shift+T:</b> Re-open last closed tab</li>
-                    <li><b>Ctrl+B:</b> Toggle Sidebar</li>
-                 </ul>
-            </div>
+    overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.innerHTML = `<div class="modal-box" style="width:90%; max-width:600px;">
+        <h3>HTVM to HTVM Converter</h3>
+        <p style="margin-top:0; color:#ccc;">The currently active instruction set is the <b>TARGET</b>. Select the <b>SOURCE</b> set to convert from.</p>
+        <ul class="modal-list" id="htvm-converter-list"></ul>
+        <div class="modal-buttons">
+             <button id="htvm-converter-cancel-btn">Close</button>
         </div>
-        <div class="modal-buttons" style="margin-top: 20px;"><button id="modal-ok-btn" style="padding: 10px 24px; font-size: 1.1em; font-weight: bold;">OK</button></div>
     </div>`;
-    
-    document.getElementById('font-size-input').value = editor.getFontSize();
-    document.getElementById('vim-mode-checkbox').checked = editor.getKeyboardHandler().$id === 'ace/keyboard/vim';
-    document.getElementById('auto-pair-checkbox').checked = editor.getBehavioursEnabled();
-    document.getElementById('print-margin-checkbox').checked = editor.getShowPrintMargin();
-    document.getElementById('print-margin-column-input').value = editor.getOption('printMargin');
-    document.getElementById('symbol-operator-highlighting-checkbox').checked = lsGet('highlightSymbolOperators') !== false;
-    document.getElementById('clear-terminal-on-run-checkbox').checked = lsGet('clearTerminalOnRun') === true;
-    document.getElementById('autocomplete-master-checkbox').checked = lsGet('autocomplete-master') !== false;
-    document.getElementById('autocomplete-keywords-checkbox').checked = lsGet('autocomplete-keywords') !== false;
-    document.getElementById('autocomplete-local-checkbox').checked = lsGet('autocomplete-local') !== false;
 
-    document.getElementById('modal-ok-btn').onclick = () => {
-        editor.setFontSize(parseInt(document.getElementById('font-size-input').value, 10)); lsSet('fontSize', editor.getFontSize());
-        const vimMode = document.getElementById('vim-mode-checkbox').checked; if ((editor.getKeyboardHandler().$id === 'ace/keyboard/vim') !== vimMode) { editor.setKeyboardHandler(vimMode ? "ace/keyboard/vim" : null); lsSet('vimMode', vimMode); }
-        editor.setBehavioursEnabled(document.getElementById('auto-pair-checkbox').checked); lsSet('autoPair', editor.getBehavioursEnabled());
-        editor.setShowPrintMargin(document.getElementById('print-margin-checkbox').checked); lsSet('showPrintMargin', editor.getShowPrintMargin());
-        editor.setOption('printMargin', parseInt(document.getElementById('print-margin-column-input').value, 10) || 80); lsSet('printMarginColumn', editor.getOption('printMargin'));
-        const highlightOperators = document.getElementById('symbol-operator-highlighting-checkbox').checked;
-        if ((lsGet('highlightSymbolOperators') !== false) !== highlightOperators) { lsSet('highlightSymbolOperators', highlightOperators); loadDefinitions(); }
-        lsSet('clearTerminalOnRun', document.getElementById('clear-terminal-on-run-checkbox').checked);
-        lsSet('autocomplete-master', document.getElementById('autocomplete-master-checkbox').checked);
-        lsSet('autocomplete-keywords', document.getElementById('autocomplete-keywords-checkbox').checked);
-        lsSet('autocomplete-local', document.getElementById('autocomplete-local-checkbox').checked);
+    const listEl = document.getElementById('htvm-converter-list');
+    const sets = lsGet(instructionSetKeys.list) || [];
+    const activeId = lsGet(instructionSetKeys.activeId);
+    const activeSet = sets.find(s => s.id === activeId);
+
+    if (!activeSet) {
+        listEl.innerHTML = `<li class='no-sessions'>No active (TARGET) instruction set found.</li>`;
+        document.getElementById('htvm-converter-cancel-btn').onclick = () => overlay.style.display = 'none';
+        overlay.style.display = 'flex';
+        return;
+    }
+
+    const handleSourceSelection = (sourceId) => {
+        const sourceInstructionSetContent = localStorage.getItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + sourceId);
+        const targetInstructionSetContent = localStorage.getItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + activeId);
+
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.multiple = true;
+        fileInput.accept = '.htvm';
+        fileInput.onchange = e => {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+
+            overlay.style.display = 'none';
+            term.writeln(`\x1b[36mStarting HTVM to HTVM conversion for ${files.length} file(s)...\x1b[0m`);
+
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = r => {
+                    const codeSnippet = r.target.result;
+                    
+                    resetGlobalVarsOfHTVMjs();
+
+                    let instrFile = targetInstructionSetContent;
+                    const instr0 = sourceInstructionSetContent;
+
+                    let fixInstrFile = "";
+                    const items2 = LoopParseFunc(instrFile, "\n", "\r");
+                    for (let index = 0; index < items2.length; index++) {
+                        const LoopField2 = items2[index];
+                        if (index === 1) { // Second line
+                            fixInstrFile += "htvm" + '\n';
+                        } else {
+                            fixInstrFile += LoopField2.trim() + '\n';
+                        }
+                    }
+                    instrFile = fixInstrFile.trimEnd();
+
+                    const instr1 = codeSnippet.trim();
+                    const instr2 = instr0.trim();
+                    const instr3 = "htvm";
+                    const instr4 = instrFile.trim();
+
+                    argHTVMinstrMORE.length = 0; // Clear before using
+                    argHTVMinstrMORE.push(instr4);
+
+                    const convertedCode = compiler(instr1, instr2, "full", instr3);
+
+                    const originalFilename = file.name;
+                    // --- FIX FOR FILENAME COLLISION AND UI REFRESH ---
+                    // 1. Determine base name for the new file
+                    let baseNewFilename = originalFilename.replace(/(\.htvm)$/i, '.converted.htvm');
+                    if (baseNewFilename === originalFilename) {
+                        baseNewFilename = `${originalFilename}.converted`;
+                    }
+
+                    // 2. Ensure the filename is unique
+                    let finalFilename = baseNewFilename;
+                    let counter = 1;
+                    const allKnownPaths = getAllPaths();
+                    const nameMatch = baseNewFilename.match(/(.*)(\.htvm)$/);
+                    const namePart = nameMatch ? nameMatch[1] : baseNewFilename;
+                    const extPart = nameMatch ? nameMatch[2] : '';
+
+                    let pathPrefix = currentDirectory === '/' ? '' : currentDirectory;
+                    while (allKnownPaths.includes(pathPrefix + finalFilename)) {
+                        finalFilename = `${namePart}(${counter})${extPart}`;
+                        counter++;
+                    }
+
+                    const finalPath = pathPrefix + finalFilename;
+                    
+                    // 3. Save the new file
+                    saveFileContent(finalPath, convertedCode, false);
+                    term.writeln(`\x1b[32mConverted ${originalFilename} -> ${finalFilename}\x1b[0m`);
+                    
+                    // 4. Refresh the file list to show the new file
+                    renderFileList();
+                };
+                reader.readAsText(file);
+            });
+            setTimeout(() => {
+                term.writeln(`\x1b[32m\nConversion process finished. Check the file list for new '.converted.htvm' files.\x1b[0m`);
+                term.write('$ ');
+            }, 1000);
+        };
+        fileInput.click();
+    };
+
+    listEl.innerHTML = '';
+    sets.forEach(set => {
+        const li = document.createElement('li');
+        if (set.id === activeId) {
+            li.textContent = `${set.name} (TARGET)`;
+            li.style.cssText = 'background-color:#004a6e; font-weight:bold;';
+        } else {
+            li.textContent = set.name;
+            li.onclick = () => handleSourceSelection(set.id);
+        }
+        listEl.appendChild(li);
+    });
+
+    document.getElementById('htvm-converter-cancel-btn').onclick = () => {
         overlay.style.display = 'none';
     };
+
     overlay.style.display = 'flex';
-}
-
-// --- DEBUGGER MODAL ---
-function openDebuggerModal() {
-    const overlay = document.getElementById('modal-overlay');
-    let modalBox = document.querySelector('.debugger-modal');
-    
-    if (!modalBox) {
-        // Create elements once and append them to the body to avoid innerHTML wipes
-        modalBox = document.createElement('div');
-        modalBox.className = 'debugger-modal';
-        modalBox.style.top = '20px';
-        modalBox.style.left = '20px';
-        modalBox.style.display = 'none'; // Start hidden
-
-        modalBox.innerHTML = `
-            <div class="debugger-header">Debugger Paused (Drag to Move)</div>
-            <div class="debugger-controls">
-                <button id="debugger-resume-btn">▶ Resume (F8)</button>
-                <button id="debugger-stop-btn">⏹ Stop</button>
-            </div>
-            <div class="debugger-content">
-                <div style="flex:1">
-                    <h4>Scope Variables</h4>
-                    <div class="debugger-scope"></div>
-                </div>
-            </div>`;
-        
-        let tooltip = document.getElementById('value-tooltip');
-        if (!tooltip) {
-            tooltip = document.createElement('div');
-            tooltip.id = 'value-tooltip';
-            document.body.appendChild(tooltip);
-        }
-
-        document.body.appendChild(modalBox);
-        const header = modalBox.querySelector('.debugger-header');
-
-        const resumeAndHide = () => {
-            if (debuggerState.resolve) {
-                debuggerState.isPaused = false;
-                debuggerState.resolve();
-            }
-            overlay.style.display = 'none';
-            modalBox.style.display = 'none';
-            clearHighlight();
-        };
-
-        const stopAndHide = () => {
-            stopDebugger();
-            overlay.style.display = 'none';
-            modalBox.style.display = 'none';
-        }
-
-        document.getElementById('debugger-resume-btn').onclick = resumeAndHide;
-        document.getElementById('debugger-stop-btn').onclick = stopAndHide;
-
-        window.addEventListener('keydown', (e) => {
-            if (e.key === 'F8' && debuggerState.isPaused) {
-                e.preventDefault();
-                resumeAndHide();
-            }
-        });
-        
-        // --- DRAG AND DROP LOGIC (FOR MOUSE AND TOUCH) ---
-        let offsetX, offsetY;
-        
-        const dragBackground = document.createElement('div');
-        dragBackground.style.position = 'fixed';
-        dragBackground.style.top = '0';
-        dragBackground.style.left = '0';
-        dragBackground.style.width = '100vw';
-        dragBackground.style.height = '100vh';
-        dragBackground.style.zIndex = '1001';
-        dragBackground.style.display = 'none';
-        document.body.appendChild(dragBackground);
-
-        const move = (e) => {
-            e.preventDefault();
-            // Handle both mouse and touch events
-            const clientX = e.clientX || e.touches[0].clientX;
-            const clientY = e.clientY || e.touches[0].clientY;
-            modalBox.style.left = `${clientX - offsetX}px`;
-            modalBox.style.top = `${clientY - offsetY}px`;
-        };
-        
-        const stopMove = () => {
-            dragBackground.style.display = 'none';
-            document.removeEventListener('mousemove', move);
-            document.removeEventListener('mouseup', stopMove);
-            document.removeEventListener('touchmove', move);
-            document.removeEventListener('touchend', stopMove);
-        };
-
-        const startMove = (e) => {
-            dragBackground.style.display = 'block';
-             // Handle both mouse and touch events
-            const clientX = e.clientX || e.touches[0].clientX;
-            const clientY = e.clientY || e.touches[0].clientY;
-            offsetX = clientX - modalBox.offsetLeft;
-            offsetY = clientY - modalBox.offsetTop;
-            document.addEventListener('mousemove', move);
-            document.addEventListener('mouseup', stopMove);
-            document.addEventListener('touchmove', move);
-            document.addEventListener('touchend', stopMove);
-        };
-        
-        header.addEventListener('mousedown', startMove);
-        header.addEventListener('touchstart', startMove);
-    }
-
-    const scopeContainer = modalBox.querySelector('.debugger-scope');
-    scopeContainer.innerHTML = '';
-    if (debuggerState.scope && Object.keys(debuggerState.scope).length > 0) {
-        for (const key in debuggerState.scope) {
-            let valueStr;
-            try {
-                const fullStr = JSON.stringify(debuggerState.scope[key], null, 2);
-                valueStr = fullStr.length > 250 ? fullStr.substring(0, 250) + '...' : fullStr;
-            } catch (e) {
-                valueStr = `[Circular]`;
-            }
-            
-            const item = document.createElement('div');
-            item.className = 'debugger-scope-item';
-            item.innerHTML = `<span class="debugger-scope-name">${key}:</span> <span class="debugger-scope-value">${valueStr}</span>`;
-            scopeContainer.appendChild(item);
-        }
-    } else {
-        scopeContainer.innerHTML = '<i>No user-defined variables in the current scope.</i>';
-    }
-    
-    // Display the debugger window without blocking the UI
-    modalBox.style.display = 'flex';
 }

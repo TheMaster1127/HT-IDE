@@ -119,37 +119,78 @@ function updateEditorModeForHtvm() {
 
     const currentLine = editor.getSelectionRange().start.row;
     const lines = editor.getValue().split('\n');
-
-    const markers = {
-        [keywords[16]]: { lang: "js" }, [keywords[14]]: { lang: "py" }, [keywords[12]]: { lang: "cpp" },
-        [keywords[18]]: { lang: "go" }, [keywords[20]]: { lang: "lua" }, [keywords[22]]: { lang: "cs" },
-        [keywords[24]]: { lang: "java" }, [keywords[26]]: { lang: "kt" }, [keywords[28]]: { lang: "rb" },
-        [keywords[30]]: { lang: "nim" }, [keywords[32]]: { lang: "ahk" }, [keywords[34]]: { lang: "swift" },
-        [keywords[36]]: { lang: "dart" }, [keywords[38]]: { lang: "ts" }, [keywords[40]]: { lang: "groovy" }
-    };
     
-    let lang = "htvm";
-    for (let i = currentLine; i >= 0; i--) {
-        let foundEnd = false;
-        for (const startMarker in markers) {
-            if (!startMarker || startMarker === 'undefined') continue;
-            const endMarker = keywords[keywords.indexOf(startMarker) + 1];
-            if (lines[i].includes(endMarker)) {
-                foundEnd = true;
-                break;
-            }
-            if (lines[i].includes(startMarker)) {
-                lang = markers[startMarker].lang;
-                i = -1; // End the outer loop
-                break;
+    const languageMarkers = {
+        [keywords[12]]: { end: keywords[13], lang: "cpp" }, [keywords[14]]: { end: keywords[15], lang: "py" },
+        [keywords[16]]: { end: keywords[17], lang: "js" }, [keywords[18]]: { end: keywords[19], lang: "go" },
+        [keywords[20]]: { end: keywords[21], lang: "lua" }, [keywords[22]]: { end: keywords[23], lang: "cs" },
+        [keywords[24]]: { end: keywords[25], lang: "java" }, [keywords[26]]: { end: keywords[27], lang: "kt" },
+        [keywords[28]]: { end: keywords[29], lang: "rb" }, [keywords[30]]: { end: keywords[31], lang: "nim" },
+        [keywords[32]]: { end: keywords[33], lang: "ahk" }, [keywords[34]]: { end: keywords[35], lang: "swift" },
+        [keywords[36]]: { end: keywords[37], lang: "dart" }, [keywords[38]]: { end: keywords[39], lang: "ts" },
+        [keywords[40]]: { end: keywords[41], lang: "groovy" }
+    };
+
+    const detectedBlocks = [];
+    let currentBlock = null;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        if (!currentBlock) {
+            for (const marker in languageMarkers) {
+                if (marker && marker !== 'undefined' && line.includes(marker)) {
+                    currentBlock = {
+                        start: i,
+                        lang: languageMarkers[marker].lang,
+                        endMarker: languageMarkers[marker].end
+                    };
+                    break;
+                }
             }
         }
-        if (foundEnd) break;
+        
+        if (currentBlock) {
+            if (currentBlock.endMarker && currentBlock.endMarker !== 'undefined' && line.includes(currentBlock.endMarker)) {
+                detectedBlocks.push({
+                    start: currentBlock.start,
+                    end: i,
+                    lang: currentBlock.lang
+                });
+                currentBlock = null; 
+            }
+        }
     }
+    
+    if (currentBlock) {
+         detectedBlocks.push({
+            start: currentBlock.start,
+            end: lines.length -1,
+            lang: currentBlock.lang
+        });
+    }
+
+    let lang = "htvm";
+    for (const block of detectedBlocks) {
+        if (currentLine >= block.start && currentLine <= block.end) {
+            lang = block.lang;
+            break;
+        }
+    }
+
     const modeMap = {'js':'javascript','py':'python','cpp':'c_cpp','go':'golang','lua':'lua','cs':'csharp','java':'java','kt':'kotlin','rb':'ruby','nim':'nim','ahk':'autohotkey','swift':'swift','dart':'dart','ts':'typescript','groovy':'groovy','htvm':'htvm'};
     const finalMode = `ace/mode/${modeMap[lang] || 'text'}`;
-    
-    if (editor.session.getMode().$id !== finalMode) {
-        editor.session.setMode(finalMode);
-    }
+
+    // --- THE DEFINITIVE SLEDGEHAMMER FIX ---
+    // The bug is a deep state corruption in the Ace session, caused by previous buggy code.
+    // Smart checks are not enough. We must assume the session is poisoned and
+    // forcefully tear down and rebuild the mode from scratch on every single cursor
+    // move or tab switch inside an HTVM file. This is aggressive, but it guarantees
+    // the corrupted state is destroyed and the highlighting works consistently.
+
+    // 1. Force the mode to a neutral, temporary state. This destroys the old tokenizer.
+    editor.session.setMode("ace/mode/text");
+
+    // 2. Immediately apply the correct mode. This creates a brand new, clean tokenizer.
+    editor.session.setMode(finalMode);
 }

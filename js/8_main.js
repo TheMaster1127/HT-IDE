@@ -4,6 +4,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     STORAGE_PREFIX = `HT-IDE-id${IDE_ID}-`;
     langTools = ace.require("ace/ext/language_tools");
 
+    // Apply custom syntax colors before editor initialization
+    applySyntaxHighlightingSettings();
+
     // Initialize core components
     editor = ace.edit("editor");
     term = new Terminal({ cursorBlink: true, fontFamily: 'monospace', fontSize: 13, theme: { background: '#000000', foreground: '#00DD00', cursor: '#00FF00' } });
@@ -32,7 +35,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     editor.setShowPrintMargin(lsGet('showPrintMargin') ?? true);
     editor.setFontSize(parseInt(lsGet('fontSize') || 14, 10));
-    if (lsGet('vimMode')) editor.setKeyboardHandler("ace/keyboard/vim");
+
+    const keybindingMode = lsGet('keybindingMode') || 'normal';
+    if (keybindingMode !== 'normal') {
+        editor.setKeyboardHandler(`ace/keyboard/${keybindingMode}`);
+    }
     
     setupGutterEvents();
 
@@ -46,6 +53,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('load-session-btn').onclick = () => openSessionModal('load');
     document.getElementById('settings-btn').onclick = openSettingsModal;
     document.getElementById('load-instructions-btn').onclick = openInstructionManagerModal;
+    document.getElementById('htvm-to-htvm-btn').onclick = openHtvmToHtvmModal;
     document.getElementById('open-folder-btn').onclick = () => alert("This feature is for the desktop version.");
     
     const toggleBtn = document.getElementById('main-toggle-sidebar-btn');
@@ -209,3 +217,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         fitAddon.fit();
     }, 50);
 });
+
+function applySyntaxHighlightingSettings() {
+    // Master toggle for syntax highlighting
+    if (lsGet('syntaxHighlightingEnabled') === false) {
+        document.body.classList.add('syntax-highlighting-disabled');
+    } else {
+        document.body.classList.remove('syntax-highlighting-disabled');
+    }
+
+    // Apply custom colors by setting CSS variables on the root element
+    const root = document.documentElement;
+    for (const key in syntaxColorConfig) {
+        const item = syntaxColorConfig[key];
+        const savedColor = lsGet(`color_${key}`) || item.default;
+        root.style.setProperty(`--${key}`, savedColor);
+    }
+}
