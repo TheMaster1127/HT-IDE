@@ -90,7 +90,7 @@ function gui_option_toCaseInsensitivePattern(str) {
             const allFunctionNamesString3 = localStorage.getItem(`htvm_lang_${id}_allFunctionNamesString`) || "";
             const allKeyWordsOut3 = localStorage.getItem(`htvm_lang_${id}_allKeyWordsOut`) || "";
 
-            var builtInCommands_temp = "", htvmKeywords_temp = "", staticTypes_temp = "", builtInVars_temp = "",
+            var builtInCommands_temp = "", htvmKeywords_temp = "", staticTypes_temp = "", builtInVars_temp = "A_Input|A_Id|A_Event|A_Value|",
                 symbol_operators_temp = "", word_operators_temp = "", arrayMethods_temp = "", programmingBlocksAndImport_temp = "",
                 htvm_trueFalseGlobalNull_temp = "", htvm_comment_temp = "", htvm_commentOpen1_temp = "",
                 htvm_commentClose2_temp = "";
@@ -140,8 +140,7 @@ function gui_option_toCaseInsensitivePattern(str) {
                             symbol_operators_temp += trimmedLine + "|";
                         }
                     } else if ([8, 147, 148].includes(originalLineNum)) {
-                        builtInVars_temp += trimmedLine + "|";
-                    }
+                        builtInVars_temp += trimmedLine + "|" }
                 }
             });
 
