@@ -9,6 +9,23 @@
         else { let pattern = new RegExp('[' + delimiter1.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + delimiter2.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ']+'); items = varString.split(pattern); }
         return items;
     }
+
+// Converts a string token into a regex pattern with [Aa][Bb]... style for case insensitivity
+function gui_option_toCaseInsensitivePattern(str) {
+  // Escape special regex chars, then convert letters to [Aa] style
+  return str.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') // escape special chars
+            .split('')
+            .map(ch => {
+              if (/[a-zA-Z]/.test(ch)) {
+                return `[${ch.toUpperCase()}${ch.toLowerCase()}]`;
+              }
+              return ch;
+            })
+            .join('');
+}
+
+
+
     function Trim(inputString) { return inputString ? inputString.trim() : ""; }
     function StrReplace(originalString, find, replaceWith) { return originalString ? originalString.split(find).join(replaceWith) : ""; }
     function StringTrimRight(input, numChars) { return (input && numChars <= input.length) ? input.substring(0, input.length - numChars) : input; }
@@ -143,6 +160,39 @@ const cleanAndBuildComma = (str) => {
             const final_word_operators = cleanAndBuild(word_operators_temp, true);
             const final_symbol_operators = cleanAndBuild(symbol_operators_temp, false);
 
+const gui_option_tokens1 = [
+  "i", "v", "id", "elementId", "eid",
+  "p", "parentId", "pid", "divId",
+  "x", "xPos", "xCoord",
+  "y", "yPos", "yCoord",
+  "w", "width", "wight", "widh",
+  "h", "height", "hight", "heigth",
+  "z", "zIndex", "z-index",
+  "d", "value", "val", "displayValue",
+  "q", "placeholder", "plc", "ph", "grayText",
+  "g", "f", "callback", "func", "fn", "call",
+  "o", "backgroundColor", "bgColor", "bg", "bgc",
+  "c", "color", "clr",
+  "r", "rounding", "round", "rnd",
+  "b", "border", "boder", "outline",
+  "l", "rawCss", "css", "style", "luxury",
+  "s", "size", "sz",
+  "a", "isEnabled", "isEnb",
+  "u", "isVisible", "isVsb",
+  "n", "isDeleting", "del", "remove", "rm"
+];
+
+const gui_option_tokens2 = [
+  "button", "text", "edit", "picture", "toggle",
+  "rectangle", "circle", "video", "dropdown", "iframe"
+];
+
+const gui_option_pattern1 = gui_option_tokens1.map(gui_option_toCaseInsensitivePattern).join('|');
+const gui_option_pattern2 = gui_option_tokens2.map(gui_option_toCaseInsensitivePattern).join('|');
+
+const regexGuiOptions = new RegExp(`\\b(?:${gui_option_pattern1})(?=:)|\\b(?:${gui_option_pattern2})\\b`);
+
+
             // FIX: Re-order the rules for safety and correctness.
             // Check for the most specific and unambiguous tokens FIRST.
             this.$rules = {
@@ -160,13 +210,17 @@ const cleanAndBuildComma = (str) => {
                     { token: "functions", regex: cleanAndBuild(allFunctionNamesString3) + "(?=\\()" },
                     
                     // 4. Keywords, Types, and other specific word-based tokens
-                    { token: "keyword", regex: cleanAndBuild(htvmKeywords_temp) },
+                    { token: "keyword", regex: cleanAndBuild(htvmKeywords_temp) + "|\\bsubout\\b" },
                     { token: "BuildInFunc", regex: cleanAndBuild(builtInVars_temp) },                    
-                    { token: "command", regex: cleanAndBuildComma(builtInCommands_temp) },
+                    { token: "command", regex: cleanAndBuildComma(builtInCommands_temp) + "|\\bendpoint(?=,)\\b|\\bfileinit(?=,)\\b|\\bport(?=,)\\b" },
                     { token: "arrayMethods", regex: "\\." + cleanAndBuild(arrayMethods_temp) },
-                    { token: "static_types", regex: cleanAndBuild(staticTypes_temp) },
+                    { token: "static_types", regex: cleanAndBuild(staticTypes_temp) + "|" + "\\b(?:" + "[Gg][Uu][Ii]" + "|" + "[Gg][Uu][Ii][Cc][Oo][Nn][Tt][Rr][Oo][Ll]" + ")\\b" },
                     { token: "programmingBlocksAndImport", regex: cleanAndBuild(programmingBlocksAndImport_temp) },
                     { token: "trueANDfalse", regex: cleanAndBuild(htvm_trueFalseGlobalNull_temp) },
+{
+    token: "guiOptions",
+    regex: regexGuiOptions
+},
 
                     // 5. Operators (last, as they are the most general)
                     { token: "operators", regex: final_word_operators }

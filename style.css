@@ -10,8 +10,10 @@
     --ace-color-blocks-import: #f51000;
     --ace-color-static-types: #569cd6;
     --ace-color-string: #ffa0a0;
-    --ace-color-operators: #00ffff;
+    --ace-color-operators: #40a0e0;
+    --ace-color-true-false-null-etc: #00ffff;
     --ace-color-array-methods: #fab820;
+    --ace-color-gui-options: #a6e22e;
     --ace-gutter-background: #204020;
     --ace-gutter-text: #cbcdc3;
     --ace-active-line: #103010;
@@ -191,8 +193,10 @@ body.preload * { transition: none !important; }
 .ace-monokai .ace_programmingBlocksAndImport { color: var(--ace-color-blocks-import) !important; font-weight: bold; }
 .ace-monokai .ace_static_types { color: var(--ace-color-static-types) !important; font-weight: bold; }
 .ace-monokai .ace_string { color: var(--ace-color-string) !important; }
-.ace-monokai .ace_operators, .ace-monokai .ace_trueANDfalse { color: var(--ace-color-operators) !important; }
+.ace-monokai .ace_ace-true-false-null-etc, .ace-monokai .ace_trueANDfalse { color: var(--ace-color-true-false-null-etc) !important; }
+.ace-monokai .ace_operators, .ace-monokai .ace_operators { color: var(--ace-color-operators) !important; font-weight: bold; }
 .ace-monokai .ace_arrayMethods { color: var(--ace-color-array-methods) !important; }
+.ace-monokai .ace_guiOptions { color: var(--ace-color-gui-options) !important; }
 
 /* Global Syntax Highlighting Disable -- CORRECTED */
 body.syntax-highlighting-disabled .ace_line > span[class*="ace_"] {
