@@ -1,3 +1,60 @@
+function promptForInitialInstructionSet() {
+    const overlay = document.getElementById('modal-overlay');
+    overlay.style.pointerEvents = 'auto';
+    overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+
+    overlay.innerHTML = `<div class="modal-box" style="text-align: center;">
+        <h3 style="margin-top: 0;">Welcome to HT-IDE!</h3>
+        <p>To enable <b>HTVM</b> features like transpiling and syntax highlighting, an instruction set file is required.</p>
+        <p style="color: #ccc; font-size: 0.9em;">You can manage or change instruction sets later via the button in the sidebar.</p>
+        <div class="modal-buttons" style="margin-top: 20px; justify-content: center; display: flex; gap: 15px;">
+            <button id="initial-instr-cancel-btn" style="background-color: #555;">Continue without HTVM</button>
+            <button id="initial-instr-upload-btn" style="background-color: #3d8b40; font-weight: bold;">Upload Instruction Set</button>
+        </div>
+    </div>`;
+
+    document.getElementById('initial-instr-cancel-btn').onclick = () => {
+        if (confirm("Are you sure? HTVM features will be disabled until an instruction set is provided and the IDE is reloaded. You can still use the IDE for standard file editing.")) {
+            overlay.style.display = 'none';
+        }
+    };
+
+    document.getElementById('initial-instr-upload-btn').onclick = () => {
+        const fileInput = document.getElementById('instruction-file-input');
+        
+        fileInput.onchange = e => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            let newName = file.name.replace(/\.[^/.]+$/, "");
+            
+            const reader = new FileReader();
+            reader.onload = r => {
+                const content = r.target.result;
+                const newId = 'initial_setup_' + Date.now();
+                const newSet = { name: newName, id: newId };
+
+                lsSet(instructionSetKeys.list, [newSet]);
+                localStorage.setItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + newId, content);
+                lsSet(instructionSetKeys.activeId, newId);
+
+                alert(`Instruction set "${newName}" has been added and activated. The IDE will now reload to apply the changes.`);
+                window.dispatchEvent(new Event('beforeunload'));
+                window.location.reload();
+            };
+            reader.readAsText(file);
+            fileInput.value = ''; 
+        };
+        
+        fileInput.click();
+    };
+
+    overlay.style.display = 'flex';
+}
+
+
 function openInstructionManagerModal() {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
@@ -120,8 +177,18 @@ function openInstructionManagerModal() {
                 sets.push({ name: newName, id: newId });
                 lsSet(instructionSetKeys.list, sets);
                 localStorage.setItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + newId, content);
-                if (sets.length === 1) lsSet(instructionSetKeys.activeId, newId);
-                populateList();
+
+                if (sets.length === 1) {
+                    lsSet(instructionSetKeys.activeId, newId);
+                    if (confirm("First instruction set has been added and activated. The IDE needs to reload to apply the changes. Reload now?")) {
+                        window.dispatchEvent(new Event('beforeunload'));
+                        window.location.reload();
+                    } else {
+                        populateList();
+                    }
+                } else {
+                    populateList();
+                }
             };
             reader.readAsText(file);
             fileInput.value = '';

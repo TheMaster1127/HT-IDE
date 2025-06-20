@@ -22,7 +22,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Load HTVM definitions and instruction sets
     initializeInstructionSetManagement();
-    await loadDefinitions();
+    
+    // Check for instruction set and start onboarding if necessary
+    if (!lsGet(instructionSetKeys.activeId)) {
+        promptForInitialInstructionSet();
+    } else {
+        await loadDefinitions();
+    }
+
 
     // Configure Ace Editor
     editor.setTheme("ace/theme/monokai");
@@ -226,11 +233,19 @@ function applySyntaxHighlightingSettings() {
         document.body.classList.remove('syntax-highlighting-disabled');
     }
 
-    // Apply custom colors by setting CSS variables on the root element
+    // Apply custom colors and boldness by setting CSS variables on the root element
     const root = document.documentElement;
     for (const key in syntaxColorConfig) {
         const item = syntaxColorConfig[key];
+        
+        // Apply color
         const savedColor = lsGet(`color_${key}`) || item.default;
         root.style.setProperty(`--${key}`, savedColor);
+
+        // Apply boldness for text items
+        if (item.isText) {
+            const isBold = lsGet(`boldness_${key}`) ?? item.defaultBold;
+            root.style.setProperty(`--${key}-font-weight`, isBold ? 'bold' : 'normal');
+        }
     }
 }

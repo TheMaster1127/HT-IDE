@@ -18,6 +18,21 @@
     --ace-gutter-text: #cbcdc3;
     --ace-active-line: #103010;
     --ace-background: #050505;
+
+    /* Font Weight Variables */
+    --ace-color-command-font-weight: bold;
+    --ace-color-keyword-font-weight: bold;
+    --ace-color-functions-font-weight: normal;
+    --ace-color-buildin-func-font-weight: normal;
+    --ace-color-comment-font-weight: normal;
+    --ace-color-blocks-import-font-weight: bold;
+    --ace-color-static-types-font-weight: bold;
+    --ace-color-string-font-weight: normal;
+    --ace-color-operators-font-weight: bold;
+    --ace-color-true-false-null-etc-font-weight: normal;
+    --ace-color-array-methods-font-weight: normal;
+    --ace-color-gui-options-font-weight: normal;
+    --ace-gutter-text-font-weight: normal;
 }
 
 html, body {
@@ -184,19 +199,19 @@ body.preload * { transition: none !important; }
 /* Syntax Highlighting using CSS Variables */
 .ace-monokai .ace_marker-layer .ace_active-line { background-color: var(--ace-active-line) !important; } 
 .ace-monokai { background-color: var(--ace-background) !important; }
-.ace-monokai .ace_gutter { background: var(--ace-gutter-background) !important; color: var(--ace-gutter-text) !important; }
-.ace-monokai .ace_command { color: var(--ace-color-command) !important; font-weight: bold; }
-.ace-monokai .ace_keyword { color: var(--ace-color-keyword) !important; font-weight: bold; }
-.ace-monokai .ace_functions { color: var(--ace-color-functions) !important; }
-.ace-monokai .ace_BuildInFunc { color: var(--ace-color-buildin-func) !important; }
-.ace-monokai .ace_comment { color: var(--ace-color-comment) !important; font-style: italic; }
-.ace-monokai .ace_programmingBlocksAndImport { color: var(--ace-color-blocks-import) !important; font-weight: bold; }
-.ace-monokai .ace_static_types { color: var(--ace-color-static-types) !important; font-weight: bold; }
-.ace-monokai .ace_string { color: var(--ace-color-string) !important; }
-.ace-monokai .ace_ace-true-false-null-etc, .ace-monokai .ace_trueANDfalse { color: var(--ace-color-true-false-null-etc) !important; }
-.ace-monokai .ace_operators, .ace-monokai .ace_operators { color: var(--ace-color-operators) !important; font-weight: bold; }
-.ace-monokai .ace_arrayMethods { color: var(--ace-color-array-methods) !important; }
-.ace-monokai .ace_guiOptions { color: var(--ace-color-gui-options) !important; }
+.ace-monokai .ace_gutter { background: var(--ace-gutter-background) !important; color: var(--ace-gutter-text) !important; font-weight: var(--ace-gutter-text-font-weight, normal) !important; }
+.ace-monokai .ace_command { color: var(--ace-color-command) !important; font-weight: var(--ace-color-command-font-weight, bold); }
+.ace-monokai .ace_keyword { color: var(--ace-color-keyword) !important; font-weight: var(--ace-color-keyword-font-weight, bold); }
+.ace-monokai .ace_functions { color: var(--ace-color-functions) !important; font-weight: var(--ace-color-functions-font-weight, normal); }
+.ace-monokai .ace_BuildInFunc { color: var(--ace-color-buildin-func) !important; font-weight: var(--ace-color-buildin-func-font-weight, normal); }
+.ace-monokai .ace_comment { color: var(--ace-color-comment) !important; font-style: italic; font-weight: var(--ace-color-comment-font-weight, normal); }
+.ace-monokai .ace_programmingBlocksAndImport { color: var(--ace-color-blocks-import) !important; font-weight: var(--ace-color-blocks-import-font-weight, bold); }
+.ace-monokai .ace_static_types { color: var(--ace-color-static-types) !important; font-weight: var(--ace-color-static-types-font-weight, bold); }
+.ace-monokai .ace_string { color: var(--ace-color-string) !important; font-weight: var(--ace-color-string-font-weight, normal); }
+.ace-monokai .ace_ace-true-false-null-etc, .ace-monokai .ace_trueANDfalse { color: var(--ace-color-true-false-null-etc) !important; font-weight: var(--ace-color-true-false-null-etc-font-weight, normal); }
+.ace-monokai .ace_operators, .ace-monokai .ace_operators { color: var(--ace-color-operators) !important; font-weight: var(--ace-color-operators-font-weight, bold); }
+.ace-monokai .ace_arrayMethods { color: var(--ace-color-array-methods) !important; font-weight: var(--ace-color-array-methods-font-weight, normal); }
+.ace-monokai .ace_guiOptions { color: var(--ace-color-gui-options) !important; font-weight: var(--ace-color-gui-options-font-weight, normal); }
 
 /* Global Syntax Highlighting Disable -- CORRECTED */
 body.syntax-highlighting-disabled .ace_line > span[class*="ace_"] {
@@ -287,6 +302,22 @@ body.syntax-highlighting-disabled .ace_line > span[class*="ace_"] {
     max-width: 400px;
     max-height: 300px;
     overflow: auto;
+}
+
+#info-tooltip {
+    position: fixed;
+    display: none;
+    background-color: #3e3e3e;
+    color: white;
+    border: 1px solid #666;
+    padding: 8px 12px;
+    border-radius: 4px;
+    z-index: 9999;
+    pointer-events: none;
+    font-size: 0.9em;
+    max-width: 350px;
+    word-wrap: break-word;
+    line-height: 1.4;
 }
 
 .ace_gutter-cell.ace_breakpoint {

@@ -13,21 +13,22 @@ const instructionSetKeys = {
 };
 
 const syntaxColorConfig = {
-    'ace-color-command': { label: 'HTVM Commands', default: '#569cd6' },
-    'ace-color-keyword': { label: 'Keywords', default: '#8080e0' },
-    'ace-color-functions': { label: 'Functions', default: '#80dfff' },
-    'ace-color-buildin-func': { label: 'Built-in Variables (A_...)', default: '#ff80df' },
-    'ace-color-comment': { label: 'Comments', default: '#40d080' },
-    'ace-color-blocks-import': { label: 'Programming Blocks & Imports', default: '#f51000' },
-    'ace-color-static-types': { label: 'Static Types', default: '#569cd6' },
-    'ace-color-string': { label: 'Strings', default: '#ffa0a0' },
-    'ace-color-operators': { label: 'Operators', default: '#40a0e0' },
-    'ace-color-true-false-null-etc': { label: 'True, False, null etc...', default: '#00ffff' },
-    'ace-color-array-methods': { label: 'Array Methods', default: '#FAB820' },
-    'ace-gutter-background': { label: 'Gutter Background', default: '#204020' },
-    'ace-gutter-text': { label: 'Gutter Text Color', default: '#cbcdc3' },
-    'ace-active-line': { label: 'Active Line Highlight', default: '#103010' },
-    'ace-background': { label: 'Editor Background', default: '#050505' },
+    'ace-color-command':         { label: 'HTVM Commands',              default: '#569cd6', isText: true, defaultBold: true },
+    'ace-color-keyword':         { label: 'Keywords',                   default: '#8080e0', isText: true, defaultBold: true },
+    'ace-color-functions':       { label: 'Functions',                  default: '#80dfff', isText: true, defaultBold: false },
+    'ace-color-buildin-func':    { label: 'Built-in Variables (A_...)', default: '#ff80df', isText: true, defaultBold: false },
+    'ace-color-comment':         { label: 'Comments',                   default: '#40d080', isText: true, defaultBold: false },
+    'ace-color-blocks-import':   { label: 'Programming Blocks & Imports', default: '#f51000', isText: true, defaultBold: true },
+    'ace-color-static-types':    { label: 'Static Types',               default: '#569cd6', isText: true, defaultBold: true },
+    'ace-color-string':          { label: 'Strings',                    default: '#ffa0a0', isText: true, defaultBold: false },
+    'ace-color-operators':       { label: 'Operators',                  default: '#40a0e0', isText: true, defaultBold: true },
+    'ace-color-true-false-null-etc': { label: 'True, False, null etc...', default: '#00ffff', isText: true, defaultBold: false },
+    'ace-color-array-methods':   { label: 'Array Methods',              default: '#fab820', isText: true, defaultBold: false },
+    'ace-color-gui-options':     { label: 'GUI Options',                default: '#a6e22e', isText: true, defaultBold: false },
+    'ace-gutter-text':           { label: 'Gutter Text Color',          default: '#cbcdc3', isText: true, defaultBold: false },
+    'ace-gutter-background':     { label: 'Gutter Background',          default: '#204020', isText: false, defaultBold: false },
+    'ace-active-line':           { label: 'Active Line Highlight',      default: '#103010', isText: false, defaultBold: false },
+    'ace-background':            { label: 'Editor Background',          default: '#050505', isText: false, defaultBold: false },
 };
 
 const draftCompletions = {

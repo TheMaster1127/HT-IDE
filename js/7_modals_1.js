@@ -204,10 +204,20 @@ function openSyntaxColorModal() {
     for (const key in syntaxColorConfig) {
         const item = syntaxColorConfig[key];
         const savedColor = lsGet(`color_${key}`) || item.default;
+        
+        const controlHtml = item.isText
+            ? `<label style="cursor:pointer; display:flex; align-items:center; gap: 4px; user-select: none;">
+                   <input type="checkbox" id="bold_${key}"> Bold
+               </label>`
+            : `<span class="info-icon" data-info-text="Boldness is a text property that changes the thickness of letters and numbers. This setting controls a background color, which is a solid block of color behind the text. Since there's no text in the background itself, the 'bold' option doesn't apply here." style="cursor:help; font-size: 1.2em;">ℹ️</span>`;
+
         colorItemsHtml += `
             <div class="color-picker-item">
                 <label for="${key}">${item.label}</label>
-                <input type="color" id="${key}" value="${savedColor}">
+                <div class="color-controls-wrapper" style="display: flex; align-items: center; gap: 15px;">
+                    ${controlHtml}
+                    <input type="color" id="${key}" value="${savedColor}">
+                </div>
             </div>
         `;
     }
@@ -224,27 +234,97 @@ function openSyntaxColorModal() {
         </div>
     </div>`;
 
+    // Load saved values into the form
+    for (const key in syntaxColorConfig) {
+        const item = syntaxColorConfig[key];
+        if (item.isText) {
+            const boldCheckbox = document.getElementById(`bold_${key}`);
+            boldCheckbox.checked = lsGet(`boldness_${key}`) ?? item.defaultBold;
+        }
+    }
+
+    // --- IMMEDIATE TOOLTIP LOGIC ---
+    const listContainer = document.getElementById('color-picker-list');
+    const infoTooltip = document.getElementById('info-tooltip');
+
+    listContainer.addEventListener('mouseover', e => {
+        if (e.target.classList.contains('info-icon')) {
+            infoTooltip.textContent = e.target.dataset.infoText;
+            infoTooltip.style.display = 'block';
+        }
+    });
+
+    listContainer.addEventListener('mouseout', e => {
+        if (e.target.classList.contains('info-icon')) {
+            infoTooltip.style.display = 'none';
+        }
+    });
+    
+    listContainer.addEventListener('mousemove', e => {
+        if (infoTooltip.style.display === 'block') {
+            const tooltipWidth = infoTooltip.offsetWidth;
+            const tooltipHeight = infoTooltip.offsetHeight;
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+            const cursor_margin = 15;
+
+            let left = e.clientX + cursor_margin;
+            let top = e.clientY + cursor_margin;
+
+            // Adjust horizontal position if it overflows
+            if (left + tooltipWidth > windowWidth) {
+                left = e.clientX - tooltipWidth - cursor_margin;
+            }
+
+            // Adjust vertical position if it overflows
+            if (top + tooltipHeight > windowHeight) {
+                top = e.clientY - tooltipHeight - cursor_margin;
+            }
+            
+            // Ensure it doesn't go off the left/top edges either
+            if (left < 0) left = 0;
+            if (top < 0) top = 0;
+
+            infoTooltip.style.left = left + 'px';
+            infoTooltip.style.top = top + 'px';
+        }
+    });
+
+
+    // --- BUTTON LOGIC ---
     document.getElementById('modal-colors-cancel-btn').onclick = () => {
         openSettingsModal(); // Go back to the main settings modal
     };
     
     document.getElementById('modal-colors-reset-btn').onclick = () => {
-        if (confirm("Are you sure you want to reset all colors to their defaults?")) {
+        if (confirm("Are you sure you want to reset all colors and styles to their defaults?")) {
             for (const key in syntaxColorConfig) {
-                 document.getElementById(key).value = syntaxColorConfig[key].default;
+                const item = syntaxColorConfig[key];
+                document.getElementById(key).value = item.default;
+                if (item.isText) {
+                    document.getElementById(`bold_${key}`).checked = item.defaultBold;
+                }
             }
         }
     };
 
     document.getElementById('modal-colors-save-btn').onclick = () => {
         for (const key in syntaxColorConfig) {
+            // Save color
             const colorValue = document.getElementById(key).value;
             lsSet(`color_${key}`, colorValue);
+
+            // Save boldness if applicable
+            const item = syntaxColorConfig[key];
+            if (item.isText) {
+                const isBold = document.getElementById(`bold_${key}`).checked;
+                lsSet(`boldness_${key}`, isBold);
+            }
         }
         
         overlay.style.display = 'none';
 
-        if (confirm("Colors have been saved. A reload is required for changes to take full effect. Your work will be saved.\n\nReload now?")) {
+        if (confirm("Colors and styles have been saved. A reload is required for changes to take full effect. Your work will be saved.\n\nReload now?")) {
             window.dispatchEvent(new Event('beforeunload'));
             window.location.reload();
         }
