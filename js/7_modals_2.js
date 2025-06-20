@@ -16,7 +16,7 @@ function promptForInitialInstructionSet() {
     </div>`;
 
     document.getElementById('initial-instr-cancel-btn').onclick = () => {
-        if (confirm("Are you sure? HTVM features will be disabled until an instruction set is provided and the IDE is reloaded. You can still use the IDE for standard file editing.")) {
+        if (confirm("Are you sure? HTVM features will be disabled until an instruction set is provided and the IDE is reloaded. You can still use the IDE for standard file editing using other programming languages, e.g., JavaScript, Python, C++, etc.")) {
             overlay.style.display = 'none';
         }
     };
