@@ -111,7 +111,7 @@ function gui_option_toCaseInsensitivePattern(str) {
                     const originalLineNum = A_Index3 + 3 - 1;
                     if (originalLineNum >= 9 && originalLineNum <= 45) {
                         programmingBlocksAndImport_temp += trimmedLine + "|";
-                    } else if ([48, 49, 50, 69].includes(originalLineNum)) {
+                    } else if ([48, 49, 50, 69, 99].includes(originalLineNum)) {
                         htvm_trueFalseGlobalNull_temp += trimmedLine + "|";
                     } else if (originalLineNum >= 51 && originalLineNum <= 65) {
                         staticTypes_temp += trimmedLine + "|";
