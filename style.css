@@ -36,6 +36,9 @@
     --btn-htvm-to-htvm-bg: #6a0dad;
     --btn-htvm-to-htvm-text: #ffffff;
     --btn-htvm-to-htvm-text-bold: normal;
+    --btn-export-import-bg: #c12a2a;
+    --btn-export-import-text: #ffffff;
+    --btn-export-import-text-bold: normal;
     --btn-open-folder-bg: #0e639c;
     --btn-open-folder-text: #ffffff;
     --btn-open-folder-text-bold: normal;
@@ -183,7 +186,8 @@ body.preload * { transition: none !important; }
 #load-session-btn { background-color: var(--btn-load-session-bg); color: var(--btn-load-session-text); font-weight: var(--btn-load-session-text-bold); }
 #settings-btn { background-color: var(--btn-settings-bg); color: var(--btn-settings-text); font-weight: var(--btn-settings-text-bold); }
 #load-instructions-btn { background-color: var(--btn-manage-instr-bg); color: var(--btn-manage-instr-text); font-weight: var(--btn-manage-instr-text-bold); }
-#htvm-to-htvm-btn { grid-column: 1 / -1; background-color: var(--btn-htvm-to-htvm-bg); color: var(--btn-htvm-to-htvm-text); font-weight: var(--btn-htvm-to-htvm-text-bold); }
+#htvm-to-htvm-btn { background-color: var(--btn-htvm-to-htvm-bg); color: var(--btn-htvm-to-htvm-text); font-weight: var(--btn-htvm-to-htvm-text-bold); }
+#export-import-btn { background-color: var(--btn-export-import-bg); color: var(--btn-export-import-text); font-weight: var(--btn-export-import-text-bold); }
 #open-folder-btn { grid-column: 1 / -1; background-color: var(--btn-open-folder-bg); color: var(--btn-open-folder-text); font-weight: var(--btn-open-folder-text-bold); }
 #sidebar-resizer { width: var(--resizer-size); background-color: var(--resizer-bg); cursor: ew-resize; flex-shrink: 0; }
 #sidebar-resizer:hover { background-color: var(--resizer-hover-bg); }

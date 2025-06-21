@@ -541,3 +541,220 @@ function openThemeEditorModal() {
         openSettingsModal();
     };
 }
+
+function openExportImportModal() {
+    const overlay = document.getElementById('modal-overlay');
+    overlay.style.pointerEvents = 'auto';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+
+    const triggerDownload = (data, filename) => {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    const handleFileUpload = (callback) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = event => {
+                try {
+                    const data = JSON.parse(event.target.result);
+                    callback(data);
+                } catch (err) {
+                    alert(`Error parsing JSON file: ${err.message}`);
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    };
+    
+    const getAllWorkspaceIds = () => {
+        const ids = new Set();
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            const match = key.match(/^HT-IDE-id(\d+)-/);
+            if (match) {
+                ids.add(match[1]);
+            }
+        }
+        return Array.from(ids).sort((a,b) => a - b);
+    };
+
+    const clearWorkspaceData = (id) => {
+        const prefix = `HT-IDE-id${id}-`;
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key.startsWith(prefix)) {
+                keysToRemove.push(key);
+            }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+    };
+
+    const workspaceOptions = getAllWorkspaceIds().map(id => `<option value="${id}">Workspace ${id}</option>`).join('');
+
+    overlay.innerHTML = `
+        <div class="modal-box" style="max-width: 600px;">
+            <h3>Export / Import Data</h3>
+            <p style="font-size:0.9em; color:#ccc; margin-top:0;">Importing data will overwrite existing settings and requires a reload.</p>
+            
+            <div style="border-top: 1px solid #333; margin-top: 15px; padding-top: 15px;">
+                <h4><span style="color: #f51000; font-weight: bold;">⚠</span> Everything</h4>
+                <p style="font-size:0.8em; margin:0 0 10px 0;">Exports or imports all workspaces, themes, and settings. Use with caution.</p>
+                <div style="display:flex; gap: 10px;">
+                    <button id="export-all-btn" class="modal-btn-confirm" style="flex:1;">Export All Data</button>
+                    <button id="import-all-btn" class="modal-btn-reset" style="flex:1;">Import All Data</button>
+                </div>
+            </div>
+
+            <div style="border-top: 1px solid #333; margin-top: 15px; padding-top: 15px;">
+                <h4><span style="color: #a6e22e;">🎨</span> IDE Theme</h4>
+                <p style="font-size:0.8em; margin:0 0 10px 0;">Exports or imports only the UI and syntax color settings for the current workspace.</p>
+                <div style="display:flex; gap: 10px;">
+                    <button id="export-theme-btn" class="modal-btn-confirm" style="flex:1;">Export Theme</button>
+                    <button id="import-theme-btn" class="modal-btn-reset" style="flex:1;">Import Theme</button>
+                </div>
+            </div>
+            
+            <div style="border-top: 1px solid #333; margin-top: 15px; padding-top: 15px;">
+                <h4><span style="color: #569cd6;">💻</span> Workspace</h4>
+                <p style="font-size:0.8em; margin:0 0 10px 0;">Exports a single workspace or imports a file into a new or existing workspace.</p>
+                <select id="workspace-select" style="width:100%; padding: 8px; margin-bottom: 10px; background: #252525; color: #e0e0e0; border: 1px solid #444;">
+                    ${workspaceOptions.length > 0 ? workspaceOptions : '<option disabled>No workspaces found</option>'}
+                </select>
+                <div style="display:flex; gap: 10px; margin-bottom: 10px;">
+                    <button id="export-workspace-btn" class="modal-btn-confirm" style="flex:1;">Export Selected</button>
+                    <button id="import-workspace-btn" style="flex:1; background-color: #3d8b40;">Import to New ID</button>
+                </div>
+                <button id="import-overwrite-workspace-btn" class="modal-btn-reset" style="width:100%;">Import & Overwrite Selected</button>
+            </div>
+
+            <div class="modal-buttons" style="margin-top: 25px;">
+                <button id="export-import-close-btn" class="modal-btn-cancel">Close</button>
+            </div>
+        </div>`;
+
+    document.getElementById('export-import-close-btn').onclick = () => { overlay.style.display = 'none'; };
+    
+    // --- Event Listeners ---
+
+    // EVERYTHING
+    document.getElementById('export-all-btn').onclick = () => {
+        let filename = prompt("Enter a filename for the full backup:", "ht-ide-backup-all.json");
+        if (!filename) return;
+        if (!filename.endsWith('.json')) filename += '.json';
+        
+        const data = {};
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key.startsWith('HT-IDE-')) {
+                data[key] = localStorage.getItem(key);
+            }
+        }
+        triggerDownload(data, filename);
+    };
+    document.getElementById('import-all-btn').onclick = () => {
+        if (!confirm("WARNING: This will delete ALL current workspaces and settings and replace them with the data from the file. This cannot be undone. Continue?")) return;
+        handleFileUpload(data => {
+            localStorage.clear();
+            for (const key in data) {
+                localStorage.setItem(key, data[key]);
+            }
+            alert("Import complete. The IDE will now reload.");
+            window.location.reload();
+        });
+    };
+
+    // THEME
+    document.getElementById('export-theme-btn').onclick = () => {
+        let filename = prompt("Enter a filename for the theme backup:", "ht-ide-theme.json");
+        if (!filename) return;
+        if (!filename.endsWith('.json')) filename += '.json';
+
+        const data = {};
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key.startsWith(STORAGE_PREFIX) && (key.includes('-theme_') || key.includes('-color_') || key.includes('-boldness_') || key.includes('syntaxHighlighting'))) {
+                data[key.replace(STORAGE_PREFIX, '')] = localStorage.getItem(key);
+            }
+        }
+        triggerDownload(data, filename);
+    };
+    document.getElementById('import-theme-btn').onclick = () => {
+        if (!confirm("This will overwrite your current theme settings for this workspace. Continue?")) return;
+        handleFileUpload(data => {
+            for (const key in data) {
+                 localStorage.setItem(STORAGE_PREFIX + key, data[key]);
+            }
+            alert("Theme import complete. The IDE will now reload to apply changes.");
+            window.location.reload();
+        });
+    };
+    
+    // WORKSPACE
+    document.getElementById('export-workspace-btn').onclick = () => {
+        const id = document.getElementById('workspace-select').value;
+        if (!id) return alert("Please select a workspace to export.");
+        
+        let filename = prompt(`Enter a filename for the Workspace ${id} backup:`, `ht-ide-workspace-${id}.json`);
+        if (!filename) return;
+        if (!filename.endsWith('.json')) filename += '.json';
+
+        const prefix = `HT-IDE-id${id}-`;
+        const data = {};
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key.startsWith(prefix)) {
+                data[key.replace(prefix, '')] = localStorage.getItem(key);
+            }
+        }
+        triggerDownload(data, filename);
+    };
+
+    document.getElementById('import-workspace-btn').onclick = () => {
+        const allIds = getAllWorkspaceIds().map(Number);
+        const newId = allIds.length > 0 ? Math.max(...allIds) + 1 : 0;
+        if (!confirm(`This will import the workspace from the file into a new workspace with ID ${newId}. Continue?`)) return;
+        
+        handleFileUpload(data => {
+            const newPrefix = `HT-IDE-id${newId}-`;
+            for (const key in data) {
+                localStorage.setItem(newPrefix + key, data[key]);
+            }
+            alert(`Workspace imported successfully to ID ${newId}. You will now be redirected to the new workspace.`);
+            window.location.href = window.location.pathname + `?id=${newId}`;
+        });
+    };
+
+    document.getElementById('import-overwrite-workspace-btn').onclick = () => {
+        const idToOverwrite = document.getElementById('workspace-select').value;
+        if (!idToOverwrite) return alert("Please select a workspace to overwrite.");
+
+        if (!confirm(`EXTREME WARNING:\n\nYou are about to permanently delete all data in Workspace ${idToOverwrite} and replace it with data from a file.\n\nTHIS CANNOT BE UNDONE.\n\nAre you absolutely sure you want to proceed?`)) return;
+
+        handleFileUpload(data => {
+            clearWorkspaceData(idToOverwrite);
+            const prefix = `HT-IDE-id${idToOverwrite}-`;
+             for (const key in data) {
+                localStorage.setItem(prefix + key, data[key]);
+            }
+            alert(`Workspace ${idToOverwrite} has been overwritten. The IDE will now reload.`);
+            window.location.href = window.location.pathname + `?id=${idToOverwrite}`;
+        });
+    };
+}

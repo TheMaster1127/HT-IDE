@@ -66,6 +66,8 @@ const uiThemeConfig = {
     '--btn-manage-instr-text': { label: '"Manage Instructions" Text', default: '#ffffff', type: 'color', category: 'Sidebar Buttons', description: 'Text color for the "Manage Instructions" button.', hasBoldToggle: true, defaultBold: false },
     '--btn-htvm-to-htvm-bg': { label: '"HTVM to HTVM" BG', default: '#6a0dad', type: 'color', category: 'Sidebar Buttons', description: 'Background color for the "HTVM to HTVM" converter button.' },
     '--btn-htvm-to-htvm-text': { label: '"HTVM to HTVM" Text', default: '#ffffff', type: 'color', category: 'Sidebar Buttons', description: 'Text color for the "HTVM to HTVM" button.', hasBoldToggle: true, defaultBold: false },
+    '--btn-export-import-bg': { label: '"Export/Import" BG', default: '#c12a2a', type: 'color', category: 'Sidebar Buttons', description: 'Background for the "Export/Import" button.' },
+    '--btn-export-import-text': { label: '"Export/Import" Text', default: '#ffffff', type: 'color', category: 'Sidebar Buttons', description: 'Text for the "Export/Import" button.', hasBoldToggle: true, defaultBold: false },
     '--btn-open-folder-bg': { label: '"Open New Folder" BG', default: '#0e639c', type: 'color', category: 'Sidebar Buttons', description: 'Background color for the "Open New Folder" button.' },
     '--btn-open-folder-text': { label: '"Open New Folder" Text', default: '#ffffff', type: 'color', category: 'Sidebar Buttons', description: 'Text color for the "Open New Folder" button.', hasBoldToggle: true, defaultBold: false },
 

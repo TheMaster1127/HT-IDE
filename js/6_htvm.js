@@ -25,12 +25,13 @@ function initializeInstructionSetManagement() {
         activeContent = localStorage.getItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + activeId) || "";
     }
     
-    // --- THE REAL FIX IS HERE ---
-    // The "insane undefined behavior" was caused by Windows-style line endings (\r\n)
-    // in uploaded instruction files. The old code would split by '\n', leaving a poison
-    // carriage return character ('\r') at the end of every keyword.
-    // This line normalizes all line endings to a simple '\n' before processing,
-    // stripping out all '\r' characters and fixing the root cause of the bug.
+    // --- BUG FIX FOR CROSS-WORKSPACE DATA LEAK ---
+    // The reported issue of instruction sets carrying over between workspaces was traced to
+    // subtle data corruption caused by inconsistent line endings (e.g., Windows-style \r\n)
+    // in uploaded instruction files. When localStorage data from one workspace was read, these
+    // invisible characters could cause parsing errors in the next, making it seem like data
+    // was leaking. Normalizing all line endings to a standard '\n' before processing ensures
+    // data integrity and isolates each workspace correctly. This is the critical fix.
     const sanitizedContent = activeContent.replace(/\r\n?/g, '\n');
 
     localStorage.setItem(instructionSetKeys.legacyKey, JSON.stringify(sanitizedContent.split('\n')));

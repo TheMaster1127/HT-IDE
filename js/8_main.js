@@ -123,6 +123,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('settings-btn').onclick = openSettingsModal;
     document.getElementById('load-instructions-btn').onclick = openInstructionManagerModal;
     document.getElementById('htvm-to-htvm-btn').onclick = openHtvmToHtvmModal;
+    document.getElementById('export-import-btn').onclick = openExportImportModal;
     document.getElementById('open-folder-btn').onclick = () => alert("This feature is for the desktop version.");
     
     const toggleBtn = document.getElementById('main-toggle-sidebar-btn');
