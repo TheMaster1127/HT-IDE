@@ -4,8 +4,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     STORAGE_PREFIX = `HT-IDE-id${IDE_ID}-`;
     langTools = ace.require("ace/ext/language_tools");
 
-    // Apply custom syntax colors before editor initialization
-    applySyntaxHighlightingSettings();
+    // Apply custom themes and colors before editor initialization
+    applyEditorColorSettings();
+    applyUiThemeSettings();
 
     // Initialize core components
     editor = ace.edit("editor");
@@ -225,7 +226,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, 50);
 });
 
-function applySyntaxHighlightingSettings() {
+function applyEditorColorSettings() {
     // Master toggle for syntax highlighting
     if (lsGet('syntaxHighlightingEnabled') === false) {
         document.body.classList.add('syntax-highlighting-disabled');
@@ -246,6 +247,24 @@ function applySyntaxHighlightingSettings() {
         if (item.isText) {
             const isBold = lsGet(`boldness_${key}`) ?? item.defaultBold;
             root.style.setProperty(`--${key}-font-weight`, isBold ? 'bold' : 'normal');
+        }
+    }
+}
+
+function applyUiThemeSettings() {
+    const root = document.documentElement;
+    for (const key in uiThemeConfig) {
+        const item = uiThemeConfig[key];
+        
+        // Apply color or range value
+        const savedValue = lsGet(`theme_${key}`) ?? item.default;
+        const unit = item.unit || '';
+        root.style.setProperty(key, savedValue + unit);
+        
+        // Apply boldness for text items
+        if (item.hasBoldToggle) {
+            const isBold = lsGet(`theme_bold_${key}`) ?? item.defaultBold;
+            root.style.setProperty(key + '-bold', isBold ? 'bold' : 'normal');
         }
     }
 }

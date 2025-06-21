@@ -103,10 +103,12 @@ function openSettingsModal() {
             </div>
             <div class="settings-column" style="flex: 1.2; padding-left: 20px; border-left: 1px solid #333; display: flex; flex-direction: column; gap: 15px; min-width: 280px;">
                 <div>
-                    <h4>Syntax Highlighting (HTVM mostly)</h4>
+                    <h4>Theme & Appearance</h4>
+                    <button id="customize-theme-btn" style="margin-top: 5px; padding: 8px; background-color: var(--btn-secondary-bg); color: var(--btn-secondary-text); font-weight: var(--btn-secondary-text-bold);">Customize UI Theme</button>
+                    <h4 style="margin-top:20px;">Syntax Highlighting (HTVM mostly)</h4>
                     <div><label><input type="checkbox" id="syntax-highlighting-master-checkbox"> Enable Syntax Highlighting</label></div>
                     <div style="padding-left: 20px;"><label><input type="checkbox" id="symbol-operator-highlighting-checkbox"> Highlight Symbol Operators (e.g., =, ++, *)</label></div>
-                    <button id="customize-colors-btn" style="margin-top: 10px; padding: 8px; background-color: #0e639c;">Customize Highlighting Colors</button>
+                    <button id="customize-colors-btn" style="margin-top: 10px; padding: 8px; background-color: var(--btn-secondary-bg); color: var(--btn-secondary-text); font-weight: var(--btn-secondary-text-bold);">Customize Syntax Colors</button>
                     <p style="font-size:0.8em; color:#aaa; margin-top:5px;">Color changes may affect other languages.</p>
                 </div>
                 <div>
@@ -134,13 +136,9 @@ function openSettingsModal() {
         <div class="modal-buttons" style="margin-top: 20px;"><button id="modal-ok-btn" style="padding: 10px 24px; font-size: 1.1em; font-weight: bold;">OK</button></div>
     </div>`;
     
-    // --- CORRECTED LOGIC ---
-
-    // 1. Get the initial state of settings that require a reload.
     const initialSyntaxEnabled = lsGet('syntaxHighlightingEnabled') !== false;
     const initialHighlightOperators = lsGet('highlightSymbolOperators') !== false;
 
-    // 2. Load all current settings into the form elements.
     document.getElementById('font-size-input').value = editor.getFontSize();
     const currentMode = lsGet('keybindingMode') || 'normal';
     document.querySelector(`input[name="keybinding-mode"][value="${currentMode}"]`).checked = true;
@@ -154,11 +152,10 @@ function openSettingsModal() {
     document.getElementById('autocomplete-keywords-checkbox').checked = lsGet('autocomplete-keywords') !== false;
     document.getElementById('autocomplete-local-checkbox').checked = lsGet('autocomplete-local') !== false;
 
-    // 3. Wire up buttons
     document.getElementById('customize-colors-btn').onclick = openSyntaxColorModal;
+    document.getElementById('customize-theme-btn').onclick = openThemeEditorModal;
 
     document.getElementById('modal-ok-btn').onclick = () => {
-        // 4. Save settings that DON'T require a reload immediately.
         editor.setFontSize(parseInt(document.getElementById('font-size-input').value, 10)); lsSet('fontSize', editor.getFontSize());
         const keybinding = document.querySelector('input[name="keybinding-mode"]:checked').value;
         lsSet('keybindingMode', keybinding);
@@ -171,26 +168,18 @@ function openSettingsModal() {
         lsSet('autocomplete-keywords', document.getElementById('autocomplete-keywords-checkbox').checked);
         lsSet('autocomplete-local', document.getElementById('autocomplete-local-checkbox').checked);
 
-        // 5. Check if any settings that require a reload have changed.
         const newSyntaxEnabled = document.getElementById('syntax-highlighting-master-checkbox').checked;
         const newHighlightOperators = document.getElementById('symbol-operator-highlighting-checkbox').checked;
-
         const needsReload = (initialSyntaxEnabled !== newSyntaxEnabled) || (initialHighlightOperators !== newHighlightOperators);
 
         if (needsReload) {
-            // 6. If they changed, ask for confirmation BEFORE saving.
             if (confirm("Some syntax highlighting settings have changed. A reload is required for them to take full effect. Your work will be saved.\n\nReload now?")) {
-                // 7a. User confirmed: SAVE the settings and then reload.
                 lsSet('syntaxHighlightingEnabled', newSyntaxEnabled);
                 lsSet('highlightSymbolOperators', newHighlightOperators);
                 window.dispatchEvent(new Event('beforeunload'));
                 window.location.reload();
-            } else {
-                // 7b. User cancelled: Do NOT save the changes. The old values remain in localStorage.
             }
         }
-        
-        // 8. Close the modal regardless of the outcome.
         overlay.style.display = 'none';
     };
     overlay.style.display = 'flex';
@@ -230,11 +219,10 @@ function openSyntaxColorModal() {
         <div class="modal-buttons">
             <button id="modal-colors-reset-btn" style="float:left;">Reset to Defaults</button>
             <button id="modal-colors-cancel-btn">Cancel</button>
-            <button id="modal-colors-save-btn" style="margin-left:8px; background-color:#3d8b40;">Save & Apply</button>
+            <button id="modal-colors-save-btn" style="margin-left:8px; background-color:var(--btn-success-bg); color: var(--btn-success-text); font-weight: var(--btn-success-text-bold);">Save & Apply</button>
         </div>
     </div>`;
 
-    // Load saved values into the form
     for (const key in syntaxColorConfig) {
         const item = syntaxColorConfig[key];
         if (item.isText) {
@@ -243,90 +231,156 @@ function openSyntaxColorModal() {
         }
     }
 
-    // --- IMMEDIATE TOOLTIP LOGIC ---
     const listContainer = document.getElementById('color-picker-list');
     const infoTooltip = document.getElementById('info-tooltip');
+    listContainer.addEventListener('mouseover', e => { if (e.target.classList.contains('info-icon')) { infoTooltip.textContent = e.target.dataset.infoText; infoTooltip.style.display = 'block'; } });
+    listContainer.addEventListener('mouseout', e => { if (e.target.classList.contains('info-icon')) { infoTooltip.style.display = 'none'; } });
+    listContainer.addEventListener('mousemove', e => { if (infoTooltip.style.display === 'block') { const t = infoTooltip, w = window, m=15; let l = e.clientX + m, p = e.clientY + m; if (l + t.offsetWidth > w.innerWidth) l = e.clientX - t.offsetWidth - m; if (p + t.offsetHeight > w.innerHeight) p = e.clientY - t.offsetHeight - m; if(l<0)l=0; if(p<0)p=0; t.style.left = l + 'px'; t.style.top = p + 'px'; } });
 
-    listContainer.addEventListener('mouseover', e => {
-        if (e.target.classList.contains('info-icon')) {
-            infoTooltip.textContent = e.target.dataset.infoText;
-            infoTooltip.style.display = 'block';
-        }
-    });
-
-    listContainer.addEventListener('mouseout', e => {
-        if (e.target.classList.contains('info-icon')) {
-            infoTooltip.style.display = 'none';
-        }
-    });
-    
-    listContainer.addEventListener('mousemove', e => {
-        if (infoTooltip.style.display === 'block') {
-            const tooltipWidth = infoTooltip.offsetWidth;
-            const tooltipHeight = infoTooltip.offsetHeight;
-            const windowWidth = window.innerWidth;
-            const windowHeight = window.innerHeight;
-            const cursor_margin = 15;
-
-            let left = e.clientX + cursor_margin;
-            let top = e.clientY + cursor_margin;
-
-            // Adjust horizontal position if it overflows
-            if (left + tooltipWidth > windowWidth) {
-                left = e.clientX - tooltipWidth - cursor_margin;
-            }
-
-            // Adjust vertical position if it overflows
-            if (top + tooltipHeight > windowHeight) {
-                top = e.clientY - tooltipHeight - cursor_margin;
-            }
-            
-            // Ensure it doesn't go off the left/top edges either
-            if (left < 0) left = 0;
-            if (top < 0) top = 0;
-
-            infoTooltip.style.left = left + 'px';
-            infoTooltip.style.top = top + 'px';
-        }
-    });
-
-
-    // --- BUTTON LOGIC ---
-    document.getElementById('modal-colors-cancel-btn').onclick = () => {
-        openSettingsModal(); // Go back to the main settings modal
-    };
+    document.getElementById('modal-colors-cancel-btn').onclick = () => openSettingsModal();
     
     document.getElementById('modal-colors-reset-btn').onclick = () => {
-        if (confirm("Are you sure you want to reset all colors and styles to their defaults?")) {
+        if (confirm("Are you sure you want to reset all syntax colors and styles to their defaults?")) {
             for (const key in syntaxColorConfig) {
                 const item = syntaxColorConfig[key];
                 document.getElementById(key).value = item.default;
-                if (item.isText) {
-                    document.getElementById(`bold_${key}`).checked = item.defaultBold;
-                }
+                if (item.isText) document.getElementById(`bold_${key}`).checked = item.defaultBold;
             }
         }
     };
 
     document.getElementById('modal-colors-save-btn').onclick = () => {
         for (const key in syntaxColorConfig) {
-            // Save color
-            const colorValue = document.getElementById(key).value;
-            lsSet(`color_${key}`, colorValue);
-
-            // Save boldness if applicable
-            const item = syntaxColorConfig[key];
-            if (item.isText) {
-                const isBold = document.getElementById(`bold_${key}`).checked;
-                lsSet(`boldness_${key}`, isBold);
-            }
+            lsSet(`color_${key}`, document.getElementById(key).value);
+            if (syntaxColorConfig[key].isText) lsSet(`boldness_${key}`, document.getElementById(`bold_${key}`).checked);
         }
-        
         overlay.style.display = 'none';
-
-        if (confirm("Colors and styles have been saved. A reload is required for changes to take full effect. Your work will be saved.\n\nReload now?")) {
+        if (confirm("Syntax colors and styles have been saved. A reload is required. Your work will be saved.\n\nReload now?")) {
             window.dispatchEvent(new Event('beforeunload'));
             window.location.reload();
         }
+    };
+}
+
+function openThemeEditorModal() {
+    const overlay = document.getElementById('modal-overlay');
+    overlay.style.pointerEvents = 'auto';
+    const root = document.documentElement;
+
+    const originalValues = {};
+    for (const key in uiThemeConfig) {
+        originalValues[key] = root.style.getPropertyValue(key);
+        if (uiThemeConfig[key].hasBoldToggle) {
+            originalValues[key + '-bold'] = root.style.getPropertyValue(key + '-bold');
+        }
+    }
+
+    const groupedItems = Object.entries(uiThemeConfig).reduce((acc, [key, item]) => {
+        const category = item.category || 'General';
+        (acc[category] = acc[category] || []).push([key, item]);
+        return acc;
+    }, {});
+
+    let themeItemsHtml = '';
+    for (const category of Object.keys(groupedItems).sort()) {
+        themeItemsHtml += `<h4 style="margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid #444; padding-bottom: 5px;">${category}</h4>`;
+        groupedItems[category].forEach(([key, item]) => {
+            const savedValue = lsGet(`theme_${key}`) ?? item.default;
+            
+            let boldToggleHtml = '';
+            if (item.hasBoldToggle) {
+                const isBold = lsGet(`theme_bold_${key}`) ?? item.defaultBold;
+                boldToggleHtml = `<label style="cursor:pointer; display:flex; align-items:center; gap: 4px; user-select: none;">
+                                    <input type="checkbox" data-bold-key="${key}" ${isBold ? 'checked' : ''}> Bold
+                                  </label>`;
+            }
+
+            let controlHtml = '';
+            if (item.type === 'color') {
+                controlHtml = `<input type="color" data-key="${key}" value="${savedValue}">`;
+            } else if (item.type === 'range') {
+                controlHtml = `<div style="display:flex; align-items:center; gap:8px; flex-grow:1;">
+                                <input type="range" data-key="${key}" value="${savedValue}" min="${item.min}" max="${item.max}" style="width: 100%;">
+                                <span id="range-value-${key.replace(/--/g, '')}" style="min-width: 35px; text-align: right;">${savedValue}${item.unit || ''}</span>
+                               </div>`;
+            }
+
+            themeItemsHtml += `
+                <div class="color-picker-item">
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        ${item.label}
+                        <span class="info-icon" data-info-text="${item.description}" style="cursor:help; font-size: 1.2em; color: #888;">ℹ️</span>
+                    </label>
+                    <div class="color-controls-wrapper" style="display: flex; align-items: center; gap: 15px; min-width: 200px; justify-content: flex-end;">
+                        ${boldToggleHtml}
+                        ${controlHtml}
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    overlay.innerHTML = `<div class="modal-box" style="width:90%; max-width:750px;">
+        <h3>Customize UI Theme</h3>
+        <p style="font-size:0.9em; color:#ccc;">Changes are applied live. Hover over the ℹ️ icon for details on each setting. Click Save to make them permanent.</p>
+        <div id="theme-picker-list" style="max-height: 60vh; overflow-y: auto; padding-right: 15px; border-top: 1px solid var(--modal-border-color); border-bottom: 1px solid var(--modal-border-color); margin: 15px 0; padding-top: 10px; padding-bottom: 10px;">
+            ${themeItemsHtml}
+        </div>
+        <div class="modal-buttons">
+            <button id="modal-theme-reset-btn" style="float:left;">Reset to Defaults</button>
+            <button id="modal-theme-cancel-btn">Cancel</button>
+            <button id="modal-theme-save-btn" style="margin-left:8px; background-color:var(--btn-success-bg); color: var(--btn-success-text); font-weight: var(--btn-success-text-bold);">Save Changes</button>
+        </div>
+    </div>`;
+
+    const container = document.getElementById('theme-picker-list');
+    container.addEventListener('input', e => {
+        const key = e.target.dataset.key;
+        const boldKey = e.target.dataset.boldKey;
+
+        if (key) {
+            let value = e.target.value;
+            const item = uiThemeConfig[key];
+            const unit = item.unit || '';
+            root.style.setProperty(key, value + unit);
+            if(item.type === 'range') {
+                document.getElementById(`range-value-${key.replace(/--/g, '')}`).textContent = value + unit;
+            }
+        } else if (boldKey) {
+            const isBold = e.target.checked;
+            root.style.setProperty(boldKey + '-bold', isBold ? 'bold' : 'normal');
+        }
+    });
+    
+    const infoTooltip = document.getElementById('info-tooltip');
+    container.addEventListener('mouseover', e => { if (e.target.classList.contains('info-icon')) { infoTooltip.textContent = e.target.dataset.infoText; infoTooltip.style.display = 'block'; } });
+    container.addEventListener('mouseout', e => { if (e.target.classList.contains('info-icon')) { infoTooltip.style.display = 'none'; } });
+    container.addEventListener('mousemove', e => { if (infoTooltip.style.display === 'block') { const t = infoTooltip, w = window, m=15; let l = e.clientX + m, p = e.clientY + m; if (l + t.offsetWidth > w.innerWidth) l = e.clientX - t.offsetWidth - m; if (p + t.offsetHeight > w.innerHeight) p = e.clientY - t.offsetHeight - m; if(l<0)l=0; if(p<0)p=0; t.style.left = l + 'px'; t.style.top = p + 'px'; } });
+
+
+    document.getElementById('modal-theme-cancel-btn').onclick = () => {
+        for (const key in originalValues) {
+            root.style.setProperty(key, originalValues[key]);
+        }
+        openSettingsModal();
+    };
+    
+    document.getElementById('modal-theme-reset-btn').onclick = () => {
+        if (confirm("Are you sure you want to reset all UI theme settings to their defaults? This will apply the changes live.")) {
+            for (const key in uiThemeConfig) {
+                lsRemove(`theme_${key}`);
+                if (uiThemeConfig[key].hasBoldToggle) {
+                    lsRemove(`theme_bold_${key}`);
+                }
+            }
+            applyUiThemeSettings(); // Apply defaults immediately
+            openThemeEditorModal(); // Re-open the modal to show the reset values
+        }
+    };
+
+    document.getElementById('modal-theme-save-btn').onclick = () => {
+        container.querySelectorAll('input[data-key]').forEach(input => lsSet(`theme_${input.dataset.key}`, input.value));
+        container.querySelectorAll('input[data-bold-key]').forEach(input => lsSet(`theme_bold_${input.dataset.boldKey}`, input.checked));
+        openSettingsModal();
     };
 }
