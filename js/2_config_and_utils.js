@@ -33,36 +33,40 @@ const syntaxColorConfig = {
 
 const uiThemeConfig = {
     // --- General Category ---
-    '--app-bg-color': { label: 'Main Background Color', default: '#1a1a1a', type: 'color', category: 'General', description: 'The main background color for empty areas of the IDE.' },
-    '--text-color': { label: 'Default Text Color', default: '#e0e0e0', type: 'color', category: 'General', description: 'The default color for most text in the IDE, unless specified otherwise.', hasBoldToggle: true, defaultBold: false },
-    '--modal-bg': { label: 'Modal Background Color', default: '#1e1e1e', type: 'color', category: 'General', description: 'Background color for pop-up dialog boxes like Settings or Session Manager.' },
-    '--modal-header-text': { label: 'Modal Header Text Color', default: '#ffffff', type: 'color', category: 'General', description: 'Color of the title text inside modals (e.g., "Settings + Help").', hasBoldToggle: true, defaultBold: false },
+    '--modal-bg': { label: 'Modal Background', default: '#1e1e1e', type: 'color', category: 'General', description: 'Background color for pop-up dialog boxes like Settings or Session Manager.' },
+    '--modal-header-text': { label: 'Modal Header Text', default: '#ffffff', type: 'color', category: 'General', description: 'Color of the title text inside modals (e.g., "Settings + Help").', hasBoldToggle: true, defaultBold: true },
+    '--modal-confirm-btn-bg': { label: 'Modal "Save" Button BG', default: '#3d8b40', type: 'color', category: 'General', description: 'Background color for confirmation buttons in modals, like "Save & Apply".' },
+    '--modal-confirm-btn-text': { label: 'Modal "Save" Button Text', default: '#ffffff', type: 'color', category: 'General', description: 'Text color for confirmation buttons in modals.', hasBoldToggle: true, defaultBold: true },
+    '--modal-cancel-btn-bg': { label: 'Modal "Cancel" Button BG', default: '#555', type: 'color', category: 'General', description: 'Background color for cancellation buttons in modals.' },
+    '--modal-cancel-btn-text': { label: 'Modal "Cancel" Button Text', default: '#ffffff', type: 'color', category: 'General', description: 'Text color for cancellation buttons in modals.', hasBoldToggle: true, defaultBold: false },
+    '--modal-reset-btn-bg': { label: 'Modal "Reset" Button BG', default: '#c12a2a', type: 'color', category: 'General', description: 'Background color for "Reset to Defaults" buttons.' },
+    '--modal-reset-btn-text': { label: 'Modal "Reset" Button Text', default: '#ffffff', type: 'color', category: 'General', description: 'Text color for "Reset to Defaults" buttons.', hasBoldToggle: true, defaultBold: false },
 
-    // --- Sidebar Buttons ---
-    '--btn-secondary-bg': { label: 'New File Button BG', default: '#0e639c', type: 'color', category: 'Sidebar Buttons', description: 'Background color for the "New File" button in the sidebar.' },
-    '--btn-secondary-text': { label: 'New File Button Text', default: '#ffffff', type: 'color', category: 'Sidebar Buttons', description: 'Text color for the "New File" button.', hasBoldToggle: true, defaultBold: false },
-    '--btn-secondary-hover-bg': { label: 'New File Button Hover BG', default: '#0b4f7a', type: 'color', category: 'Sidebar Buttons', description: 'Background color when hovering over the "New File" button.' },
-    '--btn-primary-bg': { label: 'New Folder Button BG', default: '#fe6619', type: 'color', category: 'Sidebar Buttons', description: 'Background color for the "New Folder" button in the sidebar.' },
-    '--btn-primary-text': { label: 'New Folder Button Text', default: '#ffffff', type: 'color', category: 'Sidebar Buttons', description: 'Text color for the "New Folder" button.', hasBoldToggle: true, defaultBold: false },
-    '--btn-primary-hover-bg': { label: 'New Folder Button Hover BG', default: '#e65a00', type: 'color', category: 'Sidebar Buttons', description: 'Background color when hovering over the "New Folder" button.' },
-    '--btn-generic-bg': { label: 'Session/Settings Buttons BG', default: '#333', type: 'color', category: 'Sidebar Buttons', description: 'Background color for the "Save Session", "Load Session", and "Settings" buttons.' },
-    '--btn-generic-text': { label: 'Session/Settings Buttons Text', default: '#ffffff', type: 'color', category: 'Sidebar Buttons', description: 'Text color for the "Save Session", "Load Session", and "Settings" buttons.', hasBoldToggle: true, defaultBold: false },
-    '--btn-generic-hover-bg': { label: 'Session/Settings Hover BG', default: '#444', type: 'color', category: 'Sidebar Buttons', description: 'Background color when hovering over the Session/Settings buttons.' },
-    'manage-instr-btn-bg': { label: 'Manage Instructions Button BG', default: '#2a8f2a', type: 'color', category: 'Sidebar Buttons', cssVar: '#load-instructions-btn', property: 'backgroundColor', description: 'Background color for the "Manage Instructions" button in the sidebar footer.' },
-    'manage-instr-btn-text': { label: 'Manage Instructions Button Text', default: '#ffffff', type: 'color', category: 'Sidebar Buttons', cssVar: '#load-instructions-btn', property: 'color', description: 'Text color for the "Manage Instructions" button.', hasBoldToggle: true, defaultBold: false },
-    '--btn-special-bg': { label: 'HTVM>HTVM Button BG', default: '#6a0dad', type: 'color', category: 'Sidebar Buttons', description: 'Background color for the "HTVM to HTVM" converter button.' },
-    '--btn-special-text': { label: 'HTVM>HTVM Button Text', default: '#ffffff', type: 'color', category: 'Sidebar Buttons', description: 'Text color for the "HTVM to HTVM" button.', hasBoldToggle: true, defaultBold: false },
-    '--btn-special-hover-bg': { label: 'HTVM>HTVM Button Hover BG', default: '#520a84', type: 'color', category: 'Sidebar Buttons', description: 'Background color when hovering over the "HTVM to HTVM" button.' },
-    'open-folder-btn-bg': { label: 'Open New Folder Button BG', default: '#0e639c', type: 'color', category: 'Sidebar Buttons', cssVar: '#open-folder-btn', property: 'backgroundColor', description: 'Background color for the "Open New Folder" button.' },
-    'open-folder-btn-text': { label: 'Open New Folder Button Text', default: '#ffffff', type: 'color', category: 'Sidebar Buttons', cssVar: '#open-folder-btn', property: 'color', description: 'Text color for the "Open New Folder" button.', hasBoldToggle: true, defaultBold: false },
+    // --- Sidebar Buttons Category ---
+    '--btn-new-file-bg': { label: '"New File" BG', default: '#0e639c', type: 'color', category: 'Sidebar Buttons', description: 'Background color for the "New File" button in the sidebar.' },
+    '--btn-new-file-text': { label: '"New File" Text', default: '#ffffff', type: 'color', category: 'Sidebar Buttons', description: 'Text color for the "New File" button.', hasBoldToggle: true, defaultBold: false },
+    '--btn-new-folder-bg': { label: '"New Folder" BG', default: '#fe6619', type: 'color', category: 'Sidebar Buttons', description: 'Background color for the "New Folder" button in the sidebar.' },
+    '--btn-new-folder-text': { label: '"New Folder" Text', default: '#ffffff', type: 'color', category: 'Sidebar Buttons', description: 'Text color for the "New Folder" button.', hasBoldToggle: true, defaultBold: false },
+    '--btn-save-session-bg': { label: '"Save Session" BG', default: '#2c2c2c', type: 'color', category: 'Sidebar Buttons', description: 'Background color for the "Save Session" button.' },
+    '--btn-save-session-text': { label: '"Save Session" Text', default: '#ffffff', type: 'color', category: 'Sidebar Buttons', description: 'Text color for the "Save Session" button.', hasBoldToggle: true, defaultBold: false },
+    '--btn-load-session-bg': { label: '"Load Session" BG', default: '#2c2c2c', type: 'color', category: 'Sidebar Buttons', description: 'Background color for the "Load Session" button.' },
+    '--btn-load-session-text': { label: '"Load Session" Text', default: '#ffffff', type: 'color', category: 'Sidebar Buttons', description: 'Text color for the "Load Session" button.', hasBoldToggle: true, defaultBold: false },
+    '--btn-settings-bg': { label: '"Settings" BG', default: '#2c2c2c', type: 'color', category: 'Sidebar Buttons', description: 'Background color for the "Settings" button.' },
+    '--btn-settings-text': { label: '"Settings" Text', default: '#ffffff', type: 'color', category: 'Sidebar Buttons', description: 'Text color for the "Settings" button.', hasBoldToggle: true, defaultBold: false },
+    '--btn-manage-instr-bg': { label: '"Manage Instructions" BG', default: '#2a8f2a', type: 'color', category: 'Sidebar Buttons', description: 'Background color for the "Manage Instructions" button in the sidebar footer.' },
+    '--btn-manage-instr-text': { label: '"Manage Instructions" Text', default: '#ffffff', type: 'color', category: 'Sidebar Buttons', description: 'Text color for the "Manage Instructions" button.', hasBoldToggle: true, defaultBold: false },
+    '--btn-htvm-to-htvm-bg': { label: '"HTVM to HTVM" BG', default: '#6a0dad', type: 'color', category: 'Sidebar Buttons', description: 'Background color for the "HTVM to HTVM" converter button.' },
+    '--btn-htvm-to-htvm-text': { label: '"HTVM to HTVM" Text', default: '#ffffff', type: 'color', category: 'Sidebar Buttons', description: 'Text color for the "HTVM to HTVM" button.', hasBoldToggle: true, defaultBold: false },
+    '--btn-open-folder-bg': { label: '"Open New Folder" BG', default: '#0e639c', type: 'color', category: 'Sidebar Buttons', description: 'Background color for the "Open New Folder" button.' },
+    '--btn-open-folder-text': { label: '"Open New Folder" Text', default: '#ffffff', type: 'color', category: 'Sidebar Buttons', description: 'Text color for the "Open New Folder" button.', hasBoldToggle: true, defaultBold: false },
 
     // --- Sidebar Category ---
     '--sidebar-bg': { label: 'Sidebar Background', default: '#121212', type: 'color', category: 'Sidebar', description: 'The main background color of the file explorer sidebar.' },
-    '--sidebar-header-text': { label: 'Sidebar "Files" Title', default: '#e0e0e0', type: 'color', category: 'Sidebar', description: 'The color of the "Files" title text at the top of the sidebar.', hasBoldToggle: true, defaultBold: true },
+    '--sidebar-header-text': { label: '"Files" Title Text', default: '#e0e0e0', type: 'color', category: 'Sidebar', description: 'The color of the "Files" title text at the top of the sidebar.', hasBoldToggle: true, defaultBold: true },
     '--sidebar-path-bg': { label: 'Current Path Background', default: '#1a1a1a', type: 'color', category: 'Sidebar', description: 'Background for the current directory path display (e.g., "/src/files/").' },
     '--sidebar-path-text': { label: 'Current Path Text', default: '#ffffff', type: 'color', category: 'Sidebar', description: 'Text color for the current directory path display.', hasBoldToggle: true, defaultBold: false },
     '--sidebar-file-text': { label: 'File List Text', default: '#e0e0e0', type: 'color', category: 'Sidebar', description: 'The text color for file and folder names in the list.', hasBoldToggle: true, defaultBold: false },
-    '--sidebar-file-hover-bg': { label: 'File Item Hover Background', default: '#1f1f1f', type: 'color', category: 'Sidebar', description: 'The background color that appears when you hover your mouse over a file or folder.' },
+    '--sidebar-file-hover-bg': { label: 'File Item Hover BG', default: '#1f1f1f', type: 'color', category: 'Sidebar', description: 'The background color that appears when you hover your mouse over a file or folder.' },
     '--sidebar-file-active-bg': { label: 'Active File Background', default: '#005f87', type: 'color', category: 'Sidebar', description: 'The background color for the currently selected file in the sidebar list.' },
     '--sidebar-file-active-text': { label: 'Active File Text', default: '#ffffff', type: 'color', category: 'Sidebar', description: 'The text color for the currently selected file in the sidebar list.', hasBoldToggle: true, defaultBold: false },
     '--main-toggle-btn-color': { label: 'Toggle Sidebar Icon (☰)', default: '#e0e0e0', type: 'color', category: 'Sidebar', description: 'The color of the "hamburger" menu icon (☰) used to toggle the sidebar.' },
@@ -70,32 +74,45 @@ const uiThemeConfig = {
 
     // --- Top Bar ---
     '--top-bar-bg': { label: 'Top Bar Background', default: '#1a1a1a', type: 'color', category: 'Top Bar', description: 'The background color of the top bar that contains the tabs and run button.' },
-    'run-btn-bg': { label: '▶ Run Button BG', default: '#3d8b40', type: 'color', category: 'Top Bar', cssVar: '#run-btn', property: 'backgroundColor', description: 'Background color for the main "▶ Run" button in the top bar.' },
-    'run-btn-text': { label: '▶ Run Button Text', default: '#ffffff', type: 'color', category: 'Top Bar', cssVar: '#run-btn', property: 'color', description: 'Text color for the "▶ Run" button.', hasBoldToggle: true, defaultBold: true },
-    '--htvm-controls-text': { label: 'Language Selector Text', default: '#e0e0e0', type: 'color', category: 'Top Bar', description: 'The text color for the language selector dropdown and its associated checkboxes (e.g., "Run JS").', hasBoldToggle: true, defaultBold: false },
+    '--run-btn-bg': { label: '▶ Run Button BG', default: '#3d8b40', type: 'color', category: 'Top Bar', description: 'Background color for the main "▶ Run" button in the top bar.' },
+    '--run-btn-text': { label: '▶ Run Button Text', default: '#ffffff', type: 'color', category: 'Top Bar', description: 'Text color for the "▶ Run" button.', hasBoldToggle: true, defaultBold: true },
+    '--htvm-lang-selector-text': { label: 'Language Selector Text', default: '#e0e0e0', type: 'color', category: 'Top Bar', description: 'The text color for the language selector dropdown.', hasBoldToggle: true, defaultBold: false },
+    '--htvm-checkbox-text': { label: 'HTVM Checkbox Text', default: '#e0e0e0', type: 'color', category: 'Top Bar', description: 'The text color for the labels next to the checkboxes (e.g., "Run JS", "Full HTML").', hasBoldToggle: true, defaultBold: false },
+    '--htvm-checkbox-color': { label: 'HTVM Checkbox Color', default: '#3d8b40', type: 'color', category: 'Top Bar', description: 'The color of the checkmark inside the "Run JS" and "Full HTML" checkboxes.' },
     
     // --- File Tabs Category ---
     '--tab-inactive-bg': { label: 'Inactive Tab Background', default: '#252525', type: 'color', category: 'File Tabs', description: 'Background color for tabs that are not currently active.' },
     '--tab-inactive-text': { label: 'Inactive Tab Text', default: '#ffffff', type: 'color', category: 'File Tabs', description: 'Text color for tabs that are not currently active.', hasBoldToggle: true, defaultBold: false },
     '--tab-active-bg': { label: 'Active Tab Background', default: '#000000', type: 'color', category: 'File Tabs', description: 'Background color for the currently active/selected tab.' },
     '--tab-active-text': { label: 'Active Tab Text', default: '#ffffff', type: 'color', category: 'File Tabs', description: 'Text color for the currently active/selected tab.', hasBoldToggle: true, defaultBold: false },
-    '--tab-hover-bg': { label: 'Tab Hover Background', default: '#3e3e3e', type: 'color', category: 'File Tabs', description: 'The background color when hovering over any tab. To disable the hover effect, set this to the same color as "Inactive Tab Background".' },
-    '--tab-close-icon': { label: 'Tab Close Icon (X)', default: '#ffffff', type: 'color', category: 'File Tabs', description: 'The color of the "X" icon for closing a tab.' },
+    '--tab-hover-bg': { label: 'Tab Hover Background', default: '#3e3e3e', type: 'color', category: 'File Tabs', description: 'The background color when hovering over any tab. Set this to the same color as "Inactive Tab Background" to disable the effect.' },
+    '--tab-close-icon': { label: 'Tab Close Icon (X)', default: '#ffffff', type: 'color', category: 'File Tabs', description: 'The color of the "X" icon used for closing an open file tab.' },
     
-    // --- Output Panel Category ---
-    '--output-header-bg': { label: 'HTML Output Header BG', default: '#1a1a1a', type: 'color', category: 'Output Panel', description: 'Background color for the header of the HTML Output panel.' },
-    '--output-header-text': { label: 'HTML Output Header Text', default: '#ffffff', type: 'color', category: 'Output Panel', description: 'Text color for the title ("HTML Output") and buttons in the panel header.', hasBoldToggle: true, defaultBold: false },
-    'download-html-btn-bg': { label: 'Download Button BG', default: '#3d8b40', type: 'color', category: 'Output Panel', cssVar: '#download-html-btn', property: 'backgroundColor', description: 'Background color for the "Download" button in the HTML Output panel.' },
-    'download-html-btn-text': { label: 'Download Button Text', default: '#ffffff', type: 'color', category: 'Output Panel', cssVar: '#download-html-btn', property: 'color', description: 'Text color for the "Download" button.', hasBoldToggle: true, defaultBold: false },
+    // --- HTML Output Panel Category ---
+    '--output-header-bg': { label: 'HTML Output Header BG', default: '#1a1a1a', type: 'color', category: 'HTML Output Panel', description: 'Background color for the header of the HTML Output panel.' },
+    '--output-header-text': { label: 'HTML Output Header Text', default: '#ffffff', type: 'color', category: 'HTML Output Panel', description: 'Text color for the title ("HTML Output") and buttons in the panel header.', hasBoldToggle: true, defaultBold: false },
+    '--download-html-btn-bg': { label: '"Download HTML" BG', default: '#3d8b40', type: 'color', category: 'HTML Output Panel', description: 'Background color for the "Download" button in the HTML Output panel.' },
+    '--download-html-btn-text': { label: '"Download HTML" Text', default: '#ffffff', type: 'color', category: 'HTML Output Panel', description: 'Text color for the "Download" button.', hasBoldToggle: true, defaultBold: false },
 
     // --- Resizers & Scrollbars Category ---
-    '--resizer-bg': { label: 'Resizer Bar Color', default: '#222', type: 'color', category: 'Resizers & Scrollbars', description: 'The color of the draggable bars used to resize panels.' },
-    '--resizer-hover-bg': { label: 'Resizer Bar Hover Color', default: '#222', type: 'color', category: 'Resizers & Scrollbars', description: 'The color of the resizer bar when you hover over it. To disable the color change on hover, set this to the same color as the main Resizer Bar.' },
-    '--scrollbar-track-bg': { label: 'Scrollbar Track Color', default: '#2c2c2c', type: 'color', category: 'Resizers & Scrollbars', description: 'The background color of the scrollbar "track" or channel.' },
+    '--resizer-bg': { label: 'Resizer Bar Color', default: '#2c2c2c', type: 'color', category: 'Resizers & Scrollbars', description: 'The color of the draggable bars used to resize panels.' },
+    '--resizer-hover-bg': { label: 'Resizer Bar Hover Color', default: '#2c2c2c', type: 'color', category: 'Resizers & Scrollbars', description: 'The color of the resizer bar when you hover over it. Set to the same color as the main Resizer Bar to disable the effect.' },
+    '--scrollbar-track-bg': { label: 'Scrollbar Track Color', default: '#2c2c2c', type: 'color', category: 'Resizers & Scrollbars', description: 'The background color of the scrollbar channel.' },
     '--scrollbar-thumb-bg': { label: 'Scrollbar Thumb Color', default: '#0078d4', type: 'color', category: 'Resizers & Scrollbars', description: 'The color of the draggable part of the scrollbar (the "thumb").' },
     '--scrollbar-thumb-hover-bg': { label: 'Scrollbar Thumb Hover Color', default: '#0098f4', type: 'color', category: 'Resizers & Scrollbars', description: 'The color of the scrollbar thumb when you hover over it.' },
     '--scrollbar-size': { label: 'Scrollbar Thickness', default: '16', type: 'range', min: '4', max: '24', unit: 'px', category: 'Resizers & Scrollbars', description: 'Controls the width/height of the scrollbars.' },
     '--scrollbar-border-radius': { label: 'Scrollbar Roundness', default: '3', type: 'range', min: '0', max: '12', unit: 'px', category: 'Resizers & Scrollbars', description: 'Controls how rounded the corners of the scrollbar thumb are.' },
+    
+    // --- Debugger Category ---
+    '--debugger-bg': { label: 'Debugger Background', default: '#1e1e1e', type: 'color', category: 'Debugger', description: 'Main background color of the debugger window.' },
+    '--debugger-header-bg': { label: 'Debugger Header BG', default: '#2c2c2c', type: 'color', category: 'Debugger', description: 'Background of the draggable header bar.' },
+    '--debugger-header-text': { label: 'Debugger Header Text', default: '#ffffff', type: 'color', category: 'Debugger', description: 'Text color for the debugger header.', hasBoldToggle: true, defaultBold: true },
+    '--debugger-resume-btn-bg': { label: '"Resume" Button BG', default: '#3d8b40', type: 'color', category: 'Debugger', description: 'Background for the "Resume" button.' },
+    '--debugger-stop-btn-bg': { label: '"Stop" Button BG', default: '#c12a2a', type: 'color', category: 'Debugger', description: 'Background for the "Stop" button.' },
+    '--debugger-btn-text': { label: 'Button Text', default: '#ffffff', type: 'color', category: 'Debugger', description: 'Text color for buttons inside the debugger.', hasBoldToggle: true, defaultBold: false },
+    '--debugger-scope-bg': { label: 'Scope Panel BG', default: '#1a1a1a', type: 'color', category: 'Debugger', description: 'Background for the "Scope Variables" panel.' },
+    '--debugger-var-name-color': { label: 'Variable Name Color', default: '#9cdcfe', type: 'color', category: 'Debugger', description: 'Color for variable names in the scope panel.', hasBoldToggle: true, defaultBold: false },
+    '--debugger-var-value-color': { label: 'Variable Value Color', default: '#ce9178', type: 'color', category: 'Debugger', description: 'Color for variable values in the scope panel.', hasBoldToggle: true, defaultBold: false },
 };
 
 const draftCompletions = {

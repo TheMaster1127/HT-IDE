@@ -104,11 +104,11 @@ function openSettingsModal() {
             <div class="settings-column" style="flex: 1.2; padding-left: 20px; border-left: 1px solid #333; display: flex; flex-direction: column; gap: 15px; min-width: 280px;">
                 <div>
                     <h4>Theme & Appearance</h4>
-                    <button id="customize-theme-btn" style="margin-top: 5px; padding: 8px; background-color: var(--btn-secondary-bg); color: var(--btn-secondary-text); font-weight: var(--btn-secondary-text-bold);">Customize UI Theme</button>
+                    <button id="customize-theme-btn" style="margin-top: 5px; padding: 8px; background-color: var(--btn-new-file-bg); color: var(--btn-new-file-text); font-weight: var(--btn-new-file-text-bold);">Customize UI Theme</button>
                     <h4 style="margin-top:20px;">Syntax Highlighting (HTVM mostly)</h4>
                     <div><label><input type="checkbox" id="syntax-highlighting-master-checkbox"> Enable Syntax Highlighting</label></div>
                     <div style="padding-left: 20px;"><label><input type="checkbox" id="symbol-operator-highlighting-checkbox"> Highlight Symbol Operators (e.g., =, ++, *)</label></div>
-                    <button id="customize-colors-btn" style="margin-top: 10px; padding: 8px; background-color: var(--btn-secondary-bg); color: var(--btn-secondary-text); font-weight: var(--btn-secondary-text-bold);">Customize Syntax Colors</button>
+                    <button id="customize-colors-btn" style="margin-top: 10px; padding: 8px; background-color: var(--btn-new-file-bg); color: var(--btn-new-file-text); font-weight: var(--btn-new-file-text-bold);">Customize Syntax Colors</button>
                     <p style="font-size:0.8em; color:#aaa; margin-top:5px;">Color changes may affect other languages.</p>
                 </div>
                 <div>
@@ -202,7 +202,7 @@ function openSyntaxColorModal() {
 
         colorItemsHtml += `
             <div class="color-picker-item">
-                <label for="${key}">${item.label}</label>
+                <label for="${key}" class="color-picker-main-label">${item.label}</label>
                 <div class="color-controls-wrapper" style="display: flex; align-items: center; gap: 15px;">
                     ${controlHtml}
                     <input type="color" id="${key}" value="${savedColor}">
@@ -213,13 +213,13 @@ function openSyntaxColorModal() {
 
     overlay.innerHTML = `<div class="modal-box" style="width:90%; max-width:550px;">
         <h3>Customize Syntax Colors</h3>
-        <div id="color-picker-list" style="max-height: 60vh; overflow-y: auto; padding-right: 10px; border-top: 1px solid #333; border-bottom: 1px solid #333; margin: 15px 0; padding-top: 10px; padding-bottom: 10px;">
+        <div id="color-picker-list" style="max-height: 60vh; overflow-y: auto; padding: 10px; border-top: 1px solid #333; border-bottom: 1px solid #333; margin: 15px 0;">
             ${colorItemsHtml}
         </div>
         <div class="modal-buttons">
-            <button id="modal-colors-reset-btn" style="float:left;">Reset to Defaults</button>
-            <button id="modal-colors-cancel-btn">Cancel</button>
-            <button id="modal-colors-save-btn" style="margin-left:8px; background-color:var(--btn-success-bg); color: var(--btn-success-text); font-weight: var(--btn-success-text-bold);">Save & Apply</button>
+            <button id="modal-colors-reset-btn" class="modal-btn-reset">Reset to Defaults</button>
+            <button id="modal-colors-cancel-btn" class="modal-btn-cancel">Cancel</button>
+            <button id="modal-colors-save-btn" class="modal-btn-confirm">Save & Apply</button>
         </div>
     </div>`;
 
@@ -280,60 +280,74 @@ function openThemeEditorModal() {
         (acc[category] = acc[category] || []).push([key, item]);
         return acc;
     }, {});
+    
+    const categories = Object.keys(groupedItems).sort();
 
-    let themeItemsHtml = '';
-    for (const category of Object.keys(groupedItems).sort()) {
-        themeItemsHtml += `<h4 style="margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid #444; padding-bottom: 5px;">${category}</h4>`;
-        groupedItems[category].forEach(([key, item]) => {
+    let tabButtonsHtml = categories.map((cat, index) => 
+        `<button class="theme-tab-btn ${index === 0 ? 'active' : ''}" data-category="${cat}">${cat}</button>`
+    ).join('');
+
+    let tabPanesHtml = categories.map((cat, index) => {
+        let itemsHtml = groupedItems[cat].map(([key, item]) => {
             const savedValue = lsGet(`theme_${key}`) ?? item.default;
-            
             let boldToggleHtml = '';
             if (item.hasBoldToggle) {
                 const isBold = lsGet(`theme_bold_${key}`) ?? item.defaultBold;
-                boldToggleHtml = `<label style="cursor:pointer; display:flex; align-items:center; gap: 4px; user-select: none;">
-                                    <input type="checkbox" data-bold-key="${key}" ${isBold ? 'checked' : ''}> Bold
-                                  </label>`;
+                boldToggleHtml = `<label class="color-picker-sub-label"><input type="checkbox" data-bold-key="${key}" ${isBold ? 'checked' : ''}> Bold</label>`;
             }
 
             let controlHtml = '';
             if (item.type === 'color') {
                 controlHtml = `<input type="color" data-key="${key}" value="${savedValue}">`;
             } else if (item.type === 'range') {
-                controlHtml = `<div style="display:flex; align-items:center; gap:8px; flex-grow:1;">
-                                <input type="range" data-key="${key}" value="${savedValue}" min="${item.min}" max="${item.max}" style="width: 100%;">
-                                <span id="range-value-${key.replace(/--/g, '')}" style="min-width: 35px; text-align: right;">${savedValue}${item.unit || ''}</span>
+                controlHtml = `<div class="range-control-wrapper">
+                                <input type="range" data-key="${key}" value="${savedValue}" min="${item.min}" max="${item.max}">
+                                <span id="range-value-${key.replace(/--/g, '')}">${savedValue}${item.unit || ''}</span>
                                </div>`;
             }
 
-            themeItemsHtml += `
+            return `
                 <div class="color-picker-item">
-                    <label style="display: flex; align-items: center; gap: 8px;">
+                    <label class="color-picker-main-label">
                         ${item.label}
-                        <span class="info-icon" data-info-text="${item.description}" style="cursor:help; font-size: 1.2em; color: #888;">ℹ️</span>
+                        <span class="info-icon" data-info-text="${item.description}">ℹ️</span>
                     </label>
-                    <div class="color-controls-wrapper" style="display: flex; align-items: center; gap: 15px; min-width: 200px; justify-content: flex-end;">
+                    <div class="color-controls-wrapper">
                         ${boldToggleHtml}
                         ${controlHtml}
                     </div>
-                </div>
-            `;
-        });
-    }
+                </div>`;
+        }).join('');
 
-    overlay.innerHTML = `<div class="modal-box" style="width:90%; max-width:750px;">
+        return `<div class="theme-tab-pane ${index === 0 ? 'active' : ''}" data-category="${cat}">${itemsHtml}</div>`;
+    }).join('');
+
+    overlay.innerHTML = `<div class="modal-box" style="width:90%; max-width:800px;">
         <h3>Customize UI Theme</h3>
-        <p style="font-size:0.9em; color:#ccc;">Changes are applied live. Hover over the ℹ️ icon for details on each setting. Click Save to make them permanent.</p>
-        <div id="theme-picker-list" style="max-height: 60vh; overflow-y: auto; padding-right: 15px; border-top: 1px solid var(--modal-border-color); border-bottom: 1px solid var(--modal-border-color); margin: 15px 0; padding-top: 10px; padding-bottom: 10px;">
-            ${themeItemsHtml}
+        <p style="font-size:0.9em; color:#ccc; margin-top:0;">Changes are applied live. Hover over ℹ️ for details. Click Save to make them permanent.</p>
+        <div class="theme-editor-container">
+            <div class="theme-tabs">${tabButtonsHtml}</div>
+            <div id="theme-picker-list" class="theme-panes">${tabPanesHtml}</div>
         </div>
-        <div class="modal-buttons">
-            <button id="modal-theme-reset-btn" style="float:left;">Reset to Defaults</button>
-            <button id="modal-theme-cancel-btn">Cancel</button>
-            <button id="modal-theme-save-btn" style="margin-left:8px; background-color:var(--btn-success-bg); color: var(--btn-success-text); font-weight: var(--btn-success-text-bold);">Save Changes</button>
+        <div class="modal-buttons" style="margin-top: 15px;">
+            <button id="modal-theme-reset-btn" class="modal-btn-reset">Reset All to Defaults</button>
+            <button id="modal-theme-cancel-btn" class="modal-btn-cancel">Cancel</button>
+            <button id="modal-theme-save-btn" class="modal-btn-confirm">Save Changes</button>
         </div>
     </div>`;
 
     const container = document.getElementById('theme-picker-list');
+
+    // Tab switching logic
+    overlay.querySelector('.theme-tabs').addEventListener('click', e => {
+        if (e.target.tagName === 'BUTTON') {
+            const category = e.target.dataset.category;
+            overlay.querySelectorAll('.theme-tab-btn, .theme-tab-pane').forEach(el => el.classList.remove('active'));
+            e.target.classList.add('active');
+            overlay.querySelector(`.theme-tab-pane[data-category="${category}"]`).classList.add('active');
+        }
+    });
+
     container.addEventListener('input', e => {
         const key = e.target.dataset.key;
         const boldKey = e.target.dataset.boldKey;
@@ -373,8 +387,8 @@ function openThemeEditorModal() {
                     lsRemove(`theme_bold_${key}`);
                 }
             }
-            applyUiThemeSettings(); // Apply defaults immediately
-            openThemeEditorModal(); // Re-open the modal to show the reset values
+            applyUiThemeSettings(); 
+            openThemeEditorModal(); 
         }
     };
 
