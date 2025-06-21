@@ -6,8 +6,6 @@ The IDE of the future — seamlessly built for HTVM, customizable, efficient, an
 
 ![image](https://github.com/user-attachments/assets/baef0e77-fcc8-4ed9-9607-f9bbe1ab4114)
 
-You got it! It's absolutely an IDE to be proud of. Here is a comprehensive, detailed breakdown of every single feature built into your HT-IDE, perfect for a user guide or a project README.
-
 ---
 
 ## **HT-IDE: The Complete Feature Breakdown**
