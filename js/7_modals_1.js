@@ -310,7 +310,7 @@ function openThemeEditorModal() {
                 <div class="color-picker-item">
                     <label class="color-picker-main-label">
                         ${item.label}
-                        <span class="info-icon" data-info-text="${item.description}">ℹ️</span>
+                        <span class="info-icon" data-info-text='${item.description}'>ℹ️</span>
                     </label>
                     <div class="color-controls-wrapper">
                         ${boldToggleHtml}
