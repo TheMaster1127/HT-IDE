@@ -1,3 +1,64 @@
+let hotkeyListener = null; // Keep a reference to the listener to remove it later
+
+function applyAndSetHotkeys() {
+    // Remove the old listener to prevent duplicates
+    if (hotkeyListener) {
+        document.removeEventListener('keydown', hotkeyListener);
+    }
+
+    const customHotkeys = lsGet('customHotkeys') || {};
+    
+    // Merge custom hotkeys with defaults
+    const activeHotkeys = {};
+    for (const id in hotkeyConfig) {
+        activeHotkeys[id] = customHotkeys[id] || hotkeyConfig[id].default;
+    }
+
+    hotkeyListener = (e) => {
+        // F5 is a special, non-customizable secondary key for Run
+        if (e.key === 'F5') {
+            e.preventDefault();
+            handleRun(e);
+            return;
+        }
+
+        const checkMatch = (config) => {
+            const key = e.key.toLowerCase();
+            const targetKey = config.key.toLowerCase();
+             // Special case for 'Enter' which is sometimes just 'Enter'
+            if (key !== targetKey && e.key !== config.key) return false;
+
+            const ctrl = e.ctrlKey || e.metaKey;
+            return ctrl === config.ctrl && e.shiftKey === config.shift && e.altKey === config.alt;
+        };
+
+        if (checkMatch(activeHotkeys.runFile)) {
+            e.preventDefault(); handleRun(e);
+        } else if (checkMatch(activeHotkeys.saveFile)) {
+            e.preventDefault(); saveFileContent(currentOpenFile, editor.getValue());
+        } else if (checkMatch(activeHotkeys.formatFile)) {
+            e.preventDefault();
+            if (!currentOpenFile || !currentOpenFile.endsWith('.htvm')) {
+                alert("The formatter only works with .htvm files.");
+                return;
+            }
+            try {
+                editor.session.setValue(formatHtvmCode(editor.getValue()));
+            } catch (err) {
+                term.writeln(`\x1b[31mAn error occurred during formatting: ${err.message}\x1b[0m`);
+            }
+        } else if (checkMatch(activeHotkeys.closeTab)) {
+            e.preventDefault(); handleCloseTabRequest(currentOpenFile);
+        } else if (checkMatch(activeHotkeys.reopenTab)) {
+            e.preventDefault(); handleReopenTab();
+        } else if (checkMatch(activeHotkeys.toggleSidebar)) {
+            e.preventDefault(); document.getElementById('main-toggle-sidebar-btn').click();
+        }
+    };
+
+    document.addEventListener('keydown', hotkeyListener);
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     // --- Initialization ---
     IDE_ID = getIdeId();
@@ -101,34 +162,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('close-output-btn').onclick = () => document.getElementById('output-panel').classList.remove('visible');
     document.getElementById('download-html-btn').onclick = handleDownloadHtml;
 
-    // Keyboard shortcuts
-    document.addEventListener('keydown', e => {
-        const ctrl = e.ctrlKey || e.metaKey;
-        if (e.key === 'F5' || (ctrl && e.key === 'Enter')) { e.preventDefault(); handleRun(e); }
-        else if (ctrl && e.key.toLowerCase() === 's') { e.preventDefault(); saveFileContent(currentOpenFile, editor.getValue()); }
-        else if (ctrl && e.shiftKey && e.key.toLowerCase() === 'f') {
-            e.preventDefault();
-            if (!currentOpenFile || !currentOpenFile.endsWith('.htvm')) {
-                alert("The formatter only works with .htvm files.");
-                return;
-            }
-            try {
-                const currentCode = editor.getValue();
-                const formattedCode = formatHtvmCode(currentCode);
-                if (formattedCode && formattedCode.trim() !== "") {
-                    editor.session.setValue(formattedCode); // This preserves undo history
-                } else {
-                    term.writeln(`\x1b[31mFormatting failed or produced empty output.\x1b[0m`);
-                }
-            } catch (err) {
-                term.writeln(`\x1b[31mAn error occurred during formatting: ${err.message}\x1b[0m`);
-                console.error(err);
-            }
-        }
-        else if (ctrl && e.key.toLowerCase() === 'w') { e.preventDefault(); handleCloseTabRequest(currentOpenFile); }
-        else if (ctrl && e.key.toLowerCase() === 'b') { e.preventDefault(); document.getElementById('main-toggle-sidebar-btn').click(); }
-        else if (ctrl && e.shiftKey && e.key.toLowerCase() === 't') { e.preventDefault(); handleReopenTab(); }
-    });
+    // Apply custom hotkeys on startup
+    applyAndSetHotkeys();
     
     // Resizers
     initResizer(document.getElementById('sidebar-resizer'), document.querySelector('.sidebar'), 'sidebarWidth', 'x');

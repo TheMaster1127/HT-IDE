@@ -78,6 +78,27 @@ function openSessionModal(mode) {
     overlay.style.display = 'flex';
 }
 
+function renderHotkeyDisplayList() {
+    const customHotkeys = lsGet('customHotkeys') || {};
+    let html = '';
+
+    for (const id in hotkeyConfig) {
+        const config = hotkeyConfig[id];
+        const activeHotkey = customHotkeys[id] || config.default;
+        let displayText = formatHotkey(activeHotkey);
+
+        if (id === 'runFile' && config.secondary) {
+            displayText += ` / ${formatHotkey(config.secondary)}`;
+        }
+        
+        let label = config.label;
+        if(id === 'formatFile') label = 'Format .htvm File';
+
+        html += `<li><b>${displayText}:</b> ${label}</li>`;
+    }
+    return `<ul style="padding-left:20px;margin:0; font-size: 0.9em; list-style-type: none;">${html}</ul>`;
+}
+
 function openSettingsModal() {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
@@ -124,14 +145,8 @@ function openSettingsModal() {
             </div>
             <div class="settings-column" style="flex: 1; padding-left: 20px; border-left: 1px solid #333; min-width: 220px;">
                  <h4>Hotkeys</h4>
-                 <ul style="padding-left:20px;margin:0; font-size: 0.9em; list-style-type: none;">
-                    <li><b>Ctrl+Enter / F5:</b> Run File</li>
-                    <li><b>Ctrl+S:</b> Save File</li>
-                    <li><b>Ctrl+Shift+F:</b> Formatting .htvm files only</li>
-                    <li><b>Ctrl+W:</b> Close Tab</li>
-                    <li><b>Ctrl+Shift+T:</b> Re-open last closed tab</li>
-                    <li><b>Ctrl+B:</b> Toggle Sidebar</li>
-                 </ul>
+                 <div id="hotkey-display-list">${renderHotkeyDisplayList()}</div>
+                 <button id="customize-hotkeys-btn" style="margin-top: 15px; padding: 8px; background-color: var(--btn-new-file-bg); color: var(--btn-new-file-text); font-weight: var(--btn-new-file-text-bold);">Customize Hotkeys</button>
             </div>
         </div>
         <div class="modal-buttons" style="margin-top: 20px;"><button id="modal-ok-btn" style="padding: 10px 24px; font-size: 1.1em; font-weight: bold;">OK</button></div>
@@ -155,6 +170,8 @@ function openSettingsModal() {
 
     document.getElementById('customize-colors-btn').onclick = openSyntaxColorModal;
     document.getElementById('customize-theme-btn').onclick = openThemeEditorModal;
+    document.getElementById('customize-hotkeys-btn').onclick = openHotkeyEditorModal;
+
 
     document.getElementById('modal-ok-btn').onclick = () => {
         editor.setFontSize(parseInt(document.getElementById('font-size-input').value, 10)); lsSet('fontSize', editor.getFontSize());
@@ -185,6 +202,131 @@ function openSettingsModal() {
     };
     overlay.style.display = 'flex';
 }
+
+function formatHotkey(config) {
+    if (!config || !config.key) return 'None';
+    const parts = [];
+    if (config.ctrl) parts.push('Ctrl');
+    if (config.shift) parts.push('Shift');
+    if (config.alt) parts.push('Alt');
+    
+    let keyName = config.key;
+    if (keyName.length === 1) keyName = keyName.toUpperCase();
+    parts.push(keyName);
+
+    return parts.join(' + ');
+}
+
+function openHotkeyEditorModal() {
+    const overlay = document.getElementById('modal-overlay');
+    overlay.style.pointerEvents = 'auto';
+    const customHotkeys = lsGet('customHotkeys') || {};
+
+    let itemsHtml = '';
+    for (const id in hotkeyConfig) {
+        const config = hotkeyConfig[id];
+        const activeHotkey = customHotkeys[id] || config.default;
+        
+        itemsHtml += `
+            <div class="color-picker-item" style="gap: 10px;">
+                <label style="flex-basis: 200px;">${config.label}</label>
+                <input type="text" readonly class="hotkey-input" data-id="${id}" value="${formatHotkey(activeHotkey)}" style="flex-grow: 1; text-align: center; cursor: pointer; background-color: #333;">
+                <button class="hotkey-reset-btn" data-id="${id}" style="padding: 4px 8px; font-size: 0.8em; background-color: #777;">Reset</button>
+            </div>
+        `;
+    }
+
+    overlay.innerHTML = `<div class="modal-box" style="width:90%; max-width:600px;">
+        <h3>Customize Hotkeys</h3>
+        <p style="font-size:0.9em; color:#ccc; margin-top:0;">Click on an input box and press your desired key combination. F5 for Run is a non-customizable secondary hotkey.</p>
+        <div id="hotkey-picker-list" style="max-height: 60vh; overflow-y: auto; padding: 10px; border-top: 1px solid #333; border-bottom: 1px solid #333; margin: 15px 0;">
+            ${itemsHtml}
+        </div>
+        <div class="modal-buttons">
+            <button id="modal-hotkeys-reset-all-btn" class="modal-btn-reset">Reset All to Defaults</button>
+            <button id="modal-hotkeys-cancel-btn" class="modal-btn-cancel">Cancel</button>
+            <button id="modal-hotkeys-save-btn" class="modal-btn-confirm">Save & Apply</button>
+        </div>
+    </div>`;
+
+    const container = document.getElementById('hotkey-picker-list');
+    
+    container.querySelectorAll('.hotkey-input').forEach(input => {
+        // Store the initial config
+        const id = input.dataset.id;
+        input.dataset.config = JSON.stringify(customHotkeys[id] || hotkeyConfig[id].default);
+
+        input.onkeydown = e => {
+            e.preventDefault();
+            e.stopPropagation(); // Stop the event from triggering global listeners
+            
+            const newConfig = {
+                key: e.key,
+                ctrl: e.ctrlKey || e.metaKey,
+                shift: e.shiftKey,
+                alt: e.altKey
+            };
+
+            const currentId = e.target.dataset.id;
+            const allInputs = container.querySelectorAll('.hotkey-input');
+            
+            // Check for duplicates
+            for (const otherInput of allInputs) {
+                const otherId = otherInput.dataset.id;
+                if (currentId === otherId) continue; // Skip self-comparison
+
+                const otherConfig = JSON.parse(otherInput.dataset.config);
+                const isDuplicate = (
+                    otherConfig.key.toLowerCase() === newConfig.key.toLowerCase() &&
+                    otherConfig.ctrl === newConfig.ctrl &&
+                    otherConfig.shift === newConfig.shift &&
+                    otherConfig.alt === newConfig.alt
+                );
+
+                if (isDuplicate) {
+                    const conflictLabel = hotkeyConfig[otherId].label;
+                    alert(`Hotkey '${formatHotkey(newConfig)}' is already in use by '${conflictLabel}'. Please choose a different combination.`);
+                    return; // Revert by not applying the change
+                }
+            }
+            
+            // If no duplicates, apply the new hotkey
+            input.value = formatHotkey(newConfig);
+            input.dataset.config = JSON.stringify(newConfig);
+        };
+    });
+
+    container.querySelectorAll('.hotkey-reset-btn').forEach(button => {
+        button.onclick = () => {
+            const id = button.dataset.id;
+            const input = container.querySelector(`.hotkey-input[data-id="${id}"]`);
+            const defaultConfig = hotkeyConfig[id].default;
+            input.value = formatHotkey(defaultConfig);
+            input.dataset.config = JSON.stringify(defaultConfig);
+        };
+    });
+
+    document.getElementById('modal-hotkeys-cancel-btn').onclick = openSettingsModal;
+    
+    document.getElementById('modal-hotkeys-reset-all-btn').onclick = () => {
+        if (confirm("Are you sure you want to reset all hotkeys to their defaults?")) {
+            lsRemove('customHotkeys');
+            applyAndSetHotkeys();
+            openHotkeyEditorModal();
+        }
+    };
+    
+    document.getElementById('modal-hotkeys-save-btn').onclick = () => {
+        const newCustomHotkeys = {};
+        container.querySelectorAll('.hotkey-input').forEach(input => {
+            newCustomHotkeys[input.dataset.id] = JSON.parse(input.dataset.config);
+        });
+        lsSet('customHotkeys', newCustomHotkeys);
+        applyAndSetHotkeys();
+        openSettingsModal();
+    };
+}
+
 
 function openSyntaxColorModal() {
     const overlay = document.getElementById('modal-overlay');
