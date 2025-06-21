@@ -148,6 +148,19 @@ async function runJsCode(code) {
     }
 }
 
+function formatHtvmCode(code) {
+    let instructionSet = JSON.parse(localStorage.getItem(instructionSetKeys.legacyKey) || '[]');
+    
+    term.writeln(`\x1b[32mFormatting HTVM file...\x1b[0m`);
+    resetGlobalVarsOfHTVMjs(); // It's important to reset state before each compilation
+    argHTVMinstrMORE.push(instructionSet.join('\n'));
+    const formattedCode = compiler(code, instructionSet.join('\n'), "full", "htvm");
+    resetGlobalVarsOfHTVMjs(); // And after, to be safe
+    
+    term.writeln(`\x1b[32mFormatting complete.\x1b[0m`);
+    return formattedCode;
+}
+
 async function runHtvmCode(code) {
     const lang = lsGet('selectedLangExtension') || 'js';
     let instructionSet = JSON.parse(localStorage.getItem(instructionSetKeys.legacyKey) || '[]');

@@ -127,6 +127,7 @@ function openSettingsModal() {
                  <ul style="padding-left:20px;margin:0; font-size: 0.9em; list-style-type: none;">
                     <li><b>Ctrl+Enter / F5:</b> Run File</li>
                     <li><b>Ctrl+S:</b> Save File</li>
+                    <li><b>Ctrl+Shift+F:</b> Formatting .htvm files only</li>
                     <li><b>Ctrl+W:</b> Close Tab</li>
                     <li><b>Ctrl+Shift+T:</b> Re-open last closed tab</li>
                     <li><b>Ctrl+B:</b> Toggle Sidebar</li>

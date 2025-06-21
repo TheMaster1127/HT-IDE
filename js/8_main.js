@@ -106,6 +106,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         const ctrl = e.ctrlKey || e.metaKey;
         if (e.key === 'F5' || (ctrl && e.key === 'Enter')) { e.preventDefault(); handleRun(e); }
         else if (ctrl && e.key.toLowerCase() === 's') { e.preventDefault(); saveFileContent(currentOpenFile, editor.getValue()); }
+        else if (ctrl && e.shiftKey && e.key.toLowerCase() === 'f') {
+            e.preventDefault();
+            if (!currentOpenFile || !currentOpenFile.endsWith('.htvm')) {
+                alert("The formatter only works with .htvm files.");
+                return;
+            }
+            try {
+                const currentCode = editor.getValue();
+                const formattedCode = formatHtvmCode(currentCode);
+                if (formattedCode && formattedCode.trim() !== "") {
+                    editor.session.setValue(formattedCode); // This preserves undo history
+                } else {
+                    term.writeln(`\x1b[31mFormatting failed or produced empty output.\x1b[0m`);
+                }
+            } catch (err) {
+                term.writeln(`\x1b[31mAn error occurred during formatting: ${err.message}\x1b[0m`);
+                console.error(err);
+            }
+        }
         else if (ctrl && e.key.toLowerCase() === 'w') { e.preventDefault(); handleCloseTabRequest(currentOpenFile); }
         else if (ctrl && e.key.toLowerCase() === 'b') { e.preventDefault(); document.getElementById('main-toggle-sidebar-btn').click(); }
         else if (ctrl && e.shiftKey && e.key.toLowerCase() === 't') { e.preventDefault(); handleReopenTab(); }
