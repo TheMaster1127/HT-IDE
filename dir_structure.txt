@@ -15,6 +15,7 @@
 │
 ├── 📁 js/                       // All application logic, loaded in order.
 │   ├── 📜 1_state.js              // Global variables (the app's central memory).
+│   ├── 📜 2_autocomplete_keywords.js   // All autocomplete keywords for non HTVM langs.
 │   ├── 📜 2_config_and_utils.js   // Shared "toolbox" and configuration data.
 │   ├── 📜 2_config_and_utils_reset_htvm.js   // The function to reset the HTVM vars.
 │   ├── 📜 3_ui.js                 // Renders and updates the UI (file list, tabs).
