@@ -57,6 +57,7 @@ function applyAndSetHotkeys() {
     };
 
     document.addEventListener('keydown', hotkeyListener);
+    updateHotkeyTitles();
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -160,6 +161,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Run and Output Panel listeners
     document.getElementById('run-btn').onclick = handleRun;
+    document.getElementById('format-btn').onclick = () => {
+        if (!currentOpenFile || !currentOpenFile.endsWith('.htvm')) {
+            alert("The formatter only works with .htvm files.");
+            return;
+        }
+        try {
+            editor.session.setValue(formatHtvmCode(editor.getValue()));
+        } catch (err) {
+            term.writeln(`\x1b[31mAn error occurred during formatting: ${err.message}\x1b[0m`);
+        }
+    };
     document.getElementById('close-output-btn').onclick = () => document.getElementById('output-panel').classList.remove('visible');
     document.getElementById('download-html-btn').onclick = handleDownloadHtml;
 

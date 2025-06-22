@@ -758,3 +758,33 @@ function openExportImportModal() {
         });
     };
 }
+
+function updateHotkeyTitles() {
+    const customHotkeys = lsGet('customHotkeys') || {};
+    const activeHotkeys = {};
+    for (const id in hotkeyConfig) {
+        activeHotkeys[id] = customHotkeys[id] || hotkeyConfig[id].default;
+    }
+
+    // Update Run Button Title
+    const runBtn = document.getElementById('run-btn');
+    if (runBtn) {
+        const runHotkeyStr = formatHotkey(activeHotkeys.runFile);
+        // F5 is a non-customizable secondary key
+        runBtn.title = `Run (F5 or ${runHotkeyStr})`;
+    }
+
+    // Update Format Button Title
+    const formatBtn = document.getElementById('format-btn');
+    if (formatBtn) {
+        const formatHotkeyStr = formatHotkey(activeHotkeys.formatFile);
+        formatBtn.title = `Format HTVM File (${formatHotkeyStr})`;
+    }
+
+    // Update Toggle Sidebar Button Title
+    const toggleSidebarBtn = document.getElementById('main-toggle-sidebar-btn');
+    if (toggleSidebarBtn) {
+        const toggleHotkeyStr = formatHotkey(activeHotkeys.toggleSidebar);
+        toggleSidebarBtn.title = `Toggle File Explorer (${toggleHotkeyStr})`;
+    }
+}
