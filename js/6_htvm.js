@@ -178,8 +178,21 @@ async function runHtvmCode(code) {
     const newFileExt = isFullHtml ? 'html' : lang;
     const newFile = currentOpenFile.replace(/\.htvm$/, `.${newFileExt}`);
 
+    const wasAlreadyOpen = openTabs.includes(newFile);
+
+    // If a session for the output file already exists, remove it from our in-memory cache.
+    // This is crucial to ensure that when it's viewed again, it loads the fresh content.
+    if (fileSessions.has(newFile)) {
+        fileSessions.delete(newFile);
+    }
+
     saveFileContent(newFile, compiled, false);
-    if (!openTabs.includes(newFile)) openFileInEditor(newFile);
+
+    // Only switch focus to the new file if its tab wasn't already open.
+    // If it was open, the content is updated, but focus remains on the current HTVM file.
+    if (!wasAlreadyOpen) {
+        openFileInEditor(newFile);
+    }
     
     const shouldRunAfter = document.getElementById('run-js-after-htvm').checked;
     if (shouldRunAfter) {
