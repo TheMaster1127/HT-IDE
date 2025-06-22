@@ -233,7 +233,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Window Listeners
-    window.addEventListener('resize', debounce(() => { editor.resize(); fitAddon.fit(); }, 200));
+    window.addEventListener('resize', debounce(() => {
+        editor.resize();
+        fitAddon.fit();
+
+        // --- FIX FOR RESIZE BUG ---
+        // Check if we are in desktop view by inspecting the sidebar's CSS position.
+        const sidebar = document.querySelector('.sidebar');
+        const backdrop = document.getElementById('sidebar-backdrop');
+        const isDesktopView = getComputedStyle(sidebar).position !== 'absolute';
+
+        // If we've resized back to desktop view, ensure the mobile-only backdrop is hidden.
+        if (isDesktopView) {
+            backdrop.style.display = 'none';
+        }
+    }, 200));
+
     window.addEventListener('beforeunload', () => {
         if (currentOpenFile) {
             saveFileContent(currentOpenFile, editor.getValue(), true);

@@ -181,6 +181,8 @@ body.preload * { transition: none !important; }
 #file-list { list-style: none; padding: 0; margin: 0; flex-grow: 1; overflow-y: auto; min-height: 0; }
 #file-list li { padding: 6px 10px; cursor: pointer; border-radius: 3px; font-size: 0.9em; display: flex; align-items: center; justify-content: space-between; overflow: hidden; color: var(--sidebar-file-text); font-weight: var(--sidebar-file-text-bold); }
 #file-list li:hover { background-color: var(--sidebar-file-hover-bg); }
+#file-list li button { margin-left: auto; visibility: hidden; }
+#file-list li:hover button { visibility: visible; }
 #file-list li.active-file-list-item { background-color: var(--sidebar-file-active-bg); color: var(--sidebar-file-active-text); font-weight: var(--sidebar-file-active-text-bold); }
 .file-item-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sidebar-footer { padding: 10px; border-top: 1px solid var(--resizer-bg); display: grid; gap: 5px; grid-template-columns: 1fr 1fr; flex-shrink: 0; }
@@ -355,4 +357,8 @@ body.syntax-highlighting-disabled .ace_line > span[class*="ace_"] { color: #f8f8
     #sidebar-close-btn { display: block; background: none; border: none; color: var(--sidebar-close-btn-color); font-size: 1.8em; line-height: 1; padding: 0 5px 5px 10px; cursor: pointer; }
     .theme-editor-container { flex-direction: column; }
     .theme-tabs { flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--modal-border-color);}
+
+    #file-list li button {
+        visibility: visible !important;
+    }
 }
