@@ -787,4 +787,4 @@ function updateHotkeyTitles() {
         const toggleHotkeyStr = formatHotkey(activeHotkeys.toggleSidebar);
         toggleSidebarBtn.title = `Toggle File Explorer (${toggleHotkeyStr})`;
     }
-}
+}	

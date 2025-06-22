@@ -163,6 +163,7 @@ function formatHtvmCode(code) {
 }
 
 async function runHtvmCode(code) {
+    resetGlobalVarsOfHTVMjs(); // <-- FIX: Ensure a clean state before every transpilation.
     const lang = lsGet('selectedLangExtension') || 'js';
     let instructionSet = JSON.parse(localStorage.getItem(instructionSetKeys.legacyKey) || '[]');
     const isFullHtml = lang === 'js' && document.getElementById('full-html-checkbox').checked;
