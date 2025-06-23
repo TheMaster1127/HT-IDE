@@ -1,4 +1,4 @@
-// --- Virtual Filesystem Functions ---
+// --- Virtual Filesystem & Command Functions ---
 
 const getAllPaths = async () => {
     try {
@@ -49,55 +49,32 @@ async function deleteItem(pathToDelete, isFile) {
 
     term.writeln(`\x1b[31mDeleted: ${pathToDelete}\x1b[0m`);
 
-    // --- STATE UPDATE ---
-    // 1. Get a list of all tab paths that will be affected by this deletion
-    const tabsToClose = openTabs.filter(tabPath => {
-        if (isFile) {
-            return tabPath === pathToDelete;
-        } else {
-            // It's a directory. Check if the tab path starts with the directory path.
-            const separator = pathToDelete.includes('\\') ? '\\' : '/';
-            return tabPath.startsWith(pathToDelete + separator);
-        }
-    });
-    
-    // 2. Check if the currently active file is among those to be closed
+    const tabsToClose = openTabs.filter(tabPath => isFile ? tabPath === pathToDelete : tabPath.startsWith(pathToDelete + (pathToDelete.includes('\\') ? '\\' : '/')));
     const isActiveFileDeleted = tabsToClose.includes(currentOpenFile);
 
-    // 3. Clean up all state related to the affected tabs
     for (const tabPath of tabsToClose) {
         const index = openTabs.indexOf(tabPath);
-        if (index > -1) {
-            openTabs.splice(index, 1);
-        }
+        if (index > -1) openTabs.splice(index, 1);
         fileSessions.delete(tabPath);
         lsRemove('state_' + tabPath);
-        if (isFile) {
-            recentlyClosedTabs.push(tabPath);
-        }
+        if (isFile) recentlyClosedTabs.push(tabPath);
     }
 
-    // --- RENDER ---
-    // 4. Decide what to render next, now that the state is clean
     if (isActiveFileDeleted) {
         currentOpenFile = null;
         const nextFileToOpen = openTabs[0] || null;
-
         if (nextFileToOpen) {
-            await openFileInEditor(nextFileToOpen); // This will handle all rendering
+            await openFileInEditor(nextFileToOpen);
         } else {
-            // No tabs left, clear editor and render the empty state
             editor.setSession(ace.createEditSession("// No file open."));
             editor.setReadOnly(true);
             document.getElementById('htvm-controls').style.display = 'none';
             await renderAll();
         }
     } else {
-        // The active file wasn't deleted, just refresh the UI
         await renderAll();
     }
 }
-
 
 async function handleNewFile() {
     openInputModal('New File', 'Enter file name:', '', async (name) => {
@@ -115,13 +92,6 @@ async function handleNewFile() {
 
         const { success, error } = await window.electronAPI.createItem(path, true);
         if (success) {
-            let newFileContent = '';
-            if (path.endsWith('.htvm')) {
-                const instructions = JSON.parse(localStorage.getItem(instructionSetKeys.legacyKey) || '[]');
-                const commentChar = (instructions && instructions.length > 100) ? instructions[100] : ';';
-                newFileContent = `${commentChar.trim()} Welcome!`;
-                await saveFileContent(path, newFileContent, true);
-            }
             await openFileInEditor(path);
         } else {
             alert(`Error creating file: ${error}`);
@@ -157,5 +127,44 @@ async function handleOpenFolder() {
     const result = await window.electronAPI.openDirectory();
     if (result && result.length > 0) {
         setCurrentDirectory(result[0]);
+    }
+}
+
+// --- NEW: Property File Command Runner ---
+async function runPropertyCommand(type) {
+    if (!currentOpenFile) {
+        term.writeln(`\x1b[31mError: No file is open to ${type}.\x1b[0m`);
+        return;
+    }
+
+    await saveFileContent(currentOpenFile, editor.getValue());
+
+    const fileExt = currentOpenFile.split('.').pop();
+    const propExt = type === 'compile' ? 'htpc' : 'htpr';
+    const propFileName = `${fileExt}.${propExt}`;
+    
+    const appPath = await window.electronAPI.getAppPath();
+    const separator = appPath.includes('\\') ? '\\' : '/';
+    const propFilePath = `${appPath}${separator}property files${separator}${propFileName}`;
+
+    const commandsStr = await window.electronAPI.getFileContent(propFilePath);
+    if (!commandsStr) {
+        term.writeln(`\x1b[33mWarning: No property file found for ".${fileExt}" files (${propFileName}).\x1b[0m`);
+        printExecutionEndMessage();
+        return;
+    }
+
+    const dirFullPath = currentOpenFile.substring(0, currentOpenFile.lastIndexOf(separator));
+    const onlyFileName = currentOpenFile.substring(currentOpenFile.lastIndexOf(separator) + 1).split('.').slice(0, -1).join('.');
+    
+    const commands = commandsStr.split(/[\r\n]+/).filter(cmd => cmd.trim() && !cmd.trim().startsWith(';'));
+
+    for (const command of commands) {
+        let processedCmd = command.replace(/%FILENAME%/g, currentOpenFile);
+        processedCmd = processedCmd.replace(/%ONLYFILENAME%/g, onlyFileName);
+        processedCmd = processedCmd.replace(/%DIRFULLPATH%/g, dirFullPath);
+        
+        term.writeln(`\x1b[36m> ${processedCmd}\x1b[0m`);
+        await window.electronAPI.runCommand(processedCmd, dirFullPath);
     }
 }

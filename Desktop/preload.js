@@ -15,6 +15,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // --- OS Dialog ---
     openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
 
-    // --- NEW: Expose Discord Rich Presence handler ---
-    updateDiscordPresence: (details, state) => ipcRenderer.invoke('update-discord-presence', { details, state }),
+    // --- Discord Rich Presence ---
+    updateDiscordPresence: (details, state, lineCount) => ipcRenderer.invoke('update-discord-presence', { details, state, lineCount }),
+    
+    // --- NEW: Context Menu & Command Execution ---
+    showTabContextMenu: (filePath) => ipcRenderer.send('show-tab-context-menu', filePath),
+    getAppPath: () => ipcRenderer.invoke('get-app-path'),
+    runCommand: (command, cwd) => ipcRenderer.invoke('run-command', { command, cwd }),
+    onCommandOutput: (callback) => ipcRenderer.on('command-output', (event, data) => callback(data)),
+    onCommandError: (callback) => ipcRenderer.on('command-error', (event, data) => callback(data)),
+    onCommandClose: (callback) => ipcRenderer.on('command-close', (event, code) => callback(code)),
 });

@@ -135,9 +135,7 @@ function renderHotkeyDisplayList() {
             displayText += ` / ${formatHotkey(config.secondary)}`;
         }
         
-        let label = config.label;
-        if(id === 'formatFile') label = 'Format .htvm File';
-
+        const label = config.label;
         html += `<li><b>${displayText}:</b> ${label}</li>`;
     }
     return `<ul style="padding-left:20px;margin:0; font-size: 0.9em; list-style-type: none;">${html}</ul>`;
@@ -810,22 +808,19 @@ function updateHotkeyTitles() {
         activeHotkeys[id] = customHotkeys[id] || hotkeyConfig[id].default;
     }
 
-    // Update Run Button Title
     const runBtn = document.getElementById('run-btn');
     if (runBtn) {
+        const runConfig = hotkeyConfig['runFile'];
         const runHotkeyStr = formatHotkey(activeHotkeys.runFile);
-        // F5 is a non-customizable secondary key
-        runBtn.title = `Run (F5 or ${runHotkeyStr})`;
+        runBtn.title = `${runConfig.label} (${formatHotkey(runConfig.secondary)} or ${runHotkeyStr})`;
     }
 
-    // Update Format Button Title
     const formatBtn = document.getElementById('format-btn');
     if (formatBtn) {
         const formatHotkeyStr = formatHotkey(activeHotkeys.formatFile);
         formatBtn.title = `Format HTVM File (${formatHotkeyStr})`;
     }
 
-    // Update Toggle Sidebar Button Title
     const toggleSidebarBtn = document.getElementById('main-toggle-sidebar-btn');
     if (toggleSidebarBtn) {
         const toggleHotkeyStr = formatHotkey(activeHotkeys.toggleSidebar);

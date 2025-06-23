@@ -1,4 +1,5 @@
 // --- Editor and Tab Management ---
+let lastActiveTab = null;
 
 function setupGutterEvents() {
     editor.on("guttermousedown", function(e) {
@@ -24,7 +25,9 @@ function setupGutterEvents() {
 
 async function openFileInEditor(filename) {
     if (!filename || currentOpenFile === filename) return;
+    
     if (currentOpenFile) {
+        lastActiveTab = currentOpenFile;
         await saveFileContent(currentOpenFile, editor.getValue(), true);
         lsSet('state_' + currentOpenFile, {
             scrollTop: editor.session.getScrollTop(),
@@ -34,8 +37,9 @@ async function openFileInEditor(filename) {
 
     if (!fileSessions.has(filename)) {
         const content = await window.electronAPI.getFileContent(filename) ?? "";
+        const isHtvmLike = filename.endsWith('.htvm') || filename.endsWith('.htpc') || filename.endsWith('.htpr');
         const mode = ace.require("ace/ext/modelist").getModeForPath(filename).mode;
-        const session = ace.createEditSession(content, filename.endsWith('.htvm') ? 'ace/mode/htvm' : mode);
+        const session = ace.createEditSession(content, isHtvmLike ? 'ace/mode/htvm' : mode);
         session.on('change', () => checkDirtyState(filename));
         fileSessions.set(filename, session);
     }
@@ -44,9 +48,7 @@ async function openFileInEditor(filename) {
 
     const breakpoints = fileBreakpoints.get(filename) || new Set();
     editor.session.clearBreakpoints();
-    breakpoints.forEach(row => {
-        editor.session.setBreakpoint(row, "ace_breakpoint");
-    });
+    breakpoints.forEach(row => editor.session.setBreakpoint(row, "ace_breakpoint"));
 
     const state = lsGet('state_' + filename);
     if (state) {
@@ -61,11 +63,11 @@ async function openFileInEditor(filename) {
     currentOpenFile = filename;
     if (!openTabs.includes(filename)) openTabs.push(filename);
 
-    // --- NEW: Update Discord Presence ---
     const name = filename.split(/[\\\/]/).pop();
-    const dir = filename.substring(0, filename.lastIndexOf('/')) || filename.substring(0, filename.lastIndexOf('\\'));
-    window.electronAPI.updateDiscordPresence(`Editing: ${name}`, `In: ${dir}`);
-    // --- END NEW ---
+    const separator = filename.includes('\\') ? '\\' : '/';
+    const folderName = filename.substring(0, filename.lastIndexOf(separator)).split(separator).pop();
+    const lineCount = editor.session.getLength();
+    window.electronAPI.updateDiscordPresence(`Editing: ${name}`, `In folder: ${folderName}`, lineCount);
 
     await renderAll();
     updateEditorModeForHtvm();
@@ -85,6 +87,7 @@ async function closeTab(filenameToClose, force = false) {
 
     if (currentOpenFile === filenameToClose) {
         currentOpenFile = null;
+        lastActiveTab = null;
         const nextFileToOpen = openTabs[Math.max(0, index - 1)] || null;
         
         if (nextFileToOpen) {
@@ -93,8 +96,7 @@ async function closeTab(filenameToClose, force = false) {
             editor.setSession(ace.createEditSession("// No file open."));
             editor.setReadOnly(true);
             document.getElementById('htvm-controls').style.display = 'none';
-            // --- NEW: Update Discord when no file is open ---
-            window.electronAPI.updateDiscordPresence("Idle", "No file open");
+            window.electronAPI.updateDiscordPresence("Idle", "No file open", 0);
             await renderAll(); 
         }
     } else {
@@ -153,11 +155,7 @@ function updateEditorModeForHtvm() {
         if (!currentBlock) {
             for (const marker in languageMarkers) {
                 if (marker && marker !== 'undefined' && line.includes(marker)) {
-                    currentBlock = {
-                        start: i,
-                        lang: languageMarkers[marker].lang,
-                        endMarker: languageMarkers[marker].end
-                    };
+                    currentBlock = { start: i, lang: languageMarkers[marker].lang, endMarker: languageMarkers[marker].end };
                     break;
                 }
             }
@@ -165,22 +163,14 @@ function updateEditorModeForHtvm() {
         
         if (currentBlock) {
             if (currentBlock.endMarker && currentBlock.endMarker !== 'undefined' && line.includes(currentBlock.endMarker)) {
-                detectedBlocks.push({
-                    start: currentBlock.start,
-                    end: i,
-                    lang: currentBlock.lang
-                });
+                detectedBlocks.push({ start: currentBlock.start, end: i, lang: currentBlock.lang });
                 currentBlock = null; 
             }
         }
     }
     
     if (currentBlock) {
-         detectedBlocks.push({
-            start: currentBlock.start,
-            end: lines.length -1,
-            lang: currentBlock.lang
-        });
+         detectedBlocks.push({ start: currentBlock.start, end: lines.length -1, lang: currentBlock.lang });
     }
 
     let lang = "htvm";

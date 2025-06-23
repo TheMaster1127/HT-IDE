@@ -1,34 +1,59 @@
 // electron_main.js
 
-const { app, BrowserWindow, ipcMain, globalShortcut, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const { exec } = require('child_process');
-const DiscordRPC = require('discord-rpc'); // --- NEW ---
+const { spawn } = require('child_process');
+const DiscordRPC = require('discord-rpc');
+const contextMenu = require('electron-context-menu');
 
 const userHomeDir = os.homedir();
 
-// --- NEW: Discord Rich Presence Setup ---
+// --- Discord Rich Presence Setup ---
 const clientId = '1326134917658185769';
 const rpc = new DiscordRPC.Client({ transport: 'ipc' });
 let discordReady = false;
 let startTimestamp = new Date();
 
-function updatePresence(details = "Idle", state = "In the main menu") {
+function updatePresence(details = "Idle", state = "In the main menu", lineCount = 0) {
   if (!discordReady) return;
+  
+  let finalState = state;
+  if(lineCount > 0) {
+      finalState += ` (${lineCount} lines)`;
+  }
+
   rpc.setActivity({
     details: details,
-    state: state,
+    state: finalState,
     startTimestamp,
     largeImageKey: 'icon_512x512',
     largeImageText: 'HT-IDE',
-    smallImageKey: 'icon_512x512',
-    smallImageText: 'Editing a file',
     instance: false,
   });
 }
-// --- END NEW ---
+
+// --- NEW: Command Runner Class (from old project) ---
+const runningProcesses = new Map();
+
+function runCommand(command, cwd, event) {
+    const [cmd, ...args] = command.split(' ');
+    const process = spawn(cmd, args, { cwd, shell: true });
+    const processId = process.pid;
+    runningProcesses.set(processId, process);
+
+    process.stdout.on('data', (data) => event.sender.send('command-output', data.toString()));
+    process.stderr.on('data', (data) => event.sender.send('command-error', data.toString()));
+    process.on('close', (code) => {
+        runningProcesses.delete(processId);
+        event.sender.send('command-close', code);
+    });
+    process.on('error', (err) => {
+        runningProcesses.delete(processId);
+        event.sender.send('command-error', `Error: ${err.message}`);
+    });
+}
 
 function createWindow() {
     const mainWindow = new BrowserWindow({
@@ -52,16 +77,14 @@ app.whenReady().then(async () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
 
-    // --- NEW: Connect to Discord ---
     try {
         await rpc.login({ clientId });
         discordReady = true;
         console.log('Discord Rich Presence is ready.');
-        updatePresence(); // Set initial presence
+        updatePresence(); 
     } catch (error) {
         console.error('Failed to initialize Discord RPC:', error);
     }
-    // --- END NEW ---
 
     globalShortcut.register('CommandOrControl+Shift+I', () => {
         const focusedWindow = BrowserWindow.getFocusedWindow();
@@ -79,7 +102,6 @@ app.whenReady().then(async () => {
 
 app.on('will-quit', () => {
     globalShortcut.unregisterAll();
-    // --- NEW: Disconnect from Discord ---
     if (discordReady) {
         rpc.destroy();
     }
@@ -89,21 +111,35 @@ app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
 });
 
-ipcMain.handle('dialog:openDirectory', async () => {
-    const { canceled, filePaths } = await dialog.showOpenDialog({
-        properties: ['openDirectory']
+ipcMain.on('show-tab-context-menu', (event, filePath) => {
+    const template = [
+        {
+            label: 'Open File Location',
+            click: () => shell.showItemInFolder(filePath)
+        }
+    ];
+    const menu = contextMenu({
+        prepend: () => template,
+        window: BrowserWindow.fromWebContents(event.sender)
     });
-    if (!canceled) {
-        return filePaths;
-    }
+});
+
+ipcMain.handle('dialog:openDirectory', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({ properties: ['openDirectory'] });
+    if (!canceled) return filePaths;
     return null;
 });
 
-// --- NEW: Discord Presence IPC Handler ---
-ipcMain.handle('update-discord-presence', (event, { details, state }) => {
-    updatePresence(details, state);
+ipcMain.handle('get-app-path', () => app.getAppPath());
+
+ipcMain.handle('update-discord-presence', (event, { details, state, lineCount }) => {
+    updatePresence(details, state, lineCount);
 });
-// --- END NEW ---
+
+ipcMain.handle('run-command', (event, { command, cwd }) => {
+    runCommand(command.replace(/~~~/g, ' '), cwd, event);
+});
+
 
 // --- BACKEND FILE SYSTEM API ---
 ipcMain.handle('fs:getAllPaths', (event, dirPath) => {

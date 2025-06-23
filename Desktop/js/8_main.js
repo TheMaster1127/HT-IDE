@@ -10,13 +10,8 @@ function applyAndSetHotkeys() {
     }
 
     hotkeyListener = async (e) => {
-        if (e.key === 'F5') {
-            e.preventDefault();
-            await handleRun(e);
-            return;
-        }
-
         const checkMatch = (config) => {
+            if (!config) return false;
             const key = e.key.toLowerCase();
             const targetKey = config.key.toLowerCase();
             if (key !== targetKey && e.key !== config.key) return false;
@@ -24,7 +19,21 @@ function applyAndSetHotkeys() {
             return ctrl === config.ctrl && e.shiftKey === config.shift && e.altKey === config.alt;
         };
 
+        if (e.key === 'F5') { // Keep F5 as a hardcoded alias for run
+            e.preventDefault();
+            await handleRun(e);
+            return;
+        }
+
+        if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'tab') {
+            e.preventDefault();
+            const target = lastActiveTab && openTabs.includes(lastActiveTab) ? lastActiveTab : openTabs.find(t => t !== currentOpenFile);
+            if (target) await openFileInEditor(target);
+            return;
+        }
+        
         if (checkMatch(activeHotkeys.runFile)) { e.preventDefault(); await handleRun(e); }
+        else if (checkMatch(activeHotkeys.compileFile)) { e.preventDefault(); await runPropertyCommand('compile'); }
         else if (checkMatch(activeHotkeys.saveFile)) { e.preventDefault(); await saveFileContent(currentOpenFile, editor.getValue()); }
         else if (checkMatch(activeHotkeys.formatFile)) {
             e.preventDefault();
@@ -59,6 +68,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     term.open(document.getElementById('terminal'));
     fitAddon.fit();
 
+    window.electronAPI.onCommandOutput((data) => term.write(data));
+    window.electronAPI.onCommandError((data) => term.write(`\x1b[31m${data}\x1b[0m`));
+    window.electronAPI.onCommandClose((code) => term.writeln(`\n\x1b[33mProcess exited with code: ${code}\x1b[0m`));
+    
+    const appPath = await window.electronAPI.getAppPath();
+    const separator = appPath.includes('\\') ? '\\' : '/';
+    await window.electronAPI.createItem(`${appPath}${separator}property files`, false);
+
+
     Object.keys(draftCompletions).forEach(lang => {
         lsSet(`lang_completions_${lang}`, draftCompletions[lang]);
     });
@@ -91,8 +109,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     editor.on('changeSelection', debounce(updateEditorModeForHtvm, 200));
 
-    // --- THE FINAL FIX for BROKEN BUTTONS ---
-    // Using addEventListener is the modern, correct way and avoids conflicts.
     document.getElementById('new-file-btn').addEventListener('click', handleNewFile);
     document.getElementById('new-folder-btn').addEventListener('click', handleNewFolder);
     document.getElementById('save-session-btn').addEventListener('click', () => openSessionModal('save'));
@@ -120,6 +136,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     toggleBtn.addEventListener('click', toggleSidebar);
     backdrop.addEventListener('click', toggleSidebar);
     closeBtn.addEventListener('click', toggleSidebar);
+
+    const tabsContainer = document.getElementById('tabs-container');
+    tabsContainer.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); });
+    tabsContainer.addEventListener('drop', async (e) => {
+        e.preventDefault(); e.stopPropagation();
+        if (draggedTab) return;
+        const files = e.dataTransfer.files;
+        if (files.length > 0 && files[0].path) {
+            await openFileInEditor(files[0].path);
+        }
+    });
+
 
     document.getElementById('lang-dropdown').addEventListener('click', e => {
         const item = e.target.closest('.dropdown-item');
@@ -183,6 +211,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const savedOpenTabs = lsGet('openTabs') || [];
     openTabs = savedOpenTabs.filter(f => allPaths.includes(f));
     const lastFile = lsGet('lastOpenFile');
+    lastActiveTab = lsGet('lastActiveTab');
 
     if (lastFile && allPaths.includes(lastFile)) {
         await openFileInEditor(lastFile);
@@ -205,8 +234,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const files = e.dataTransfer.files;
         if (files.length > 0) {
             for (const file of files) {
-                // This check is crucial. The 'path' property only exists for files
-                // dropped from the desktop. Other drop events might not have it.
                 if (file.path) {
                     const { success, error } = await window.electronAPI.dropFile(file.path, currentDirectory);
                     if (!success) {
@@ -234,6 +261,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         lsSet('openTabs', openTabs);
         lsSet('lastOpenFile', currentOpenFile);
+        lsSet('lastActiveTab', lastActiveTab);
         lsSet('lastCwd', currentDirectory);
 
         const serializableBreakpoints = {};

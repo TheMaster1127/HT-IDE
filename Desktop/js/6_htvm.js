@@ -171,8 +171,6 @@ async function runHtvmCode(code) {
     
     const newFileExt = isFullHtml ? 'html' : lang;
 
-    // --- MODIFIED: Create the new file in the same directory as the source ---
-    // This is a robust way to get the directory name and base filename
     const sourcePath = currentOpenFile;
     const dirName = sourcePath.substring(0, sourcePath.lastIndexOf('/')) || sourcePath.substring(0, sourcePath.lastIndexOf('\\'));
     const baseName = sourcePath.split(/[\\\/]/).pop().replace(/\.htvm$/, '');
@@ -186,7 +184,7 @@ async function runHtvmCode(code) {
     }
 
     await saveFileContent(newFile, compiled, false);
-    await renderFileList(); // Refresh file list to show the new file
+    await renderFileList();
 
     if (!wasAlreadyOpen) {
         await openFileInEditor(newFile);
@@ -225,11 +223,15 @@ async function handleRun(e) {
     term.writeln(`\x1b[36m> Running ${currentOpenFile}...\x1b[0m`);
     const ext = currentOpenFile.split('.').pop();
     
-    if (ext === 'js') await runJsCode(editor.getValue());
-    else if (ext === 'htvm') await runHtvmCode(editor.getValue());
-    else if (ext === 'html') runHtmlCode(editor.getValue());
-    else {
-        term.writeln(`\x1b[31mError: Cannot execute ".${ext}" files.\x1b[0m`);
-        printExecutionEndMessage();
+    // Special handling for features that require direct JS execution with debugger/iframe
+    if (ext === 'js') {
+        await runJsCode(editor.getValue());
+    } else if (ext === 'htvm') {
+        await runHtvmCode(editor.getValue());
+    } else if (ext === 'html') {
+        runHtmlCode(editor.getValue());
+    } else {
+        // --- NEW: For all other languages, use the .htpr property file system ---
+        await runPropertyCommand('run');
     }
 }

@@ -62,7 +62,6 @@ async function renderFileList() {
         li.onmouseenter = () => delBtn.style.visibility = 'visible';
         li.onmouseleave = () => delBtn.style.visibility = 'hidden';
         
-        // --- MODIFIED: The onclick is now simplified. The deleteItem function handles the full logic. ---
         delBtn.onclick = (e) => {
             e.stopPropagation();
             deleteItem(item.path, item.isFile);
@@ -105,6 +104,12 @@ function renderTabs() {
         tab.addEventListener('dragover', handleDragOver);
         tab.addEventListener('dragleave', handleDragLeave);
         tab.addEventListener('drop', handleDrop);
+        
+        // --- NEW: Add context menu for right-click ---
+        tab.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            window.electronAPI.showTabContextMenu(filename);
+        });
         
         tab.onclick = () => openFileInEditor(filename);
         container.appendChild(tab);
@@ -224,7 +229,6 @@ function handleDragEnd(e) {
       e.target.classList.remove('dragging');
     }
     document.querySelectorAll('.tab.drag-over').forEach(tab => tab.classList.remove('drag-over'));
-    // --- THE ABSOLUTE DRAG/DROP FIX: Always reset draggedTab on dragend ---
     draggedTab = null;
 }
 
