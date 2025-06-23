@@ -19,6 +19,26 @@ function applyAndSetHotkeys() {
             return ctrl === config.ctrl && e.shiftKey === config.shift && e.altKey === config.alt;
         };
 
+        // MODIFIED: Added local handling for zoom hotkeys
+        if (e.ctrlKey || e.metaKey) {
+            let currentZoom = lsGet('zoomLevel') || 0;
+            if (e.key === '=') {
+                e.preventDefault();
+                currentZoom += 0.5;
+                window.electronAPI.setZoomLevel(currentZoom);
+                lsSet('zoomLevel', currentZoom);
+                return;
+            }
+            if (e.key === '-') {
+                e.preventDefault();
+                currentZoom -= 0.5;
+                window.electronAPI.setZoomLevel(currentZoom);
+                lsSet('zoomLevel', currentZoom);
+                return;
+            }
+        }
+        
+
         if (e.key === 'F5') { // Keep F5 as a hardcoded alias for run
             e.preventDefault();
             await handleRun(e);
@@ -75,6 +95,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     STORAGE_PREFIX = `HT-IDE-id${IDE_ID}-`;
     langTools = ace.require("ace/ext/language_tools");
 
+    // MODIFIED: Restore zoom level on startup
+    window.electronAPI.setZoomLevel(lsGet('zoomLevel') || 0);
+
     applyEditorColorSettings();
     applyUiThemeSettings();
 
@@ -93,19 +116,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         await handleCloseTabRequest(filePath);
     });
 
-    // MODIFIED: This now correctly handles reloading a file. When you confirm, it
-    // deletes the old session from memory, forcing `openFileInEditor` to read
-    // the new content from the disk.
     window.electronAPI.onFileChanged(async (filePath) => {
         if (filePath === currentOpenFile) {
-            if (confirm(`The file "${filePath.split(/[\\\/]/).pop()}" has changed on disk. Do you want to reload it? This will discard your unsaved changes in the editor.`)) {
-                // To force a reload, we remove the session from our cache.
-                // This makes openFileInEditor re-read it from disk.
-                if (fileSessions.has(filePath)) {
-                    fileSessions.delete(filePath);
+            // MODIFIED: Replaced confirm() with the new custom modal
+            const msg = `The file "${filePath.split(/[\\\/]/).pop()}" has changed on disk. Do you want to reload it? This will discard your unsaved changes in the editor.`;
+            openConfirmModal("File Changed on Disk", msg, async (confirmed) => {
+                if (confirmed) {
+                    if (fileSessions.has(filePath)) {
+                        fileSessions.delete(filePath);
+                    }
+                    await openFileInEditor(filePath);
                 }
-                await openFileInEditor(filePath);
-            }
+            });
         }
     });
     
@@ -309,6 +331,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         lsSet('lastOpenFile', currentOpenFile);
         lsSet('lastActiveTab', lastActiveTab);
         lsSet('lastCwd', currentDirectory);
+        // Note: zoomLevel is now saved directly when the hotkey is pressed.
 
         const serializableBreakpoints = {};
         for (const [file, bpSet] of fileBreakpoints.entries()) {

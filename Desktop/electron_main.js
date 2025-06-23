@@ -95,14 +95,9 @@ app.whenReady().then(async () => {
         const focusedWindow = BrowserWindow.getFocusedWindow();
         if (focusedWindow) focusedWindow.webContents.reloadIgnoringCache();
     });
-    globalShortcut.register('CommandOrControl+=', () => {
-        const focusedWindow = BrowserWindow.getFocusedWindow();
-        if (focusedWindow) focusedWindow.webContents.setZoomLevel(focusedWindow.webContents.getZoomLevel() + 0.5);
-    });
-    globalShortcut.register('CommandOrControl+-', () => {
-        const focusedWindow = BrowserWindow.getFocusedWindow();
-        if (focusedWindow) focusedWindow.webContents.setZoomLevel(focusedWindow.webContents.getZoomLevel() - 0.5);
-    });
+    
+    // MODIFIED: Removed zoom shortcuts. They will be handled by the renderer process
+    // to allow the zoom level to be saved in localStorage.
 });
 
 app.on('will-quit', () => {
@@ -118,20 +113,24 @@ app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
 });
 
-// NEW: Added a handler to allow the renderer to reload the entire application.
-// This is used for applying settings and switching workspaces.
+// MODIFIED: Added handler to set zoom level from renderer.
+ipcMain.on('app:set-zoom-level', (event, level) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win) {
+        win.webContents.setZoomLevel(level);
+    }
+});
+
 ipcMain.on('app:reload', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (win) {
-        // We need to re-load the app with the correct query parameter for workspace switching
         const currentURL = new URL(win.webContents.getURL());
         const newURL = new URL(`file://${app.getAppPath()}/HT-IDE.html`);
-        newURL.search = currentURL.search; // Preserve the ?id=X parameter
+        newURL.search = currentURL.search; 
         win.loadURL(newURL.href);
     }
 });
 
-// NEW: Added a handler to switch workspaces by changing the URL and reloading.
 ipcMain.on('app:switch-workspace', (event, newId) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (win) {

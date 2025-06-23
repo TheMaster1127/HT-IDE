@@ -34,7 +34,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     unwatchFile: (filePath) => ipcRenderer.send('unwatch-file', filePath),
     onFileChanged: (callback) => ipcRenderer.on('file-changed', (event, filePath) => callback(filePath)),
     
-    // NEW: App control functions for reloading and switching workspaces
+    // --- App control functions ---
     reloadApp: () => ipcRenderer.send('app:reload'),
     switchWorkspace: (newId) => ipcRenderer.send('app:switch-workspace', newId),
+    setZoomLevel: (level) => ipcRenderer.send('app:set-zoom-level', level),
 });

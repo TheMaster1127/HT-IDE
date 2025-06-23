@@ -60,7 +60,6 @@ function openSessionModal(mode) {
             delBtn.style.cssText = 'background:none;border:none;color:#aaa;';
             delBtn.onclick = (e) => {
                 e.stopPropagation();
-                // MODIFIED: Replaced confirm() with the new custom modal
                 openConfirmModal('Delete Session', `Are you sure you want to delete the session "${name}"?`, (confirmed) => {
                     if (confirmed) {
                         let s = lsGet('session_list').filter(i => i !== name);
@@ -279,6 +278,7 @@ function openSettingsModal() {
         const newHighlightOperators = document.getElementById('symbol-operator-highlighting-checkbox').checked;
         const needsReload = (initialSyntaxEnabled !== newSyntaxEnabled) || (initialHighlightOperators !== newHighlightOperators);
 
+        // MODIFIED: Replaced confirm() with the new custom modal
         if (needsReload) {
             const msg = "Some syntax highlighting settings have changed. A reload is required for them to take full effect. Your work will be saved.\n\nReload now?";
             openConfirmModal("Reload Required", msg, (confirmed) => {
@@ -472,7 +472,7 @@ function openSyntaxColorModal() {
     const infoTooltip = document.getElementById('info-tooltip');
     listContainer.addEventListener('mouseover', e => { if (e.target.classList.contains('info-icon')) { infoTooltip.textContent = e.target.dataset.infoText; infoTooltip.style.display = 'block'; } });
     listContainer.addEventListener('mouseout', e => { if (e.target.classList.contains('info-icon')) { infoTooltip.style.display = 'none'; } });
-    listContainer.addEventListener('mousemove', e => { if (infoTooltip.style.display === 'block') { const t = infoTooltip, w = window, m=15; let l = e.clientX + m, p = e.clientY + m; if (l + t.offsetWidth > w.innerWidth) l = e.clientX - t.offsetWidth - m; if (p + t.offsetHeight > w.innerHeight) p = e.clientY - t.offsetHeight - m; if(l<0)l=0; if(p<0)p=0; t.style.left = l + 'px'; t.style.top = p + 'px'; } });
+    listContainer.addEventListener('mousemove', e => { if (infoTooltip.style.display === 'block') { const t = infoTooltip, w = window, m=15; let l = e.clientX + m, p = e.clientY + m; if (l + t.offsetWidth > w.innerWidth) l = e.clientX - t.offsetWidth - m; if(l<0)l=0; if(p<0)p=0; t.style.left = l + 'px'; t.style.top = p + 'px'; } });
 
     document.getElementById('modal-colors-cancel-btn').onclick = () => openSettingsModal();
     
