@@ -16,9 +16,13 @@ function promptForInitialInstructionSet() {
     </div>`;
 
     document.getElementById('initial-instr-cancel-btn').onclick = () => {
-        if (confirm("Are you sure? HTVM features will be disabled until an instruction set is provided and the IDE is reloaded. You can still use the IDE for standard file editing using other programming languages, e.g., JavaScript, Python, C++, etc.")) {
-            overlay.style.display = 'none';
-        }
+        // MODIFIED: Replaced confirm() with the new custom modal
+        const msg = "Are you sure? HTVM features will be disabled until an instruction set is provided and the IDE is reloaded. You can still use the IDE for standard file editing using other programming languages, e.g., JavaScript, Python, C++, etc.";
+        openConfirmModal("Continue without HTVM?", msg, (confirmed) => {
+            if (confirmed) {
+                overlay.style.display = 'none';
+            }
+        });
     };
 
     document.getElementById('initial-instr-upload-btn').onclick = () => {
@@ -28,24 +32,27 @@ function promptForInitialInstructionSet() {
             const file = e.target.files[0];
             if (!file) return;
 
-            let newName = file.name.replace(/\.[^/.]+$/, "");
-            
-            const reader = new FileReader();
-            reader.onload = r => {
-                const content = r.target.result;
-                const newId = 'initial_setup_' + Date.now();
-                const newSet = { name: newName, id: newId };
+            // MODIFIED: Replaced prompt() with the new custom input modal
+            openInputModal('Name Instruction Set', 'Enter a name for this new instruction set:', file.name.replace(/\.[^/.]+$/, ""), (newName) => {
+                if (!newName || !newName.trim()) return;
 
-                lsSet(instructionSetKeys.list, [newSet]);
-                localStorage.setItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + newId, content);
-                lsSet(instructionSetKeys.activeId, newId);
+                const reader = new FileReader();
+                reader.onload = r => {
+                    const content = r.target.result;
+                    const newId = 'initial_setup_' + Date.now();
+                    const newSet = { name: newName, id: newId };
 
-                alert(`Instruction set "${newName}" has been added and activated. The IDE will now reload to apply the changes.`);
-                window.dispatchEvent(new Event('beforeunload'));
-                window.location.reload();
-            };
-            reader.readAsText(file);
-            fileInput.value = ''; 
+                    lsSet(instructionSetKeys.list, [newSet]);
+                    localStorage.setItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + newId, content);
+                    lsSet(instructionSetKeys.activeId, newId);
+                    
+                    alert(`Instruction set "${newName}" has been added and activated. The IDE will now reload to apply the changes.`);
+                    window.dispatchEvent(new Event('beforeunload'));
+                    window.electronAPI.reloadApp();
+                };
+                reader.readAsText(file);
+                fileInput.value = ''; 
+            });
         };
         
         fileInput.click();
@@ -95,11 +102,14 @@ function openInstructionManagerModal() {
                 applyBtn.textContent = 'Apply';
                 applyBtn.style.backgroundColor = '#0e639c';
                 applyBtn.onclick = () => {
-                    if (confirm(`This will apply the "${set.name}" instruction set and reload the IDE.\n\nYour current work will be saved, but undo/redo history will be lost.\n\nContinue?`)) {
-                        lsSet(instructionSetKeys.activeId, set.id);
-                        window.dispatchEvent(new Event('beforeunload'));
-                        window.location.reload();
-                    }
+                    const msg = `This will apply the "${set.name}" instruction set and reload the IDE.\n\nYour current work will be saved, but undo/redo history will be lost.\n\nContinue?`;
+                    openConfirmModal("Apply Instruction Set", msg, (confirmed) => {
+                        if (confirmed) {
+                            lsSet(instructionSetKeys.activeId, set.id);
+                            window.dispatchEvent(new Event('beforeunload'));
+                            window.electronAPI.reloadApp();
+                        }
+                    });
                 };
                 btnGroup.appendChild(applyBtn);
             }
@@ -110,17 +120,18 @@ function openInstructionManagerModal() {
             renameBtn.style.marginLeft = '8px';
             renameBtn.onclick = (e) => {
                 e.stopPropagation();
-                let newName = prompt(`Rename instruction set "${set.name}":`, set.name);
-                if (newName && newName.trim() && newName !== set.name) {
-                    newName = newName.trim();
-                    if (sets.some(s => s.name === newName && s.id !== set.id)) {
-                        alert("An instruction set with that name already exists.");
-                        return;
+                openInputModal('Rename Instruction Set', `Rename instruction set "${set.name}":`, set.name, (newName) => {
+                    if (newName && newName.trim() && newName !== set.name) {
+                        newName = newName.trim();
+                        if (sets.some(s => s.name === newName && s.id !== set.id)) {
+                            alert("An instruction set with that name already exists.");
+                            return;
+                        }
+                        set.name = newName;
+                        lsSet(instructionSetKeys.list, sets);
+                        populateList();
                     }
-                    set.name = newName;
-                    lsSet(instructionSetKeys.list, sets);
-                    populateList();
-                }
+                });
             };
             btnGroup.appendChild(renameBtn);
 
@@ -144,12 +155,14 @@ function openInstructionManagerModal() {
             }
             deleteBtn.onclick = (e) => {
                 e.stopPropagation();
-                if (confirm(`Are you sure you want to delete the instruction set "${set.name}"? This cannot be undone.`)) {
-                    const newSets = sets.filter(s => s.id !== set.id);
-                    lsSet(instructionSetKeys.list, newSets);
-                    localStorage.removeItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + set.id);
-                    populateList();
-                }
+                openConfirmModal("Delete Instruction Set", `Are you sure you want to delete the instruction set "${set.name}"? This cannot be undone.`, (confirmed) => {
+                    if (confirmed) {
+                        const newSets = sets.filter(s => s.id !== set.id);
+                        lsSet(instructionSetKeys.list, newSets);
+                        localStorage.removeItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + set.id);
+                        populateList();
+                    }
+                });
             };
             btnGroup.appendChild(deleteBtn);
 
@@ -165,33 +178,38 @@ function openInstructionManagerModal() {
             const file = e.target.files[0];
             if (!file) return;
             let sets = lsGet(instructionSetKeys.list) || [];
-            let newName = prompt("Enter a name for this new instruction set:", file.name.replace(/\.[^/.]+$/, ""));
-            if (!newName || !newName.trim()) return;
-            newName = newName.trim();
-            if (sets.some(s => s.name === newName)) return alert("An instruction set with that name already exists.");
+            
+            openInputModal('Name Instruction Set', "Enter a name for this new instruction set:", file.name.replace(/\.[^/.]+$/, ""), (newName) => {
+                if (!newName || !newName.trim()) return;
+                newName = newName.trim();
+                if (sets.some(s => s.name === newName)) return alert("An instruction set with that name already exists.");
 
-            const reader = new FileReader();
-            reader.onload = r => {
-                const content = r.target.result;
-                const newId = 'custom_' + Date.now();
-                sets.push({ name: newName, id: newId });
-                lsSet(instructionSetKeys.list, sets);
-                localStorage.setItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + newId, content);
+                const reader = new FileReader();
+                reader.onload = r => {
+                    const content = r.target.result;
+                    const newId = 'custom_' + Date.now();
+                    sets.push({ name: newName, id: newId });
+                    lsSet(instructionSetKeys.list, sets);
+                    localStorage.setItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + newId, content);
 
-                if (sets.length === 1) {
-                    lsSet(instructionSetKeys.activeId, newId);
-                    if (confirm("First instruction set has been added and activated. The IDE needs to reload to apply the changes. Reload now?")) {
-                        window.dispatchEvent(new Event('beforeunload'));
-                        window.location.reload();
+                    if (sets.length === 1) {
+                        lsSet(instructionSetKeys.activeId, newId);
+                        const msg = "First instruction set has been added and activated. The IDE needs to reload to apply the changes. Reload now?";
+                        openConfirmModal("Reload Required", msg, (confirmed) => {
+                            if(confirmed) {
+                                window.dispatchEvent(new Event('beforeunload'));
+                                window.electronAPI.reloadApp();
+                            } else {
+                                populateList();
+                            }
+                        });
                     } else {
                         populateList();
                     }
-                } else {
-                    populateList();
-                }
-            };
-            reader.readAsText(file);
-            fileInput.value = '';
+                };
+                reader.readAsText(file);
+                fileInput.value = '';
+            });
         };
         fileInput.click();
     };
@@ -418,14 +436,18 @@ function openInstructionEditorModal(setId, setName) {
     };
 
     document.getElementById('instr-delete-func-btn').onclick = () => {
-        if (activeFuncId === null || !confirm(`Are you sure you want to delete the function "${nameInput.value} (${langSelect.value})"?`)) return;
-        instructions = instructions.filter(f => f.id !== activeFuncId);
-        const oldActiveId = activeFuncId;
-        activeFuncId = null;
-        displayFunc(null); 
-        populateList();
-        const nextLi = document.querySelector(`#instr-editor-func-list li:not([data-id='${oldActiveId}'])`);
-        if(nextLi) nextLi.click();
+        if (activeFuncId === null) return;
+        openConfirmModal("Delete Function", `Are you sure you want to delete the function "${nameInput.value} (${langSelect.value})"?`, (confirmed) => {
+            if (confirmed) {
+                instructions = instructions.filter(f => f.id !== activeFuncId);
+                const oldActiveId = activeFuncId;
+                activeFuncId = null;
+                displayFunc(null); 
+                populateList();
+                const nextLi = document.querySelector(`#instr-editor-func-list li:not([data-id='${oldActiveId}'])`);
+                if(nextLi) nextLi.click();
+            }
+        });
     };
 
     document.getElementById('instr-editor-save-btn').onclick = () => {
@@ -446,18 +468,24 @@ function openInstructionEditorModal(setId, setName) {
         const newContent = (fileHeader ? fileHeader + '\n\n' : '') + newFunctionsText;
 
         localStorage.setItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + setId, newContent);
-        overlay.style.display = 'none';
-        if(confirm("Instruction set saved. Reload the IDE now for changes to take effect? Your work is saved.")) {
-            window.dispatchEvent(new Event('beforeunload'));
-            window.location.reload();
-        }
+        
+        openConfirmModal("Reload Required", "Instruction set saved. Reload the IDE now for changes to take effect? Your work is saved.", (confirmed) => {
+            if (confirmed) {
+                window.dispatchEvent(new Event('beforeunload'));
+                window.electronAPI.reloadApp();
+            } else {
+                 overlay.style.display = 'none';
+            }
+        });
     };
 
     document.getElementById('instr-editor-cancel-btn').onclick = () => {
-        if(confirm("Are you sure? All unsaved changes in this editor will be lost.")) {
-            overlay.style.display = 'none';
-            openInstructionManagerModal();
-        }
+        openConfirmModal("Cancel Editing", "Are you sure? All unsaved changes in this editor will be lost.", (confirmed) => {
+            if(confirmed) {
+                overlay.style.display = 'none';
+                openInstructionManagerModal();
+            }
+        });
     };
 
     populateList();

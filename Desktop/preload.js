@@ -22,7 +22,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // --- Context Menu & Command Execution ---
     showTabContextMenu: (filePath) => ipcRenderer.send('show-tab-context-menu', filePath),
     showFileContextMenu: (itemPath, isFile) => ipcRenderer.send('show-file-context-menu', { itemPath, isFile }),
-    // MODIFIED: Added the missing function to listen for the close event.
     onCloseTabFromContextMenu: (callback) => ipcRenderer.on('close-tab-from-context-menu', (event, filePath) => callback(filePath)),
     getAppPath: () => ipcRenderer.invoke('get-app-path'),
     runCommand: (command, cwd) => ipcRenderer.invoke('run-command', { command, cwd }),
@@ -34,4 +33,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     watchFile: (filePath) => ipcRenderer.send('watch-file', filePath),
     unwatchFile: (filePath) => ipcRenderer.send('unwatch-file', filePath),
     onFileChanged: (callback) => ipcRenderer.on('file-changed', (event, filePath) => callback(filePath)),
+    
+    // NEW: App control functions for reloading and switching workspaces
+    reloadApp: () => ipcRenderer.send('app:reload'),
+    switchWorkspace: (newId) => ipcRenderer.send('app:switch-workspace', newId),
 });

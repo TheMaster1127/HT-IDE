@@ -25,7 +25,6 @@ function applyAndSetHotkeys() {
             return;
         }
 
-        // MODIFIED: Implemented forward and backward tab cycling.
         if (e.ctrlKey && e.key.toLowerCase() === 'tab') {
             e.preventDefault();
             if (openTabs.length > 1) {
@@ -90,14 +89,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.electronAPI.onCommandError((data) => term.write(`\x1b[31m${data}\x1b[0m`));
     window.electronAPI.onCommandClose((code) => term.writeln(`\n\x1b[33mProcess exited with code: ${code}\x1b[0m`));
     
-    // MODIFIED: Added listener to handle closing a tab from the context menu.
     window.electronAPI.onCloseTabFromContextMenu(async (filePath) => {
         await handleCloseTabRequest(filePath);
     });
 
+    // MODIFIED: This now correctly handles reloading a file. When you confirm, it
+    // deletes the old session from memory, forcing `openFileInEditor` to read
+    // the new content from the disk.
     window.electronAPI.onFileChanged(async (filePath) => {
         if (filePath === currentOpenFile) {
-            if (confirm(`The file "${filePath.split(/[\\\/]/).pop()}" has changed on disk. Do you want to reload it?`)) {
+            if (confirm(`The file "${filePath.split(/[\\\/]/).pop()}" has changed on disk. Do you want to reload it? This will discard your unsaved changes in the editor.`)) {
+                // To force a reload, we remove the session from our cache.
+                // This makes openFileInEditor re-read it from disk.
+                if (fileSessions.has(filePath)) {
+                    fileSessions.delete(filePath);
+                }
                 await openFileInEditor(filePath);
             }
         }

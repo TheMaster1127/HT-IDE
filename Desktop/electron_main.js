@@ -33,7 +33,7 @@ function updatePresence(details = "Idle", state = "In the main menu", lineCount 
     largeImageKey: 'icon_512x512',
     largeImageText: 'HT-IDE',
     instance: false,
-  });
+  }).catch(console.error);
 }
 
 const runningProcesses = new Map();
@@ -118,7 +118,29 @@ app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
 });
 
-// MODIFIED: Added a 'Close' option to the tab context menu.
+// NEW: Added a handler to allow the renderer to reload the entire application.
+// This is used for applying settings and switching workspaces.
+ipcMain.on('app:reload', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win) {
+        // We need to re-load the app with the correct query parameter for workspace switching
+        const currentURL = new URL(win.webContents.getURL());
+        const newURL = new URL(`file://${app.getAppPath()}/HT-IDE.html`);
+        newURL.search = currentURL.search; // Preserve the ?id=X parameter
+        win.loadURL(newURL.href);
+    }
+});
+
+// NEW: Added a handler to switch workspaces by changing the URL and reloading.
+ipcMain.on('app:switch-workspace', (event, newId) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win) {
+        const newURL = new URL(`file://${app.getAppPath()}/HT-IDE.html`);
+        newURL.searchParams.set('id', newId);
+        win.loadURL(newURL.href);
+    }
+});
+
 ipcMain.on('show-tab-context-menu', (event, filePath) => {
     const template = [
         {
@@ -142,8 +164,7 @@ ipcMain.on('show-tab-context-menu', (event, filePath) => {
     }
 });
 
-// MODIFIED: Added a new context menu for items in the file list.
-ipcMain.on('show-file-context-menu', (event, itemPath, isFile) => {
+ipcMain.on('show-file-context-menu', (event, { itemPath, isFile }) => {
     const template = [
         {
             label: 'Open File Location',

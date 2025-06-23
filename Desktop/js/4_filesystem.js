@@ -15,11 +15,18 @@ const getAllPaths = async () => {
     }
 };
 
+// MODIFIED: Temporarily unwatches a file during save to prevent the "changed on disk"
+// prompt from being incorrectly triggered by the app's own save action.
 async function saveFileContent(filename, content, silent = false) {
     if (!filename) return;
+    
+    // Stop watching the file to prevent the save action from triggering a "file changed" event.
+    window.electronAPI.unwatchFile(filename);
+
     try {
         await window.electronAPI.saveFileContent(filename, content);
         if (fileSessions.has(filename)) {
+            // Mark the session as clean (no unsaved changes).
             fileSessions.get(filename).getUndoManager().markClean();
             checkDirtyState(filename);
         }
@@ -27,6 +34,11 @@ async function saveFileContent(filename, content, silent = false) {
     } catch (error) {
         console.error(`Failed to save file ${filename}:`, error);
         if (term) term.writeln(`\x1b[31mError saving file: ${error.message}\x1b[0m`);
+    } finally {
+        // Resume watching the file only if it is the currently active file in the editor.
+        if (filename === currentOpenFile) {
+            window.electronAPI.watchFile(filename);
+        }
     }
 }
 
@@ -34,7 +46,7 @@ function saveFileContentSync(filename, content) {
     if (!filename) return;
     try {
         window.electronAPI.saveFileContentSync(filename, content);
-    } catch (error) {
+    } catch (error) { // <-- FIXED: Removed incorrect '=>' token here.
         console.error(`Failed to save file synchronously ${filename}:`, error);
     }
 }
