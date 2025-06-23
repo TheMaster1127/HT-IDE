@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HT-IDE</title>
+    <link rel="icon" type="image/png" href="icon.png">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="ide-container">
+        <div class="sidebar collapsed">
+            <div class="sidebar-top-section">
+                <div class="sidebar-header">
+                    <h2>Files</h2>
+                    <button id="sidebar-close-btn" title="Close Sidebar">×</button>
+                </div>
+                <div id="current-path-display">/</div>
+                <div class="sidebar-actions">
+                    <button id="new-file-btn" title="New File">New File</button>
+                    <button id="new-folder-btn" title="New Folder">New Folder</button>
+                </div>
+            </div>
+
+            <ul id="file-list"></ul>
+            
+            <div class="sidebar-footer">
+                <button id="save-session-btn" title="Save Session">Save Session</button>
+                <button id="load-session-btn" title="Load Session">Load Session</button>
+                <button id="load-instructions-btn" title="Manage HTVM Instruction Sets">Manage Instructions</button>
+                <button id="settings-btn" title="Settings">Settings</button>
+                <input type="file" id="instruction-file-input" style="display: none;" accept=".txt">
+                <button id="htvm-to-htvm-btn" title="Convert HTVM files between instruction sets">HTVM to HTVM</button>
+                <button id="export-import-btn" title="Export/Import Workspaces and Themes">Export/Import</button>
+                <button id="open-folder-btn" title="This feature uses the real file system in the desktop version.">Open New Folder</button>
+            </div>
+        </div>
+        <div id="sidebar-resizer"></div>
+        <div class="main-content-wrapper">
+            <div class="main-content">
+                <div class="top-bar">
+                    <button id="main-toggle-sidebar-btn" title="Toggle File Explorer">☰</button>
+                    <div id="tabs-container"></div>
+                    <div id="htvm-controls">
+                      <div class="select-container">
+                        <div class="selected-item" onclick="toggleDropdown()"><img id="selected-lang-img" src="images/js.png" alt="JS"><span id="selected-lang-name">JavaScript</span></div>
+                        <div id="lang-dropdown" class="dropdown">
+                          <div class="dropdown-item" data-lang="js" data-name="JavaScript" data-img="images/js.png"><img src="images/js.png"><span>JavaScript</span></div>
+                          <div class="dropdown-item" data-lang="py" data-name="Python" data-img="images/python.png"><img src="images/python.png"><span>Python</span></div>
+                          <div class="dropdown-item" data-lang="cpp" data-name="C++" data-img="images/cpp.png"><img src="images/cpp.png"><span>C++</span></div>
+                          <div class="dropdown-item" data-lang="go" data-name="Go" data-img="images/go.png"><img src="images/go.png"><span>Go</span></div>
+                          <div class="dropdown-item" data-lang="lua" data-name="Lua" data-img="images/lua.png"><img src="images/lua.png"><span>Lua</span></div>
+                          <div class="dropdown-item" data-lang="cs" data-name="C#" data-img="images/csharp.png"><img src="images/csharp.png"><span>C#</span></div>
+                          <div class="dropdown-item" data-lang="java" data-name="Java" data-img="images/java.png"><img src="images/java.png"><span>Java</span></div>
+                          <div class="dropdown-item" data-lang="kt" data-name="Kotlin" data-img="images/kotlin.png"><img src="images/kotlin.png"><span>Kotlin</span></div>
+                          <div class="dropdown-item" data-lang="rb" data-name="Ruby" data-img="images/ruby.png"><img src="images/ruby.png"><span>Ruby</span></div>
+                          <div class="dropdown-item" data-lang="nim" data-name="Nim" data-img="images/nim.png"><img src="images/nim.png"><span>Nim</span></div>
+                          <div class="dropdown-item" data-lang="ahk" data-name="AutoHotKey" data-img="images/ahk.png"><img src="images/ahk.png"><span>AutoHotKey</span></div>
+                          <div class="dropdown-item" data-lang="swift" data-name="Swift" data-img="images/swift.png"><img src="images/swift.png"><span>Swift</span></div>
+                          <div class="dropdown-item" data-lang="dart" data-name="Dart" data-img="images/dart.png"><img src="images/dart.png"><span>Dart</span></div>
+                          <div class="dropdown-item" data-lang="ts" data-name="TypeScript" data-img="images/ts.png"><img src="images/ts.png"><span>TypeScript</span></div>
+                          <div class="dropdown-item" data-lang="groovy" data-name="Groovy" data-img="images/groovy.png"><img src="images/groovy.png"><span>Groovy</span></div>
+                        </div>
+                      </div>
+                      <label class="toggle-switch-label" title="Run generated code immediately if target is JavaScript"><input type="checkbox" id="run-js-after-htvm"><span>Run JS</span></label>
+                      <label class="toggle-switch-label" title="Wrap generated JS in a full HTML file for direct browser execution"><input type="checkbox" id="full-html-checkbox"><span>Full HTML</span></label>
+                    </div>
+                    <button id="format-btn" title="Format HTVM File">Format</button>
+                    <button id="run-btn" title="Run">▶ Run</button>
+                </div>
+                <div id="editor-container"><div id="editor"></div></div>
+                <div id="terminal-resizer"></div>
+                <div id="terminal-container"><div id="terminal"></div></div>
+            </div>
+            <div id="output-panel">
+                <div id="output-header">
+                    <span>HTML Output</span>
+                    <div>
+                        <button id="download-html-btn" title="Download HTML File">Download</button>
+                        <button id="close-output-btn">×</button>
+                    </div>
+                </div>
+                <iframe id="html-output"></iframe>
+            </div>
+            <div id="output-panel-resizer"></div>
+        </div>
+    </div>
+    
+    <div id="sidebar-backdrop"></div>
+    <div id="info-tooltip"></div>
+    <div id="modal-overlay"></div>
+
+    <!-- External Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ace.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ext-modelist.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ext-language_tools.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/keybinding-vim.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/keybinding-emacs.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/keybinding-vscode.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/keybinding-sublime.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+    
+    <!-- HTVM Core Scripts -->
+    <script src="HTVM.js"></script>
+    <script src="htvm-mode.js"></script>
+    <script src="htvm_completions.js"></script>
+
+    <!-- Application Scripts (Order is important) -->
+    <script src="js/1_state.js"></script>
+    <script src="js/2_autocomplete_keywords.js"></script>
+    <script src="js/2_config_and_utils.js"></script>
+    <script src="js/2_config_and_utils_reset_htvm.js"></script>
+    <script src="js/3_ui.js"></script>
+    <script src="js/4_filesystem.js"></script>
+    <script src="js/5_editor.js"></script>
+    <script src="js/6_htvm.js"></script>
+    <script src="js/7_modals_1.js"></script>
+    <script src="js/7_modals_2.js"></script>
+    <script src="js/7_modals_3.js"></script>
+    <script src="js/8_main.js"></script>
+
+</body>
+</html>
