@@ -2,6 +2,18 @@
 
 let hotkeyListener = null;
 
+// NEW: Global state and listener for correct tab cycling.
+// This is reset whenever the Control/Meta key is released.
+const tabCycleState = {
+    isCycling: false,
+};
+window.addEventListener('keyup', (e) => {
+    if (e.key === 'Control' || e.key === 'Meta') {
+        tabCycleState.isCycling = false;
+    }
+});
+
+
 function applyAndSetHotkeys() {
     if (hotkeyListener) document.removeEventListener('keydown', hotkeyListener);
 
@@ -39,29 +51,37 @@ function applyAndSetHotkeys() {
             }
         }
         
-        // MODIFIED: Universal, non-customizable hotkey for intuitive tab switching.
+        // MODIFIED: Complete overhaul of Ctrl+Tab logic
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'tab') {
             e.preventDefault();
             if (openTabs.length < 2) return;
 
-            if (e.shiftKey) {
-                // For Ctrl+Shift+Tab, cycle backward through the tab list.
-                const currentIndex = openTabs.indexOf(currentOpenFile);
-                const nextIndex = (currentIndex - 1 + openTabs.length) % openTabs.length;
-                await openFileInEditor(openTabs[nextIndex]);
-            } else {
-                // For Ctrl+Tab, toggle to the last active tab.
+            if (!tabCycleState.isCycling) {
+                // First press: This is a TOGGLE action.
+                // It switches to the last active tab.
                 if (lastActiveTab && openTabs.includes(lastActiveTab) && lastActiveTab !== currentOpenFile) {
                     await openFileInEditor(lastActiveTab);
                 } else {
-                    // Fallback: if there's no useful last active tab, cycle forward.
+                    // Fallback: If no useful last tab, cycle forward once.
                     const currentIndex = openTabs.indexOf(currentOpenFile);
-                    const nextIndex = (currentIndex + 1) % openTabs.length;
-                    await openFileInEditor(openTabs[nextIndex]);
+                    await openFileInEditor(openTabs[(currentIndex + 1) % openTabs.length]);
                 }
+                // Now, set the flag so any subsequent presses (while Ctrl is held) will cycle.
+                tabCycleState.isCycling = true; 
+            } else {
+                // Subsequent presses: This is a CYCLE action.
+                const currentIndex = openTabs.indexOf(currentOpenFile);
+                let nextIndex;
+                if (e.shiftKey) { // Cycle backward with Shift
+                    nextIndex = (currentIndex - 1 + openTabs.length) % openTabs.length;
+                } else { // Cycle forward
+                    nextIndex = (currentIndex + 1) % openTabs.length;
+                }
+                await openFileInEditor(openTabs[nextIndex]);
             }
-            return; // Stop further processing
+            return; // Done with this hotkey
         }
+
 
         if (e.key === 'F5') {
             e.preventDefault();
@@ -124,25 +144,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         await handleCloseTabRequest(filePath);
     });
 
-    // MODIFIED: Added robust file change handler.
+    // MODIFIED: Definitive fix for reloading the active file on external change.
     window.electronAPI.onFileChanged(async (filePath) => {
-        // If the changed file is the one we are currently viewing, prompt for reload.
+        const msg = `The file "${filePath.split(/[\\\/]/).pop()}" has changed on disk. Do you want to reload it? Your unsaved changes in the editor will be lost.`;
+
         if (filePath === currentOpenFile) {
-            const msg = `The file "${filePath.split(/[\\\/]/).pop()}" has changed on disk. Do you want to reload it? This will discard your unsaved changes in the editor.`;
-            openConfirmModal("File Changed on Disk", async (confirmed) => {
+            openConfirmModal("File Changed on Disk", msg, async (confirmed) => {
                 if (confirmed) {
-                    const fileToReload = currentOpenFile;
-                    // Invalidate the session and trick the editor into thinking no file is open
-                    // to bypass the "already open" check and force a full reload from disk.
-                    fileSessions.delete(fileToReload);
-                    currentOpenFile = null;
-                    await openFileInEditor(fileToReload);
+                    const newContent = await window.electronAPI.getFileContent(filePath);
+                    if (newContent !== null) {
+                        const session = editor.session;
+                        const cursor = session.selection.getCursor();
+                        const scrollTop = session.getScrollTop();
+                        
+                        // Directly set the new content into the existing session
+                        session.setValue(newContent);
+                        // Mark the session as "clean" since it now matches the disk
+                        session.getUndoManager().markClean();
+                        checkDirtyState(filePath);
+                        
+                        // Restore the user's view
+                        session.selection.moveCursorToPosition(cursor);
+                        session.setScrollTop(scrollTop);
+                        editor.focus();
+                    }
                 }
             });
         } 
-        // If a background tab has changed, just invalidate its session.
-        // It will be reloaded automatically from disk when the user clicks on it.
         else if (openTabs.includes(filePath)) {
+            // For background tabs, just delete the session. It will be reloaded
+            // from disk automatically if/when the user clicks on it.
             if (fileSessions.has(filePath)) {
                 fileSessions.delete(filePath);
             }
@@ -345,7 +376,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             saveFileContentSync(currentOpenFile, editor.getValue());
             lsSet('state_' + currentOpenFile, { scrollTop: editor.session.getScrollTop(), cursor: editor.getCursorPosition() });
         }
-        // MODIFIED: Make sure all file watchers are closed when the app quits.
         openTabs.forEach(tab => window.electronAPI.unwatchFile(tab));
 
         lsSet('openTabs', openTabs);
