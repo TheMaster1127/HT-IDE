@@ -24,10 +24,16 @@ function setupGutterEvents() {
 }
 
 async function openFileInEditor(filename) {
-    if (!filename || currentOpenFile === filename) return;
+    if (!filename) return;
+    
+    // MODIFIED: If we are just re-focusing the same file, do nothing.
+    // This check is important to prevent reloads when the file watcher triggers this function.
+    if (currentOpenFile === filename && fileSessions.has(filename)) return;
     
     if (currentOpenFile) {
         lastActiveTab = currentOpenFile;
+        // MODIFIED: Stop watching the previously active file.
+        window.electronAPI.unwatchFile(currentOpenFile);
         await saveFileContent(currentOpenFile, editor.getValue(), true);
         lsSet('state_' + currentOpenFile, {
             scrollTop: editor.session.getScrollTop(),
@@ -35,8 +41,7 @@ async function openFileInEditor(filename) {
         });
     }
 
-    // MODIFIED: Force re-read from disk by removing the old session if it exists.
-    // This prevents stale content from being shown when a file is edited externally.
+    // Force re-read from disk by removing the old session if it exists.
     if (fileSessions.has(filename)) {
         fileSessions.delete(filename);
     }
@@ -51,6 +56,9 @@ async function openFileInEditor(filename) {
     }
 
     editor.setSession(fileSessions.get(filename));
+    
+    // MODIFIED: Start watching the newly opened file for changes.
+    window.electronAPI.watchFile(filename);
 
     const breakpoints = fileBreakpoints.get(filename) || new Set();
     editor.session.clearBreakpoints();
@@ -86,6 +94,9 @@ async function closeTab(filenameToClose, force = false) {
 
     const index = openTabs.indexOf(filenameToClose);
     if (index === -1) return;
+    
+    // MODIFIED: Stop watching the file that is being closed.
+    window.electronAPI.unwatchFile(filenameToClose);
 
     if (!force) recentlyClosedTabs.push(filenameToClose);
     

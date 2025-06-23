@@ -56,6 +56,12 @@ async function renderFileList() {
 
         li.onclick = () => (item.isFile ? openFileInEditor(item.path) : setCurrentDirectory(item.path + '/'));
 
+        // MODIFIED: Added context menu listener to each file and folder item.
+        li.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            window.electronAPI.showFileContextMenu(item.path, item.isFile);
+        });
+
         const delBtn = document.createElement('button');
         delBtn.textContent = '🗑️';
         delBtn.style.cssText = 'background:none;border:none;color:#aaa;cursor:pointer;margin-left:auto;visibility:hidden;';
@@ -105,7 +111,6 @@ function renderTabs() {
         tab.addEventListener('dragleave', handleDragLeave);
         tab.addEventListener('drop', handleDrop);
         
-        // MODIFIED: Added context menu event listener for right-click on tabs.
         tab.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             window.electronAPI.showTabContextMenu(filename);

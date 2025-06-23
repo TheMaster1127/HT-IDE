@@ -25,21 +25,17 @@ function applyAndSetHotkeys() {
             return;
         }
 
-        // MODIFIED: Replaced simple tab toggle with full forward/backward cycling.
-        if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'tab') {
+        // MODIFIED: Implemented forward and backward tab cycling.
+        if (e.ctrlKey && e.key.toLowerCase() === 'tab') {
             e.preventDefault();
             if (openTabs.length > 1) {
                 const currentIndex = openTabs.indexOf(currentOpenFile);
-                const nextIndex = (currentIndex + 1) % openTabs.length;
-                await openFileInEditor(openTabs[nextIndex]);
-            }
-            return;
-        }
-        if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'tab') {
-            e.preventDefault();
-            if (openTabs.length > 1) {
-                const currentIndex = openTabs.indexOf(currentOpenFile);
-                const nextIndex = (currentIndex - 1 + openTabs.length) % openTabs.length;
+                let nextIndex;
+                if (e.shiftKey) { // Cycle backward with Shift
+                    nextIndex = (currentIndex - 1 + openTabs.length) % openTabs.length;
+                } else { // Cycle forward
+                    nextIndex = (currentIndex + 1) % openTabs.length;
+                }
                 await openFileInEditor(openTabs[nextIndex]);
             }
             return;
@@ -57,7 +53,16 @@ function applyAndSetHotkeys() {
             try { editor.session.setValue(formatHtvmCode(editor.getValue())); }
             catch (err) { term.writeln(`\x1b[31mAn error occurred during formatting: ${err.message}\x1b[0m`); }
         }
-        else if (checkMatch(activeHotkeys.closeTab)) { e.preventDefault(); await handleCloseTabRequest(currentOpenFile); }
+        else if (checkMatch(activeHotkeys.closeTab)) {
+            e.preventDefault();
+            if (openTabs.length === 0) {
+                if (await window.electronAPI.showExitConfirm()) {
+                    window.close();
+                }
+            } else {
+                await handleCloseTabRequest(currentOpenFile);
+            }
+        }
         else if (checkMatch(activeHotkeys.reopenTab)) { e.preventDefault(); await handleReopenTab(); }
         else if (checkMatch(activeHotkeys.toggleSidebar)) { e.preventDefault(); document.getElementById('main-toggle-sidebar-btn').click(); }
     };
@@ -84,6 +89,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.electronAPI.onCommandOutput((data) => term.write(data));
     window.electronAPI.onCommandError((data) => term.write(`\x1b[31m${data}\x1b[0m`));
     window.electronAPI.onCommandClose((code) => term.writeln(`\n\x1b[33mProcess exited with code: ${code}\x1b[0m`));
+    
+    // MODIFIED: Added listener to handle closing a tab from the context menu.
+    window.electronAPI.onCloseTabFromContextMenu(async (filePath) => {
+        await handleCloseTabRequest(filePath);
+    });
+
+    window.electronAPI.onFileChanged(async (filePath) => {
+        if (filePath === currentOpenFile) {
+            if (confirm(`The file "${filePath.split(/[\\\/]/).pop()}" has changed on disk. Do you want to reload it?`)) {
+                await openFileInEditor(filePath);
+            }
+        }
+    });
     
     const appPath = await window.electronAPI.getAppPath();
     const separator = appPath.includes('\\') ? '\\' : '/';
@@ -246,15 +264,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const files = e.dataTransfer.files;
         if (files.length > 0) {
-            for (const file of files) {
-                if (file.path) {
-                    const { success, error } = await window.electronAPI.dropFile(file.path, currentDirectory);
-                    if (!success) {
-                        term.writeln(`\x1b[31mError dropping file ${file.name}: ${error}\x1b[0m`);
+            const isOverEditor = e.target.closest('#editor-container');
+            if (isOverEditor) {
+                for (const file of files) {
+                    if (file.path) await openFileInEditor(file.path);
+                }
+            } else {
+                for (const file of files) {
+                    if (file.path) {
+                        const { success, error } = await window.electronAPI.dropFile(file.path, currentDirectory);
+                        if (!success) {
+                            term.writeln(`\x1b[31mError dropping file ${file.name}: ${error}\x1b[0m`);
+                        }
                     }
                 }
+                await renderFileList();
             }
-            await renderFileList();
         }
     });
 
@@ -272,6 +297,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             saveFileContentSync(currentOpenFile, editor.getValue());
             lsSet('state_' + currentOpenFile, { scrollTop: editor.session.getScrollTop(), cursor: editor.getCursorPosition() });
         }
+        openTabs.forEach(tab => window.electronAPI.unwatchFile(tab));
+
         lsSet('openTabs', openTabs);
         lsSet('lastOpenFile', currentOpenFile);
         lsSet('lastActiveTab', lastActiveTab);

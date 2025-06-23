@@ -63,13 +63,27 @@ function openSessionModal(mode) {
         document.getElementById('modal-title').textContent = 'Load Session';
         document.getElementById('modal-save-content').style.display = 'none';
         document.getElementById('modal-confirm-btn').style.display = 'none';
-        populate(name => {
-            const tabs = lsGet(`session_data_${name}`);
-            if (tabs) {
-                [...openTabs].forEach(t => closeTab(t, true));
-                tabs.forEach(t => {
-                    if (getAllPaths().includes(t)) openFileInEditor(t);
-                });
+        // MODIFIED: This function is now async and correctly checks for file existence.
+        populate(async (name) => {
+            const tabsToLoad = lsGet(`session_data_${name}`);
+            if (tabsToLoad) {
+                // Get the current list of all valid file paths as an array of strings.
+                const allFileObjects = await getAllPaths();
+                const allPaths = allFileObjects.map(item => item.path);
+
+                // Close all currently open tabs without adding them to recentlyClosed.
+                const currentTabs = [...openTabs];
+                for (const tab of currentTabs) {
+                    await closeTab(tab, true);
+                }
+                
+                // Open tabs from the session only if they still exist on the file system.
+                for (const tabPath of tabsToLoad) {
+                    // This now correctly checks if the string path is in the array of strings.
+                    if (allPaths.includes(tabPath)) {
+                        await openFileInEditor(tabPath);
+                    }
+                }
             }
             overlay.style.display = 'none';
             term.writeln(`\x1b[32mSession '${name}' loaded.\x1b[0m`);
@@ -117,8 +131,10 @@ function openInputModal(title, label, defaultValue, callback) {
     };
     
     overlay.style.display = 'flex';
-    inputField.focus();
-    inputField.select();
+    setTimeout(() => {
+        inputField.focus();
+        inputField.select();
+    }, 10);
 }
 
 

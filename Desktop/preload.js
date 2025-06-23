@@ -14,15 +14,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // --- OS Dialog ---
     openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
+    showExitConfirm: () => ipcRenderer.invoke('dialog:showExitConfirm'),
 
     // --- Discord Rich Presence ---
     updateDiscordPresence: (details, state, lineCount) => ipcRenderer.invoke('update-discord-presence', { details, state, lineCount }),
     
-    // --- NEW: Context Menu & Command Execution ---
+    // --- Context Menu & Command Execution ---
     showTabContextMenu: (filePath) => ipcRenderer.send('show-tab-context-menu', filePath),
+    showFileContextMenu: (itemPath, isFile) => ipcRenderer.send('show-file-context-menu', { itemPath, isFile }),
+    // MODIFIED: Added the missing function to listen for the close event.
+    onCloseTabFromContextMenu: (callback) => ipcRenderer.on('close-tab-from-context-menu', (event, filePath) => callback(filePath)),
     getAppPath: () => ipcRenderer.invoke('get-app-path'),
     runCommand: (command, cwd) => ipcRenderer.invoke('run-command', { command, cwd }),
     onCommandOutput: (callback) => ipcRenderer.on('command-output', (event, data) => callback(data)),
     onCommandError: (callback) => ipcRenderer.on('command-error', (event, data) => callback(data)),
     onCommandClose: (callback) => ipcRenderer.on('command-close', (event, code) => callback(code)),
+
+    // --- File Watching ---
+    watchFile: (filePath) => ipcRenderer.send('watch-file', filePath),
+    unwatchFile: (filePath) => ipcRenderer.send('unwatch-file', filePath),
+    onFileChanged: (callback) => ipcRenderer.on('file-changed', (event, filePath) => callback(filePath)),
 });
