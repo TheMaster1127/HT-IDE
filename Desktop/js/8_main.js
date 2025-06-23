@@ -1,59 +1,43 @@
-let hotkeyListener = null; // Keep a reference to the listener to remove it later
+let hotkeyListener = null;
 
 function applyAndSetHotkeys() {
-    // Remove the old listener to prevent duplicates
-    if (hotkeyListener) {
-        document.removeEventListener('keydown', hotkeyListener);
-    }
+    if (hotkeyListener) document.removeEventListener('keydown', hotkeyListener);
 
     const customHotkeys = lsGet('customHotkeys') || {};
-    
-    // Merge custom hotkeys with defaults
     const activeHotkeys = {};
     for (const id in hotkeyConfig) {
         activeHotkeys[id] = customHotkeys[id] || hotkeyConfig[id].default;
     }
 
-    hotkeyListener = (e) => {
-        // F5 is a special, non-customizable secondary key for Run
+    hotkeyListener = async (e) => {
         if (e.key === 'F5') {
             e.preventDefault();
-            handleRun(e);
+            await handleRun(e);
             return;
         }
 
         const checkMatch = (config) => {
             const key = e.key.toLowerCase();
             const targetKey = config.key.toLowerCase();
-             // Special case for 'Enter' which is sometimes just 'Enter'
             if (key !== targetKey && e.key !== config.key) return false;
-
             const ctrl = e.ctrlKey || e.metaKey;
             return ctrl === config.ctrl && e.shiftKey === config.shift && e.altKey === config.alt;
         };
 
-        if (checkMatch(activeHotkeys.runFile)) {
-            e.preventDefault(); handleRun(e);
-        } else if (checkMatch(activeHotkeys.saveFile)) {
-            e.preventDefault(); saveFileContent(currentOpenFile, editor.getValue());
-        } else if (checkMatch(activeHotkeys.formatFile)) {
+        if (checkMatch(activeHotkeys.runFile)) { e.preventDefault(); await handleRun(e); }
+        else if (checkMatch(activeHotkeys.saveFile)) { e.preventDefault(); await saveFileContent(currentOpenFile, editor.getValue()); }
+        else if (checkMatch(activeHotkeys.formatFile)) {
             e.preventDefault();
             if (!currentOpenFile || !currentOpenFile.endsWith('.htvm')) {
                 alert("The formatter only works with .htvm files.");
                 return;
             }
-            try {
-                editor.session.setValue(formatHtvmCode(editor.getValue()));
-            } catch (err) {
-                term.writeln(`\x1b[31mAn error occurred during formatting: ${err.message}\x1b[0m`);
-            }
-        } else if (checkMatch(activeHotkeys.closeTab)) {
-            e.preventDefault(); handleCloseTabRequest(currentOpenFile);
-        } else if (checkMatch(activeHotkeys.reopenTab)) {
-            e.preventDefault(); handleReopenTab();
-        } else if (checkMatch(activeHotkeys.toggleSidebar)) {
-            e.preventDefault(); document.getElementById('main-toggle-sidebar-btn').click();
+            try { editor.session.setValue(formatHtvmCode(editor.getValue())); }
+            catch (err) { term.writeln(`\x1b[31mAn error occurred during formatting: ${err.message}\x1b[0m`); }
         }
+        else if (checkMatch(activeHotkeys.closeTab)) { e.preventDefault(); await handleCloseTabRequest(currentOpenFile); }
+        else if (checkMatch(activeHotkeys.reopenTab)) { e.preventDefault(); await handleReopenTab(); }
+        else if (checkMatch(activeHotkeys.toggleSidebar)) { e.preventDefault(); document.getElementById('main-toggle-sidebar-btn').click(); }
     };
 
     document.addEventListener('keydown', hotkeyListener);
@@ -61,16 +45,13 @@ function applyAndSetHotkeys() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // --- Initialization ---
     IDE_ID = getIdeId();
     STORAGE_PREFIX = `HT-IDE-id${IDE_ID}-`;
     langTools = ace.require("ace/ext/language_tools");
 
-    // Apply custom themes and colors before editor initialization
     applyEditorColorSettings();
     applyUiThemeSettings();
 
-    // Initialize core components
     editor = ace.edit("editor");
     term = new Terminal({ cursorBlink: true, fontFamily: 'monospace', fontSize: 13, theme: { background: '#000000', foreground: '#00DD00', cursor: '#00FF00' } });
     fitAddon = new FitAddon.FitAddon();
@@ -78,23 +59,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     term.open(document.getElementById('terminal'));
     fitAddon.fit();
 
-    // Populate language completions into localStorage
     Object.keys(draftCompletions).forEach(lang => {
         lsSet(`lang_completions_${lang}`, draftCompletions[lang]);
     });
 
-    // Load HTVM definitions and instruction sets
     initializeInstructionSetManagement();
     
-    // Check for instruction set and start onboarding if necessary
     if (!lsGet(instructionSetKeys.activeId)) {
         promptForInitialInstructionSet();
     } else {
         await loadDefinitions();
     }
 
-
-    // Configure Ace Editor
     editor.setTheme("ace/theme/monokai");
     editor.setOptions({
         enableBasicAutocompletion: true,
@@ -113,19 +89,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     setupGutterEvents();
 
-    // --- Event Listeners ---
     editor.on('changeSelection', debounce(updateEditorModeForHtvm, 200));
 
-    // Sidebar and Top Bar listeners
-    document.getElementById('new-file-btn').onclick = handleNewFile;
-    document.getElementById('new-folder-btn').onclick = handleNewFolder;
-    document.getElementById('save-session-btn').onclick = () => openSessionModal('save');
-    document.getElementById('load-session-btn').onclick = () => openSessionModal('load');
-    document.getElementById('settings-btn').onclick = openSettingsModal;
-    document.getElementById('load-instructions-btn').onclick = openInstructionManagerModal;
-    document.getElementById('htvm-to-htvm-btn').onclick = openHtvmToHtvmModal;
-    document.getElementById('export-import-btn').onclick = openExportImportModal;
-    document.getElementById('open-folder-btn').onclick = () => alert("This feature is for the desktop version.");
+    // --- THE FINAL FIX for BROKEN BUTTONS ---
+    // Using addEventListener is the modern, correct way and avoids conflicts.
+    document.getElementById('new-file-btn').addEventListener('click', handleNewFile);
+    document.getElementById('new-folder-btn').addEventListener('click', handleNewFolder);
+    document.getElementById('save-session-btn').addEventListener('click', () => openSessionModal('save'));
+    document.getElementById('load-session-btn').addEventListener('click', () => openSessionModal('load'));
+    document.getElementById('settings-btn').addEventListener('click', openSettingsModal);
+    document.getElementById('load-instructions-btn').addEventListener('click', openInstructionManagerModal);
+    document.getElementById('htvm-to-htvm-btn').addEventListener('click', openHtvmToHtvmModal);
+    document.getElementById('export-import-btn').addEventListener('click', openExportImportModal);
+    document.getElementById('open-folder-btn').addEventListener('click', handleOpenFolder);
     
     const toggleBtn = document.getElementById('main-toggle-sidebar-btn');
     const sidebar = document.querySelector('.sidebar');
@@ -136,58 +112,44 @@ document.addEventListener('DOMContentLoaded', async () => {
         const isCollapsed = sidebar.classList.contains('collapsed');
         sidebar.classList.toggle('collapsed');
         lsSet('sidebarCollapsed', !isCollapsed);
-
         const isMobileView = getComputedStyle(sidebar).position === 'absolute';
-        if (isMobileView) {
-            backdrop.style.display = isCollapsed ? 'block' : 'none';
-        }
-
+        if (isMobileView) backdrop.style.display = isCollapsed ? 'block' : 'none';
         setTimeout(() => { editor.resize(); fitAddon.fit(); }, 310);
     }
 
-    toggleBtn.onclick = toggleSidebar;
-    backdrop.onclick = toggleSidebar;
-    closeBtn.onclick = toggleSidebar;
+    toggleBtn.addEventListener('click', toggleSidebar);
+    backdrop.addEventListener('click', toggleSidebar);
+    closeBtn.addEventListener('click', toggleSidebar);
 
-    // HTVM controls listeners
     document.getElementById('lang-dropdown').addEventListener('click', e => {
         const item = e.target.closest('.dropdown-item');
         if (item) changeLanguage(item.dataset.name, item.dataset.img, item.dataset.lang);
     });
-    document.getElementById('run-js-after-htvm').checked = lsGet('runJsAfterHtvm') !== false;
     document.getElementById('run-js-after-htvm').onchange = e => lsSet('runJsAfterHtvm', e.target.checked);
-    document.getElementById('full-html-checkbox').checked = lsGet('fullHtml') === true;
     document.getElementById('full-html-checkbox').onchange = e => lsSet('fullHtml', e.target.checked);
-
-    // Run and Output Panel listeners
-    document.getElementById('run-btn').onclick = handleRun;
-    document.getElementById('format-btn').onclick = () => {
+    document.getElementById('run-btn').addEventListener('click', handleRun);
+    document.getElementById('format-btn').addEventListener('click', () => {
         if (!currentOpenFile || !currentOpenFile.endsWith('.htvm')) {
-            alert("The formatter only works with .htvm files.");
-            return;
+            alert("The formatter only works with .htvm files."); return;
         }
-        try {
-            editor.session.setValue(formatHtvmCode(editor.getValue()));
-        } catch (err) {
-            term.writeln(`\x1b[31mAn error occurred during formatting: ${err.message}\x1b[0m`);
-        }
-    };
-    document.getElementById('close-output-btn').onclick = () => document.getElementById('output-panel').classList.remove('visible');
-    document.getElementById('download-html-btn').onclick = handleDownloadHtml;
+        try { editor.session.setValue(formatHtvmCode(editor.getValue())); }
+        catch (err) { term.writeln(`\x1b[31mAn error occurred during formatting: ${err.message}\x1b[0m`); }
+    });
+    document.getElementById('close-output-btn').addEventListener('click', () => document.getElementById('output-panel').classList.remove('visible'));
+    document.getElementById('download-html-btn').addEventListener('click', handleDownloadHtml);
 
-    // Apply custom hotkeys on startup
     applyAndSetHotkeys();
     
-    // Resizers
     initResizer(document.getElementById('sidebar-resizer'), document.querySelector('.sidebar'), 'sidebarWidth', 'x');
     initResizer(document.getElementById('terminal-resizer'), document.getElementById('terminal-container'), 'terminalHeight', 'y');
     initResizer(document.getElementById('output-panel-resizer'), document.getElementById('output-panel'), 'outputPanelWidth', 'x');
 
-    // --- Application Startup Logic ---
     term.writeln(`\x1b[1;32mWelcome to HT-IDE! (Workspace ID: ${IDE_ID})\x1b[0m`);
     term.write('$ ');
 
-    // --- LOAD BREAKPOINTS ---
+    document.getElementById('run-js-after-htvm').checked = lsGet('runJsAfterHtvm') !== false;
+    document.getElementById('full-html-checkbox').checked = lsGet('fullHtml') === true;
+
     const savedBreakpoints = lsGet('fileBreakpoints');
     if (savedBreakpoints) {
         for (const file in savedBreakpoints) {
@@ -195,7 +157,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Restore UI state from localStorage
     const sidebarWidth = lsGet('sidebarWidth'); if (sidebarWidth) document.querySelector('.sidebar').style.width = sidebarWidth;
     const terminalHeight = lsGet('terminalHeight'); if (terminalHeight) document.getElementById('terminal-container').style.height = terminalHeight;
     const outputWidth = lsGet('outputPanelWidth'); if (outputWidth) document.getElementById('output-panel').style.width = outputWidth;
@@ -215,43 +176,60 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Restore file state
-    const lastCwd = lsGet('lastCwd') || '/';
-    setCurrentDirectory(lastCwd);
+    let lastCwd = lsGet('lastCwd') || '/';
+    await setCurrentDirectory(lastCwd);
+    const allFileObjects = await getAllPaths();
+    const allPaths = allFileObjects.map(item => item.path);
     const savedOpenTabs = lsGet('openTabs') || [];
-    openTabs = savedOpenTabs.filter(f => getAllPaths().includes(f));
+    openTabs = savedOpenTabs.filter(f => allPaths.includes(f));
     const lastFile = lsGet('lastOpenFile');
 
-    if (lastFile && getAllPaths().includes(lastFile)) {
-        openFileInEditor(lastFile);
+    if (lastFile && allPaths.includes(lastFile)) {
+        await openFileInEditor(lastFile);
     } else if (openTabs.length > 0) {
-        openFileInEditor(openTabs[0]);
+        await openFileInEditor(openTabs[0]);
     } else {
         editor.setSession(ace.createEditSession("// No file open."));
         editor.setReadOnly(true);
         renderTabs();
     }
+    
+    const mainContent = document.querySelector('.main-content-wrapper');
+    mainContent.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); });
+    mainContent.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (draggedTab) return;
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            for (const file of files) {
+                // This check is crucial. The 'path' property only exists for files
+                // dropped from the desktop. Other drop events might not have it.
+                if (file.path) {
+                    const { success, error } = await window.electronAPI.dropFile(file.path, currentDirectory);
+                    if (!success) {
+                        term.writeln(`\x1b[31mError dropping file ${file.name}: ${error}\x1b[0m`);
+                    }
+                }
+            }
+            await renderFileList();
+        }
+    });
 
-    // Window Listeners
     window.addEventListener('resize', debounce(() => {
         editor.resize();
         fitAddon.fit();
-
-        // --- FIX FOR RESIZE BUG ---
-        // Check if we are in desktop view by inspecting the sidebar's CSS position.
         const sidebar = document.querySelector('.sidebar');
         const backdrop = document.getElementById('sidebar-backdrop');
         const isDesktopView = getComputedStyle(sidebar).position !== 'absolute';
-
-        // If we've resized back to desktop view, ensure the mobile-only backdrop is hidden.
-        if (isDesktopView) {
-            backdrop.style.display = 'none';
-        }
+        if (isDesktopView) backdrop.style.display = 'none';
     }, 200));
 
     window.addEventListener('beforeunload', () => {
         if (currentOpenFile) {
-            saveFileContent(currentOpenFile, editor.getValue(), true);
+            saveFileContentSync(currentOpenFile, editor.getValue());
             lsSet('state_' + currentOpenFile, { scrollTop: editor.session.getScrollTop(), cursor: editor.getCursorPosition() });
         }
         lsSet('openTabs', openTabs);
@@ -265,7 +243,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         lsSet('fileBreakpoints', serializableBreakpoints);
     });
 
-    // --- DEBUGGER VALUE HOVER ---
     editor.on('mousemove', function (e) {
         const tooltip = document.getElementById('value-tooltip');
         if (!tooltip || !debuggerState.isPaused) {
@@ -282,26 +259,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 let value = debuggerState.scope[varName];
                 try {
                     value = JSON.stringify(value, null, 2);
-                    if (value && value.length > 200) {
-                        value = value.substring(0, 200) + '...';
-                    }
-                } catch {
-                    value = String(value);
-                }
+                    if (value && value.length > 200) value = value.substring(0, 200) + '...';
+                } catch { value = String(value); }
 
                 tooltip.innerText = `${varName}: ${value}`;
                 tooltip.style.display = 'block';
                 tooltip.style.left = (e.clientX + 15) + 'px';
                 tooltip.style.top = (e.clientY + 15) + 'px';
-            } else {
-                tooltip.style.display = 'none';
-            }
-        } else {
-            tooltip.style.display = 'none';
-        }
+            } else { tooltip.style.display = 'none'; }
+        } else { tooltip.style.display = 'none'; }
     });
 
-    // Final UI adjustments
     setTimeout(() => {
         document.body.classList.remove('preload');
         fitAddon.fit();
@@ -309,23 +277,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function applyEditorColorSettings() {
-    // Master toggle for syntax highlighting
     if (lsGet('syntaxHighlightingEnabled') === false) {
         document.body.classList.add('syntax-highlighting-disabled');
     } else {
         document.body.classList.remove('syntax-highlighting-disabled');
     }
 
-    // Apply custom colors and boldness by setting CSS variables on the root element
     const root = document.documentElement;
     for (const key in syntaxColorConfig) {
         const item = syntaxColorConfig[key];
-        
-        // Apply color
         const savedColor = lsGet(`color_${key}`) || item.default;
         root.style.setProperty(`--${key}`, savedColor);
 
-        // Apply boldness for text items
         if (item.isText) {
             const isBold = lsGet(`boldness_${key}`) ?? item.defaultBold;
             root.style.setProperty(`--${key}-font-weight`, isBold ? 'bold' : 'normal');
@@ -338,12 +301,10 @@ function applyUiThemeSettings() {
     for (const key in uiThemeConfig) {
         const item = uiThemeConfig[key];
         
-        // Apply color or range value
         const savedValue = lsGet(`theme_${key}`) ?? item.default;
         const unit = item.unit || '';
         root.style.setProperty(key, savedValue + unit);
         
-        // Apply boldness for text items
         if (item.hasBoldToggle) {
             const isBold = lsGet(`theme_bold_${key}`) ?? item.defaultBold;
             root.style.setProperty(key + '-bold', isBold ? 'bold' : 'normal');

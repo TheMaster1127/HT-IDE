@@ -78,6 +78,50 @@ function openSessionModal(mode) {
     overlay.style.display = 'flex';
 }
 
+function openInputModal(title, label, defaultValue, callback) {
+    const overlay = document.getElementById('modal-overlay');
+    overlay.style.pointerEvents = 'auto';
+    overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    
+    overlay.innerHTML = `<div class="modal-box">
+        <h3>${title}</h3>
+        <p style="margin: 5px 0 10px 0;">${label}</p>
+        <input type="text" id="input-modal-field" value="${defaultValue}" style="width:calc(100% - 22px);padding:10px;margin-bottom:15px;background-color:#252525;border:1px solid #333;color:#e0e0e0;">
+        <div class="modal-buttons">
+            <button id="input-modal-cancel-btn" class="modal-btn-cancel">Cancel</button>
+            <button id="input-modal-confirm-btn" class="modal-btn-confirm">OK</button>
+        </div>
+    </div>`;
+
+    const inputField = document.getElementById('input-modal-field');
+    const confirmBtn = document.getElementById('input-modal-confirm-btn');
+    const cancelBtn = document.getElementById('input-modal-cancel-btn');
+
+    const closeModal = () => {
+        overlay.style.display = 'none';
+        overlay.innerHTML = '';
+    };
+
+    const confirmAction = () => {
+        callback(inputField.value);
+        closeModal();
+    };
+
+    confirmBtn.onclick = confirmAction;
+    cancelBtn.onclick = closeModal;
+    inputField.onkeydown = (e) => {
+        if (e.key === 'Enter') confirmAction();
+        if (e.key === 'Escape') closeModal();
+    };
+    
+    overlay.style.display = 'flex';
+    inputField.focus();
+    inputField.select();
+}
+
+
 function renderHotkeyDisplayList() {
     const customHotkeys = lsGet('customHotkeys') || {};
     let html = '';
@@ -787,4 +831,4 @@ function updateHotkeyTitles() {
         const toggleHotkeyStr = formatHotkey(activeHotkeys.toggleSidebar);
         toggleSidebarBtn.title = `Toggle File Explorer (${toggleHotkeyStr})`;
     }
-}	
+}

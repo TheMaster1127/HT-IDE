@@ -2,65 +2,77 @@
 let draggedTab = null;
 
 // --- UI Rendering Functions ---
-function renderAll() {
-    renderFileList();
+async function renderAll() {
+    await renderFileList();
     renderTabs();
 }
 
-function renderFileList() {
+async function renderFileList() {
     const el = document.getElementById('file-list');
     el.innerHTML = '';
-    const tree = {};
-    getAllPaths().forEach(p => {
-        let l = tree;
-        p.split('/').filter(Boolean).forEach((part, i, a) => {
-            if (!l[part]) l[part] = { _children: {} };
-            if (i === a.length - 1) {
-                l[part]._isFile = !p.endsWith('/');
-                l[part]._path = p;
+    
+    el.ondragover = (e) => {
+        e.preventDefault();
+        el.style.backgroundColor = 'var(--sidebar-file-active-bg)';
+    };
+    el.ondragleave = el.ondragend = () => {
+        el.style.backgroundColor = '';
+    };
+    el.ondrop = async (e) => {
+        e.preventDefault();
+        el.style.backgroundColor = '';
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            for (const file of files) {
+                await window.electronAPI.dropFile(file.path, currentDirectory);
             }
-            l = l[part]._children;
-        });
-    });
+            await renderFileList();
+        }
+    };
 
-    let node = tree;
-    currentDirectory.split('/').filter(Boolean).forEach(part => {
-        if (node && node[part]?._children) node = node[part]._children;
-    });
+    const allPaths = await getAllPaths();
 
     if (currentDirectory !== '/') {
         const li = document.createElement('li');
-        li.innerHTML = `<strong>..</strong>`;
+        li.innerHTML = `<strong>📁 ..</strong>`;
         li.onclick = () => {
-            const parts = currentDirectory.split('/').filter(Boolean);
-            parts.pop();
-            setCurrentDirectory(parts.length ? `/${parts.join('/')}/` : '/');
+            let parentDir = currentDirectory.replace(/[\/\\]$/, '').split(/[\/\\]/).slice(0, -1).join('/');
+            if (parentDir === '' || /^[a-zA-Z]:$/.test(parentDir)) {
+                 setCurrentDirectory('/');
+            } else {
+                 setCurrentDirectory(parentDir + '/');
+            }
         };
         el.appendChild(li);
     }
 
-    Object.keys(node || {}).sort((a, b) => (node[a]._isFile === node[b]._isFile) ? a.localeCompare(b) : node[a]._isFile ? 1 : -1).forEach(key => {
-        const item = node[key];
+    allPaths.forEach(item => {
         const li = document.createElement('li');
         const span = document.createElement('span');
         span.className = 'file-item-name';
-        span.textContent = `${item._isFile ? '📄' : '📁'} ${key}`;
-        li.onclick = () => (item._isFile ? openFileInEditor(item._path) : setCurrentDirectory(item._path));
+        
+        span.textContent = `${item.isFile ? '📄' : '📁'} ${item.name}`;
+        li.title = item.path;
+
+        li.onclick = () => (item.isFile ? openFileInEditor(item.path) : setCurrentDirectory(item.path + '/'));
 
         const delBtn = document.createElement('button');
         delBtn.textContent = '🗑️';
         delBtn.style.cssText = 'background:none;border:none;color:#aaa;cursor:pointer;margin-left:auto;visibility:hidden;';
         li.onmouseenter = () => delBtn.style.visibility = 'visible';
         li.onmouseleave = () => delBtn.style.visibility = 'hidden';
-        delBtn.onclick = e => {
+        
+        // --- MODIFIED: The onclick is now simplified. The deleteItem function handles the full logic. ---
+        delBtn.onclick = (e) => {
             e.stopPropagation();
-            deleteItem(item._path, item._isFile);
+            deleteItem(item.path, item.isFile);
         };
 
         li.appendChild(span);
         li.appendChild(delBtn);
         el.appendChild(li);
     });
+
     updateActiveFileVisuals(currentOpenFile);
 }
 
@@ -72,11 +84,11 @@ function renderTabs() {
         tab.className = 'tab';
         tab.dataset.filename = filename;
         tab.title = filename;
-        tab.draggable = true; // Make the tab draggable
+        tab.draggable = true;
 
         const name = document.createElement('span');
         name.className = 'file-name';
-        name.textContent = filename.split('/').pop();
+        name.textContent = filename.replace(/^.*[\\\/]/, '');
         tab.appendChild(name);
 
         const close = document.createElement('span');
@@ -88,7 +100,6 @@ function renderTabs() {
         };
         tab.appendChild(close);
         
-        // Add event listeners for drag-and-drop
         tab.addEventListener('dragstart', handleDragStart);
         tab.addEventListener('dragend', handleDragEnd);
         tab.addEventListener('dragover', handleDragOver);
@@ -104,7 +115,11 @@ function renderTabs() {
 
 function updateActiveFileVisuals(filename) {
     document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.filename === filename));
-    document.querySelectorAll('#file-list li').forEach(li => li.classList.toggle('active-file-list-item', li.textContent.includes(filename?.split('/').pop() || '')));
+    const activeFileItem = Array.from(document.querySelectorAll('#file-list li')).find(li => li.title === filename);
+    document.querySelectorAll('#file-list li').forEach(li => li.classList.remove('active-file-list-item'));
+    if (activeFileItem) {
+        activeFileItem.classList.add('active-file-list-item');
+    }
 }
 
 function checkDirtyState(filename) {
@@ -115,9 +130,14 @@ function checkDirtyState(filename) {
 }
 
 function setCurrentDirectory(path) {
-    currentDirectory = path;
-    document.getElementById('current-path-display').textContent = path;
-    lsSet('lastCwd', path);
+    if (path === '/') {
+        currentDirectory = '/';
+    } else {
+        currentDirectory = path.replace(/[\\\/]$/, '') + '/';
+    }
+    
+    document.getElementById('current-path-display').textContent = currentDirectory;
+    lsSet('lastCwd', currentDirectory);
     renderFileList();
 }
 
@@ -125,7 +145,7 @@ const toggleDropdown = () => {
     const el = document.getElementById('lang-dropdown');
     el.style.display = el.style.display === 'block' ? 'none' : 'block';
 };
-window.toggleDropdown = toggleDropdown; // Make it globally accessible for onclick
+window.toggleDropdown = toggleDropdown;
 
 function changeLanguage(name, img, lang) {
     document.getElementById('selected-lang-name').textContent = name;
@@ -133,7 +153,7 @@ function changeLanguage(name, img, lang) {
     lsSet('selectedLangExtension', lang);
     toggleDropdown();
 }
-window.changeLanguage = changeLanguage; // Make it globally accessible for onclick
+window.changeLanguage = changeLanguage;
 
 function initResizer(resizerEl, containerEl, lsKey, direction) {
     resizerEl.onmousedown = e => {
@@ -149,7 +169,7 @@ function initResizer(resizerEl, containerEl, lsKey, direction) {
             if (newSize > 100 && newSize < window[direction === 'x' ? 'innerWidth' : 'innerHeight'] - 50) {
                 containerEl.style[direction === 'x' ? 'width' : 'height'] = `${newSize}px`;
                 editor.resize();
-                fitAddon.fit();
+                if(fitAddon) fitAddon.fit();
             }
         };
         const stopDrag = () => {
@@ -194,15 +214,18 @@ function handleDownloadHtml() {
     URL.revokeObjectURL(link.href);
 }
 
-// --- Drag & Drop Handlers ---
 function handleDragStart(e) {
     draggedTab = e.target;
     e.target.classList.add('dragging');
 }
 
 function handleDragEnd(e) {
-    e.target.classList.remove('dragging');
+    if(e.target.classList.contains('dragging')) {
+      e.target.classList.remove('dragging');
+    }
     document.querySelectorAll('.tab.drag-over').forEach(tab => tab.classList.remove('drag-over'));
+    // --- THE ABSOLUTE DRAG/DROP FIX: Always reset draggedTab on dragend ---
+    draggedTab = null;
 }
 
 function handleDragOver(e) {
@@ -233,11 +256,8 @@ function handleDrop(e) {
     const draggedIndex = openTabs.indexOf(draggedFilename);
     const targetIndex = openTabs.indexOf(targetFilename);
     
-    // Remove the dragged tab from its original position
     openTabs.splice(draggedIndex, 1);
-    // Insert it at the new position
     openTabs.splice(targetIndex, 0, draggedFilename);
 
-    // Re-render the tabs in the new order
     renderTabs();
 }

@@ -25,13 +25,6 @@ function initializeInstructionSetManagement() {
         activeContent = localStorage.getItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + activeId) || "";
     }
     
-    // --- BUG FIX FOR CROSS-WORKSPACE DATA LEAK ---
-    // The reported issue of instruction sets carrying over between workspaces was traced to
-    // subtle data corruption caused by inconsistent line endings (e.g., Windows-style \r\n)
-    // in uploaded instruction files. When localStorage data from one workspace was read, these
-    // invisible characters could cause parsing errors in the next, making it seem like data
-    // was leaking. Normalizing all line endings to a standard '\n' before processing ensures
-    // data integrity and isolates each workspace correctly. This is the critical fix.
     const sanitizedContent = activeContent.replace(/\r\n?/g, '\n');
 
     localStorage.setItem(instructionSetKeys.legacyKey, JSON.stringify(sanitizedContent.split('\n')));
@@ -153,17 +146,17 @@ function formatHtvmCode(code) {
     let instructionSet = JSON.parse(localStorage.getItem(instructionSetKeys.legacyKey) || '[]');
     
     term.writeln(`\x1b[32mFormatting HTVM file...\x1b[0m`);
-    resetGlobalVarsOfHTVMjs(); // It's important to reset state before each compilation
+    resetGlobalVarsOfHTVMjs();
     argHTVMinstrMORE.push(instructionSet.join('\n'));
     const formattedCode = compiler(code, instructionSet.join('\n'), "full", "htvm");
-    resetGlobalVarsOfHTVMjs(); // And after, to be safe
+    resetGlobalVarsOfHTVMjs();
     
     term.writeln(`\x1b[32mFormatting complete.\x1b[0m`);
     return formattedCode;
 }
 
 async function runHtvmCode(code) {
-    resetGlobalVarsOfHTVMjs(); // <-- FIX: Ensure a clean state before every transpilation.
+    resetGlobalVarsOfHTVMjs();
     const lang = lsGet('selectedLangExtension') || 'js';
     let instructionSet = JSON.parse(localStorage.getItem(instructionSetKeys.legacyKey) || '[]');
     const isFullHtml = lang === 'js' && document.getElementById('full-html-checkbox').checked;
@@ -177,22 +170,26 @@ async function runHtvmCode(code) {
     resetGlobalVarsOfHTVMjs();
     
     const newFileExt = isFullHtml ? 'html' : lang;
-    const newFile = currentOpenFile.replace(/\.htvm$/, `.${newFileExt}`);
+
+    // --- MODIFIED: Create the new file in the same directory as the source ---
+    // This is a robust way to get the directory name and base filename
+    const sourcePath = currentOpenFile;
+    const dirName = sourcePath.substring(0, sourcePath.lastIndexOf('/')) || sourcePath.substring(0, sourcePath.lastIndexOf('\\'));
+    const baseName = sourcePath.split(/[\\\/]/).pop().replace(/\.htvm$/, '');
+    const newFile = `${dirName}/${baseName}.${newFileExt}`;
+
 
     const wasAlreadyOpen = openTabs.includes(newFile);
 
-    // If a session for the output file already exists, remove it from our in-memory cache.
-    // This is crucial to ensure that when it's viewed again, it loads the fresh content.
     if (fileSessions.has(newFile)) {
         fileSessions.delete(newFile);
     }
 
-    saveFileContent(newFile, compiled, false);
+    await saveFileContent(newFile, compiled, false);
+    await renderFileList(); // Refresh file list to show the new file
 
-    // Only switch focus to the new file if its tab wasn't already open.
-    // If it was open, the content is updated, but focus remains on the current HTVM file.
     if (!wasAlreadyOpen) {
-        openFileInEditor(newFile);
+        await openFileInEditor(newFile);
     }
     
     const shouldRunAfter = document.getElementById('run-js-after-htvm').checked;
@@ -224,7 +221,7 @@ async function handleRun(e) {
         term.clear();
     }
 
-    saveFileContent(currentOpenFile, editor.getValue());
+    await saveFileContent(currentOpenFile, editor.getValue());
     term.writeln(`\x1b[36m> Running ${currentOpenFile}...\x1b[0m`);
     const ext = currentOpenFile.split('.').pop();
     
