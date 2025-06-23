@@ -21,7 +21,6 @@ function applyAndSetHotkeys() {
             return ctrl === config.ctrl && e.shiftKey === config.shift && e.altKey === config.alt;
         };
 
-        // MODIFIED: Added local handling for zoom hotkeys
         if (e.ctrlKey || e.metaKey) {
             let currentZoom = lsGet('zoomLevel') || 0;
             if (e.key === '=') {
@@ -40,23 +39,31 @@ function applyAndSetHotkeys() {
             }
         }
         
-        // MODIFIED: Added universal hotkey for cycling through tabs.
+        // MODIFIED: Universal, non-customizable hotkey for intuitive tab switching.
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'tab') {
             e.preventDefault();
-            if (openTabs.length > 1) {
+            if (openTabs.length < 2) return;
+
+            if (e.shiftKey) {
+                // For Ctrl+Shift+Tab, cycle backward through the tab list.
                 const currentIndex = openTabs.indexOf(currentOpenFile);
-                let nextIndex;
-                if (e.shiftKey) { // Cycle backward with Shift
-                    nextIndex = (currentIndex - 1 + openTabs.length) % openTabs.length;
-                } else { // Cycle forward
-                    nextIndex = (currentIndex + 1) % openTabs.length;
-                }
+                const nextIndex = (currentIndex - 1 + openTabs.length) % openTabs.length;
                 await openFileInEditor(openTabs[nextIndex]);
+            } else {
+                // For Ctrl+Tab, toggle to the last active tab.
+                if (lastActiveTab && openTabs.includes(lastActiveTab) && lastActiveTab !== currentOpenFile) {
+                    await openFileInEditor(lastActiveTab);
+                } else {
+                    // Fallback: if there's no useful last active tab, cycle forward.
+                    const currentIndex = openTabs.indexOf(currentOpenFile);
+                    const nextIndex = (currentIndex + 1) % openTabs.length;
+                    await openFileInEditor(openTabs[nextIndex]);
+                }
             }
-            return;
+            return; // Stop further processing
         }
 
-        if (e.key === 'F5') { // Keep F5 as a hardcoded alias for run
+        if (e.key === 'F5') {
             e.preventDefault();
             await handleRun(e);
             return;
@@ -97,7 +104,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     STORAGE_PREFIX = `HT-IDE-id${IDE_ID}-`;
     langTools = ace.require("ace/ext/language_tools");
 
-    // MODIFIED: Restore zoom level on startup
     window.electronAPI.setZoomLevel(lsGet('zoomLevel') || 0);
 
     applyEditorColorSettings();
@@ -118,18 +124,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         await handleCloseTabRequest(filePath);
     });
 
+    // MODIFIED: Added robust file change handler.
     window.electronAPI.onFileChanged(async (filePath) => {
+        // If the changed file is the one we are currently viewing, prompt for reload.
         if (filePath === currentOpenFile) {
-            // MODIFIED: Replaced confirm() with the new custom modal
             const msg = `The file "${filePath.split(/[\\\/]/).pop()}" has changed on disk. Do you want to reload it? This will discard your unsaved changes in the editor.`;
-            openConfirmModal("File Changed on Disk", msg, async (confirmed) => {
+            openConfirmModal("File Changed on Disk", async (confirmed) => {
                 if (confirmed) {
-                    if (fileSessions.has(filePath)) {
-                        fileSessions.delete(filePath);
-                    }
-                    await openFileInEditor(filePath);
+                    const fileToReload = currentOpenFile;
+                    // Invalidate the session and trick the editor into thinking no file is open
+                    // to bypass the "already open" check and force a full reload from disk.
+                    fileSessions.delete(fileToReload);
+                    currentOpenFile = null;
+                    await openFileInEditor(fileToReload);
                 }
             });
+        } 
+        // If a background tab has changed, just invalidate its session.
+        // It will be reloaded automatically from disk when the user clicks on it.
+        else if (openTabs.includes(filePath)) {
+            if (fileSessions.has(filePath)) {
+                fileSessions.delete(filePath);
+            }
         }
     });
     
@@ -265,36 +281,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // --- MODIFIED: Reworked session restoration logic ---
     let lastCwd = lsGet('lastCwd') || '/';
-    await setCurrentDirectory(lastCwd); // Set and render sidebar for last directory
+    await setCurrentDirectory(lastCwd); 
 
     const savedOpenTabs = lsGet('openTabs') || [];
     const lastFile = lsGet('lastOpenFile');
-    lastActiveTab = lsGet('lastActiveTab'); // Load into global var
+    lastActiveTab = lsGet('lastActiveTab'); 
 
-    // The modified openFileInEditor now handles non-existent files and populates the `openTabs` array.
-    // We loop through the saved tabs and attempt to open each one.
     for (const path of savedOpenTabs) {
         await openFileInEditor(path);
     }
 
-    // After attempting to open all tabs, `openTabs` will contain only the ones that actually exist.
-    // Now, we activate the correct one.
     if (lastFile && openTabs.includes(lastFile)) {
-        // Calling openFileInEditor again is fine; it will just set the active session without re-reading the file.
         await openFileInEditor(lastFile);
     } else if (openTabs.length > 0) {
-        // If the last active file is gone, open the first available one from the restored session.
         await openFileInEditor(openTabs[0]);
     } else {
-        // If no tabs could be restored, show the welcome screen.
         editor.setSession(ace.createEditSession("// No file open."));
         editor.setReadOnly(true);
-        renderTabs(); // Render empty tabs container
+        renderTabs();
     }
-    // --- END MODIFICATION ---
-
+    
     const mainContent = document.querySelector('.main-content-wrapper');
     mainContent.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); });
     mainContent.addEventListener('drop', async (e) => {
@@ -338,14 +345,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             saveFileContentSync(currentOpenFile, editor.getValue());
             lsSet('state_' + currentOpenFile, { scrollTop: editor.session.getScrollTop(), cursor: editor.getCursorPosition() });
         }
+        // MODIFIED: Make sure all file watchers are closed when the app quits.
         openTabs.forEach(tab => window.electronAPI.unwatchFile(tab));
 
         lsSet('openTabs', openTabs);
         lsSet('lastOpenFile', currentOpenFile);
-        // MODIFIED: Save the last active tab for session restoration.
         lsSet('lastActiveTab', lastActiveTab);
         lsSet('lastCwd', currentDirectory);
-        // Note: zoomLevel is now saved directly when the hotkey is pressed.
 
         const serializableBreakpoints = {};
         for (const [file, bpSet] of fileBreakpoints.entries()) {

@@ -31,23 +31,17 @@ async function openFileInEditor(filename) {
     // If we are just re-focusing the same file, do nothing.
     if (currentOpenFile === filename) return;
 
-    // MODIFIED: Get file content at the top and handle non-existent files gracefully.
-    // This is the core fix that allows session restoration to work across different directories.
     const content = await window.electronAPI.getFileContent(filename);
     if (content === null) {
-        // File does not exist or is unreadable. Remove from openTabs if it's there from a stale session.
         const staleTabIndex = openTabs.indexOf(filename);
         if (staleTabIndex > -1) {
             openTabs.splice(staleTabIndex, 1);
         }
-        return; // Abort opening the file.
+        return; 
     }
     
     if (currentOpenFile) {
-        // MODIFIED: Remember the tab we are switching away from.
         lastActiveTab = currentOpenFile;
-        // Stop watching the previously active file.
-        window.electronAPI.unwatchFile(currentOpenFile);
         // Do not save here, as it can be disruptive. Saving is handled on close/run.
         lsSet('state_' + currentOpenFile, {
             scrollTop: editor.session.getScrollTop(),
@@ -55,20 +49,17 @@ async function openFileInEditor(filename) {
         });
     }
 
-    // MODIFIED: This logic now correctly preserves the undo/redo history for each file.
-    // A new session is only created if one doesn't already exist for the file.
     if (!fileSessions.has(filename)) {
         const isHtvmLike = filename.endsWith('.htvm') || filename.endsWith('.htpc') || filename.endsWith('.htpr');
         const mode = ace.require("ace/ext/modelist").getModeForPath(filename).mode;
         const session = ace.createEditSession(content, isHtvmLike ? 'ace/mode/htvm' : mode);
         session.on('change', () => checkDirtyState(filename));
         fileSessions.set(filename, session);
+        // MODIFIED: Watch the file as soon as its session is created.
+        window.electronAPI.watchFile(filename);
     }
 
     editor.setSession(fileSessions.get(filename));
-    
-    // Start watching the newly opened file for changes.
-    window.electronAPI.watchFile(filename);
 
     const breakpoints = fileBreakpoints.get(filename) || new Set();
     editor.session.clearBreakpoints();
@@ -105,14 +96,13 @@ async function closeTab(filenameToClose, force = false) {
     const index = openTabs.indexOf(filenameToClose);
     if (index === -1) return;
     
-    // Stop watching the file that is being closed.
+    // MODIFIED: Stop watching the file that is being closed.
     window.electronAPI.unwatchFile(filenameToClose);
 
     if (!force) recentlyClosedTabs.push(filenameToClose);
     
     openTabs.splice(index, 1);
     
-    // Clean up the session if we are not forcing (i.e., not a session load)
     if (!force) {
         fileSessions.delete(filenameToClose);
     }
@@ -136,8 +126,6 @@ async function closeTab(filenameToClose, force = false) {
     }
 }
 
-// MODIFIED: Now correctly saves unsaved changes before closing a tab.
-// It gets the content from the correct file session, not just the active editor.
 async function handleCloseTabRequest(filename) {
     if (!filename) return;
     if (fileSessions.has(filename)) {
