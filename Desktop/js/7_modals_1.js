@@ -98,21 +98,21 @@ function openSessionModal(mode) {
         document.getElementById('modal-title').textContent = 'Load Session';
         document.getElementById('modal-save-content').style.display = 'none';
         document.getElementById('modal-confirm-btn').style.display = 'none';
+        // MODIFIED: This function is now async and correctly loads files from any path.
         populate(async (name) => {
             const tabsToLoad = lsGet(`session_data_${name}`);
             if (tabsToLoad) {
-                const allFileObjects = await getAllPaths();
-                const allPaths = allFileObjects.map(item => item.path);
-
+                // Close all currently open tabs without adding them to recentlyClosed.
                 const currentTabs = [...openTabs];
                 for (const tab of currentTabs) {
                     await closeTab(tab, true);
                 }
                 
+                // MODIFIED: Removed the faulty check that limited loading to the current directory.
+                // Now it will attempt to open every file from its saved full path.
+                // The `openFileInEditor` function is robust and will handle cases where a file might no longer exist.
                 for (const tabPath of tabsToLoad) {
-                    if (allPaths.includes(tabPath)) {
-                        await openFileInEditor(tabPath);
-                    }
+                    await openFileInEditor(tabPath);
                 }
             }
             overlay.style.display = 'none';
@@ -278,7 +278,6 @@ function openSettingsModal() {
         const newHighlightOperators = document.getElementById('symbol-operator-highlighting-checkbox').checked;
         const needsReload = (initialSyntaxEnabled !== newSyntaxEnabled) || (initialHighlightOperators !== newHighlightOperators);
 
-        // MODIFIED: Replaced confirm() with the new custom modal
         if (needsReload) {
             const msg = "Some syntax highlighting settings have changed. A reload is required for them to take full effect. Your work will be saved.\n\nReload now?";
             openConfirmModal("Reload Required", msg, (confirmed) => {

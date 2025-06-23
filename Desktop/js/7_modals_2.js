@@ -16,7 +16,6 @@ function promptForInitialInstructionSet() {
     </div>`;
 
     document.getElementById('initial-instr-cancel-btn').onclick = () => {
-        // MODIFIED: Replaced confirm() with the new custom modal
         const msg = "Are you sure? HTVM features will be disabled until an instruction set is provided and the IDE is reloaded. You can still use the IDE for standard file editing using other programming languages, e.g., JavaScript, Python, C++, etc.";
         openConfirmModal("Continue without HTVM?", msg, (confirmed) => {
             if (confirmed) {
@@ -32,7 +31,6 @@ function promptForInitialInstructionSet() {
             const file = e.target.files[0];
             if (!file) return;
 
-            // MODIFIED: Replaced prompt() with the new custom input modal
             openInputModal('Name Instruction Set', 'Enter a name for this new instruction set:', file.name.replace(/\.[^/.]+$/, ""), (newName) => {
                 if (!newName || !newName.trim()) return;
 
@@ -528,12 +526,16 @@ function openHtvmToHtvmModal() {
         fileInput.type = 'file';
         fileInput.multiple = true;
         fileInput.accept = '.htvm';
-        fileInput.onchange = e => {
+        fileInput.onchange = async (e) => { // MODIFIED: Made async to await getAllPaths
             const files = e.target.files;
             if (!files || files.length === 0) return;
 
             overlay.style.display = 'none';
             term.writeln(`\x1b[36mStarting HTVM to HTVM conversion for ${files.length} file(s)...\x1b[0m`);
+
+            // MODIFIED: Fetch the list of known paths ONCE before the loop.
+            const allKnownPathObjects = await getAllPaths();
+            const allKnownPaths = allKnownPathObjects.map(item => item.path);
 
             Array.from(files).forEach(file => {
                 const reader = new FileReader();
@@ -568,22 +570,24 @@ function openHtvmToHtvmModal() {
                     const convertedCode = compiler(instr1, instr2, "full", instr3);
 
                     const originalFilename = file.name;
-                    // --- FIX FOR FILENAME COLLISION AND UI REFRESH ---
-                    // 1. Determine base name for the new file
                     let baseNewFilename = originalFilename.replace(/(\.htvm)$/i, '.converted.htvm');
                     if (baseNewFilename === originalFilename) {
                         baseNewFilename = `${originalFilename}.converted`;
                     }
 
-                    // 2. Ensure the filename is unique
                     let finalFilename = baseNewFilename;
                     let counter = 1;
-                    const allKnownPaths = getAllPaths();
                     const nameMatch = baseNewFilename.match(/(.*)(\.htvm)$/);
                     const namePart = nameMatch ? nameMatch[1] : baseNewFilename;
                     const extPart = nameMatch ? nameMatch[2] : '';
-
+                    
+                    // MODIFIED: This logic now correctly uses the pre-fetched array of path strings.
+                    // It also correctly constructs the full path for checking.
                     let pathPrefix = currentDirectory === '/' ? '' : currentDirectory;
+                    if (pathPrefix && !pathPrefix.endsWith('/') && !pathPrefix.endsWith('\\')) {
+                        pathPrefix += '/';
+                    }
+
                     while (allKnownPaths.includes(pathPrefix + finalFilename)) {
                         finalFilename = `${namePart}(${counter})${extPart}`;
                         counter++;
@@ -591,11 +595,9 @@ function openHtvmToHtvmModal() {
 
                     const finalPath = pathPrefix + finalFilename;
                     
-                    // 3. Save the new file
                     saveFileContent(finalPath, convertedCode, false);
                     term.writeln(`\x1b[32mConverted ${originalFilename} -> ${finalFilename}\x1b[0m`);
                     
-                    // 4. Refresh the file list to show the new file
                     renderFileList();
                 };
                 reader.readAsText(file);
