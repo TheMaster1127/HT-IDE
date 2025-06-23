@@ -98,21 +98,30 @@ function openSessionModal(mode) {
         document.getElementById('modal-title').textContent = 'Load Session';
         document.getElementById('modal-save-content').style.display = 'none';
         document.getElementById('modal-confirm-btn').style.display = 'none';
-        // MODIFIED: This function is now async and correctly loads files from any path.
+        
+        // MODIFIED: This is the definitive fix for the session loading bug.
+        // It now completely clears the old state and rebuilds it from the saved session data,
+        // making it independent of the current directory.
         populate(async (name) => {
             const tabsToLoad = lsGet(`session_data_${name}`);
-            if (tabsToLoad) {
-                // Close all currently open tabs without adding them to recentlyClosed.
-                const currentTabs = [...openTabs];
-                for (const tab of currentTabs) {
-                    await closeTab(tab, true);
-                }
+            if (tabsToLoad && Array.isArray(tabsToLoad)) {
                 
-                // MODIFIED: Removed the faulty check that limited loading to the current directory.
-                // Now it will attempt to open every file from its saved full path.
-                // The `openFileInEditor` function is robust and will handle cases where a file might no longer exist.
+                // 1. Completely clear the current session state.
+                currentOpenFile = null;
+                openTabs.forEach(tab => window.electronAPI.unwatchFile(tab)); // Stop watching old files
+                openTabs = [];
+                fileSessions.clear();
+
+                // 2. Open each file from the saved session by its absolute path.
                 for (const tabPath of tabsToLoad) {
                     await openFileInEditor(tabPath);
+                }
+
+                // 3. If no files from the session exist anymore, reset the editor to a clean state.
+                if (openTabs.length === 0) {
+                    editor.setSession(ace.createEditSession("// No file open."));
+                    editor.setReadOnly(true);
+                    await renderAll(); // Render the empty state
                 }
             }
             overlay.style.display = 'none';
