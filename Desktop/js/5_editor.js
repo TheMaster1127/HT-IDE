@@ -1,3 +1,5 @@
+// js/5_editor.js
+
 // --- Editor and Tab Management ---
 let lastActiveTab = null;
 
@@ -28,8 +30,21 @@ async function openFileInEditor(filename) {
     
     // If we are just re-focusing the same file, do nothing.
     if (currentOpenFile === filename) return;
+
+    // MODIFIED: Get file content at the top and handle non-existent files gracefully.
+    // This is the core fix that allows session restoration to work across different directories.
+    const content = await window.electronAPI.getFileContent(filename);
+    if (content === null) {
+        // File does not exist or is unreadable. Remove from openTabs if it's there from a stale session.
+        const staleTabIndex = openTabs.indexOf(filename);
+        if (staleTabIndex > -1) {
+            openTabs.splice(staleTabIndex, 1);
+        }
+        return; // Abort opening the file.
+    }
     
     if (currentOpenFile) {
+        // MODIFIED: Remember the tab we are switching away from.
         lastActiveTab = currentOpenFile;
         // Stop watching the previously active file.
         window.electronAPI.unwatchFile(currentOpenFile);
@@ -40,11 +55,9 @@ async function openFileInEditor(filename) {
         });
     }
 
-    // MODIFIED: This logic is now corrected. It no longer deletes existing sessions,
-    // which preserves the undo/redo history for each file. A new session is only
-    // created if one doesn't already exist for the file.
+    // MODIFIED: This logic now correctly preserves the undo/redo history for each file.
+    // A new session is only created if one doesn't already exist for the file.
     if (!fileSessions.has(filename)) {
-        const content = await window.electronAPI.getFileContent(filename) ?? "";
         const isHtvmLike = filename.endsWith('.htvm') || filename.endsWith('.htpc') || filename.endsWith('.htpr');
         const mode = ace.require("ace/ext/modelist").getModeForPath(filename).mode;
         const session = ace.createEditSession(content, isHtvmLike ? 'ace/mode/htvm' : mode);

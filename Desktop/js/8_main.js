@@ -1,3 +1,5 @@
+// js/8_main.js
+
 let hotkeyListener = null;
 
 function applyAndSetHotkeys() {
@@ -38,14 +40,8 @@ function applyAndSetHotkeys() {
             }
         }
         
-
-        if (e.key === 'F5') { // Keep F5 as a hardcoded alias for run
-            e.preventDefault();
-            await handleRun(e);
-            return;
-        }
-
-        if (e.ctrlKey && e.key.toLowerCase() === 'tab') {
+        // MODIFIED: Added universal hotkey for cycling through tabs.
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'tab') {
             e.preventDefault();
             if (openTabs.length > 1) {
                 const currentIndex = openTabs.indexOf(currentOpenFile);
@@ -57,6 +53,12 @@ function applyAndSetHotkeys() {
                 }
                 await openFileInEditor(openTabs[nextIndex]);
             }
+            return;
+        }
+
+        if (e.key === 'F5') { // Keep F5 as a hardcoded alias for run
+            e.preventDefault();
+            await handleRun(e);
             return;
         }
         
@@ -263,25 +265,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // --- MODIFIED: Reworked session restoration logic ---
     let lastCwd = lsGet('lastCwd') || '/';
-    await setCurrentDirectory(lastCwd);
-    const allFileObjects = await getAllPaths();
-    const allPaths = allFileObjects.map(item => item.path);
-    const savedOpenTabs = lsGet('openTabs') || [];
-    openTabs = savedOpenTabs.filter(f => allPaths.includes(f));
-    const lastFile = lsGet('lastOpenFile');
-    lastActiveTab = lsGet('lastActiveTab');
+    await setCurrentDirectory(lastCwd); // Set and render sidebar for last directory
 
-    if (lastFile && allPaths.includes(lastFile)) {
+    const savedOpenTabs = lsGet('openTabs') || [];
+    const lastFile = lsGet('lastOpenFile');
+    lastActiveTab = lsGet('lastActiveTab'); // Load into global var
+
+    // The modified openFileInEditor now handles non-existent files and populates the `openTabs` array.
+    // We loop through the saved tabs and attempt to open each one.
+    for (const path of savedOpenTabs) {
+        await openFileInEditor(path);
+    }
+
+    // After attempting to open all tabs, `openTabs` will contain only the ones that actually exist.
+    // Now, we activate the correct one.
+    if (lastFile && openTabs.includes(lastFile)) {
+        // Calling openFileInEditor again is fine; it will just set the active session without re-reading the file.
         await openFileInEditor(lastFile);
     } else if (openTabs.length > 0) {
+        // If the last active file is gone, open the first available one from the restored session.
         await openFileInEditor(openTabs[0]);
     } else {
+        // If no tabs could be restored, show the welcome screen.
         editor.setSession(ace.createEditSession("// No file open."));
         editor.setReadOnly(true);
-        renderTabs();
+        renderTabs(); // Render empty tabs container
     }
-    
+    // --- END MODIFICATION ---
+
     const mainContent = document.querySelector('.main-content-wrapper');
     mainContent.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); });
     mainContent.addEventListener('drop', async (e) => {
@@ -329,6 +342,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         lsSet('openTabs', openTabs);
         lsSet('lastOpenFile', currentOpenFile);
+        // MODIFIED: Save the last active tab for session restoration.
         lsSet('lastActiveTab', lastActiveTab);
         lsSet('lastCwd', currentDirectory);
         // Note: zoomLevel is now saved directly when the hotkey is pressed.
