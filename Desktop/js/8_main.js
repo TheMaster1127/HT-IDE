@@ -25,10 +25,23 @@ function applyAndSetHotkeys() {
             return;
         }
 
+        // MODIFIED: Replaced simple tab toggle with full forward/backward cycling.
         if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'tab') {
             e.preventDefault();
-            const target = lastActiveTab && openTabs.includes(lastActiveTab) ? lastActiveTab : openTabs.find(t => t !== currentOpenFile);
-            if (target) await openFileInEditor(target);
+            if (openTabs.length > 1) {
+                const currentIndex = openTabs.indexOf(currentOpenFile);
+                const nextIndex = (currentIndex + 1) % openTabs.length;
+                await openFileInEditor(openTabs[nextIndex]);
+            }
+            return;
+        }
+        if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'tab') {
+            e.preventDefault();
+            if (openTabs.length > 1) {
+                const currentIndex = openTabs.indexOf(currentOpenFile);
+                const nextIndex = (currentIndex - 1 + openTabs.length) % openTabs.length;
+                await openFileInEditor(openTabs[nextIndex]);
+            }
             return;
         }
         

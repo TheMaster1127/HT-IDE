@@ -21,6 +21,8 @@
 │
 ├── 📁 node_modules/             // Directory for all project dependencies (managed by npm).
 │
+├── 📁 property files/           // For custom compile/run commands (.htpc, .htpr).
+│
 ├── 📁 js/                       // All application logic (Renderer), loaded in order.
 │   ├── 📜 1_state.js              // Global variables (the app's central memory).
 │   ├── 📜 2_autocomplete_keywords.js   // All autocomplete keywords for non HTVM langs.

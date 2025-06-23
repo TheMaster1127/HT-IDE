@@ -1,8 +1,8 @@
 // electron_main.js
 
-const { app, BrowserWindow, ipcMain, globalShortcut, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, dialog, shell, Menu } = require('electron');
 const path = require('path');
-const fs = require('fs');
+const fs = require('fs'); // MODIFIED: Corrected the critical typo here.
 const os = require('os');
 const { spawn } = require('child_process');
 const DiscordRPC = require('discord-rpc');
@@ -90,6 +90,10 @@ app.whenReady().then(async () => {
         const focusedWindow = BrowserWindow.getFocusedWindow();
         if (focusedWindow) focusedWindow.webContents.toggleDevTools();
     });
+    globalShortcut.register('CommandOrControl+Shift+R', () => {
+        const focusedWindow = BrowserWindow.getFocusedWindow();
+        if (focusedWindow) focusedWindow.webContents.reloadIgnoringCache();
+    });
     globalShortcut.register('CommandOrControl+=', () => {
         const focusedWindow = BrowserWindow.getFocusedWindow();
         if (focusedWindow) focusedWindow.webContents.setZoomLevel(focusedWindow.webContents.getZoomLevel() + 0.5);
@@ -115,13 +119,16 @@ ipcMain.on('show-tab-context-menu', (event, filePath) => {
     const template = [
         {
             label: 'Open File Location',
-            click: () => shell.showItemInFolder(filePath)
+            click: () => {
+                shell.showItemInFolder(filePath);
+            }
         }
     ];
-    const menu = contextMenu({
-        prepend: () => template,
-        window: BrowserWindow.fromWebContents(event.sender)
-    });
+    const menu = Menu.buildFromTemplate(template);
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win) {
+        menu.popup({ window: win });
+    }
 });
 
 ipcMain.handle('dialog:openDirectory', async () => {

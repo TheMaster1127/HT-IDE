@@ -105,7 +105,7 @@ function renderTabs() {
         tab.addEventListener('dragleave', handleDragLeave);
         tab.addEventListener('drop', handleDrop);
         
-        // --- NEW: Add context menu for right-click ---
+        // MODIFIED: Added context menu event listener for right-click on tabs.
         tab.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             window.electronAPI.showTabContextMenu(filename);

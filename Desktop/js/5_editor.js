@@ -35,6 +35,12 @@ async function openFileInEditor(filename) {
         });
     }
 
+    // MODIFIED: Force re-read from disk by removing the old session if it exists.
+    // This prevents stale content from being shown when a file is edited externally.
+    if (fileSessions.has(filename)) {
+        fileSessions.delete(filename);
+    }
+
     if (!fileSessions.has(filename)) {
         const content = await window.electronAPI.getFileContent(filename) ?? "";
         const isHtvmLike = filename.endsWith('.htvm') || filename.endsWith('.htpc') || filename.endsWith('.htpr');
