@@ -25,7 +25,8 @@ else:
 # instead of the default '/static/style.css'.
 app = Flask(__name__, template_folder='.', static_folder='.', static_url_path='')
 app.config['SECRET_KEY'] = 'secret-key-for-ht-ide!'
-socketio = SocketIO(app, async_mode='gevent')
+# MODIFIED: Removed async_mode='gevent' to use standard threading, avoiding compilation issues.
+socketio = SocketIO(app)
 
 ROOT_DIR = os.getcwd()
 print(f"Serving HT-IDE from root directory: {ROOT_DIR}")
@@ -199,7 +200,6 @@ def toggle_http_server():
         data = request.json
         port = data.get('port', 8080)
         root_path_rel = data.get('rootPath', '')
-        
         # Ensure the root path for the server is also within the main project directory
         root_path_abs = os.path.join(ROOT_DIR, root_path_rel.lstrip('/'))
         if not is_safe_path(ROOT_DIR, root_path_abs):
