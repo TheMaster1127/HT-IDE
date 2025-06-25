@@ -526,22 +526,27 @@ function openHtvmToHtvmModal() {
         fileInput.type = 'file';
         fileInput.multiple = true;
         fileInput.accept = '.htvm';
-        fileInput.onchange = async (e) => { // MODIFIED: Made async to await getAllPaths
+        fileInput.onchange = async (e) => {
             const files = e.target.files;
             if (!files || files.length === 0) return;
 
             overlay.style.display = 'none';
             term.writeln(`\x1b[36mStarting HTVM to HTVM conversion for ${files.length} file(s)...\x1b[0m`);
 
-            // MODIFIED: Fetch the list of known paths ONCE before the loop.
-            const allKnownPathObjects = await getAllPaths();
-            const allKnownPaths = allKnownPathObjects.map(item => item.path);
+            let allKnownPathObjects = await getAllPaths();
+            let allKnownPaths = allKnownPathObjects.map(item => item.path);
 
-            Array.from(files).forEach(file => {
-                const reader = new FileReader();
-                reader.onload = r => {
-                    const codeSnippet = r.target.result;
-                    
+            // MODIFIED: Use a sequential for...of loop to process files one by one.
+            for (const file of Array.from(files)) {
+                try {
+                    // Promisify the FileReader to use it with await
+                    const codeSnippet = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsText(file);
+                    });
+
                     resetGlobalVarsOfHTVMjs();
 
                     let instrFile = targetInstructionSetContent;
@@ -581,13 +586,12 @@ function openHtvmToHtvmModal() {
                     const namePart = nameMatch ? nameMatch[1] : baseNewFilename;
                     const extPart = nameMatch ? nameMatch[2] : '';
                     
-                    // MODIFIED: This logic now correctly uses the pre-fetched array of path strings.
-                    // It also correctly constructs the full path for checking.
                     let pathPrefix = currentDirectory === '/' ? '' : currentDirectory;
                     if (pathPrefix && !pathPrefix.endsWith('/') && !pathPrefix.endsWith('\\')) {
                         pathPrefix += '/';
                     }
 
+                    // Check for collisions using the live-updated allKnownPaths array
                     while (allKnownPaths.includes(pathPrefix + finalFilename)) {
                         finalFilename = `${namePart}(${counter})${extPart}`;
                         counter++;
@@ -595,13 +599,21 @@ function openHtvmToHtvmModal() {
 
                     const finalPath = pathPrefix + finalFilename;
                     
-                    saveFileContent(finalPath, convertedCode, false);
-                    term.writeln(`\x1b[32mConverted ${originalFilename} -> ${finalFilename}\x1b[0m`);
+                    // Await the save operation
+                    await saveFileContent(finalPath, convertedCode, false);
                     
-                    renderFileList();
-                };
-                reader.readAsText(file);
-            });
+                    // Add the new path to our list to prevent collisions in the same batch
+                    allKnownPaths.push(finalPath);
+                    
+                    term.writeln(`\x1b[32mConverted ${originalFilename} -> ${finalFilename}\x1b[0m`);
+                } catch (error) {
+                    term.writeln(`\x1b[31mError processing file ${file.name}: ${error.message}\x1b[0m`);
+                }
+            }
+            
+            // Render the file list only ONCE after all files are processed
+            await renderFileList();
+            
             setTimeout(() => {
                 term.writeln(`\x1b[32m\nConversion process finished. Check the file list for new '.converted.htvm' files.\x1b[0m`);
                 term.write('$ ');

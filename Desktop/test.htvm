@@ -1,0 +1,9 @@
+
+
+B:
+MsgBox, hi
+subout
+
+main
+gui pid:"gui1" x50% y50% w50% h50%
+gui pid:"gui1" fB button x50% y20%
