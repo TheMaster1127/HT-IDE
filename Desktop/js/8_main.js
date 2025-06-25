@@ -13,14 +13,12 @@ window.addEventListener('keyup', (e) => {
     }
 });
 
-// --- NEW: Terminal Interaction State ---
+// MODIFIED: State variables are now in 1_state.js
 let commandHistory = [];
 let historyIndex = -1;
-let currentLine = ""; // For building commands
-let isExecuting = false;
-let processInputLine = ""; // For sending input to running processes
+let currentLine = ""; // For building commands before execution
 
-// --- NEW: Function to display the command prompt ---
+// MODIFIED: Function to display the command prompt. Now correctly handles the prompt text.
 function writePrompt() {
     currentLine = "";
     processInputLine = "";
@@ -152,15 +150,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     term.open(document.getElementById('terminal'));
     fitAddon.fit();
 
-    // MODIFIED: Complete overhaul of terminal key handling
+    // MODIFIED: Complete overhaul of terminal key handling to fix all reported bugs.
     term.onKey(async ({ key, domEvent }) => {
-        const printable = !domEvent.altKey && !domEvent.metaKey;
-
         // --- Ctrl+C Handler ---
         if (domEvent.ctrlKey && domEvent.key.toLowerCase() === 'c') {
             if (isExecuting) {
+                // If a process is running, send an interrupt signal.
                 window.electronAPI.terminalKillProcess();
             } else {
+                // If not, just print ^C and a new prompt line.
                 term.write('^C');
                 writePrompt();
             }
@@ -187,15 +185,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         // --- State 2: Building a command at the prompt ---
+        const shortCwd = terminalCwd.length > 30 ? `...${terminalCwd.slice(-27)}` : terminalCwd;
+        const promptText = `\x1b[1;32m${shortCwd}\x1b[0m $ `;
+
         if (domEvent.key === 'Enter') {
-            if (currentLine) {
+            if (currentLine.trim()) {
                 commandHistory = commandHistory.filter(c => c !== currentLine);
                 commandHistory.unshift(currentLine);
                 if(commandHistory.length > 50) commandHistory.pop();
                 historyIndex = -1;
                 term.writeln('');
                 isExecuting = true; // Set state to executing
-                window.electronAPI.runCommand(currentLine, terminalCwd);
+                await window.electronAPI.runCommand(currentLine, terminalCwd);
             } else {
                 writePrompt();
             }
@@ -207,40 +208,37 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else if (domEvent.key === 'ArrowUp') {
             if (historyIndex < commandHistory.length - 1) {
                 historyIndex++;
-                const prompt = `\r\x1b[1;32m${terminalCwd.length > 30 ? `...${terminalCwd.slice(-27)}` : terminalCwd}\x1b[0m $ `;
-                term.write('\x1b[2K' + prompt);
                 currentLine = commandHistory[historyIndex];
-                term.write(currentLine);
+                term.write('\r\x1b[K' + promptText + currentLine);
             }
         } else if (domEvent.key === 'ArrowDown') {
              if (historyIndex > 0) {
                 historyIndex--;
-                const prompt = `\r\x1b[1;32m${terminalCwd.length > 30 ? `...${terminalCwd.slice(-27)}` : terminalCwd}\x1b[0m $ `;
-                term.write('\x1b[2K' + prompt);
                 currentLine = commandHistory[historyIndex];
-                term.write(currentLine);
+                term.write('\r\x1b[K' + promptText + currentLine);
             } else {
                 historyIndex = -1;
-                const prompt = `\r\x1b[1;32m${terminalCwd.length > 30 ? `...${terminalCwd.slice(-27)}` : terminalCwd}\x1b[0m $ `;
-                term.write('\x1b[2K' + prompt);
                 currentLine = "";
+                term.write('\r\x1b[K' + promptText);
             }
         } else if (domEvent.key === 'Tab') {
             domEvent.preventDefault();
-            const words = currentLine.split(/\s+/);
+            const words = currentLine.split(/(\s+)/);
             const partial = words.pop() || "";
-            if (!partial) return;
+            const precedingWhitespace = words.pop() || "";
+            
+            if (!partial.trim()) return;
 
             const matches = await window.electronAPI.terminalAutocomplete(partial, terminalCwd);
-
+            
             if (matches.length === 1) {
-                const completed = matches[0];
-                const diff = completed.substring(partial.length);
+                const completion = matches[0];
+                const diff = completion.substring(partial.length);
                 term.write(diff);
                 currentLine += diff;
             } else if (matches.length > 1) {
                 const commonPrefix = matches.reduce((prefix, current) => {
-                    while (current.slice(0, prefix.length) !== prefix) {
+                    while (!current.startsWith(prefix)) {
                         prefix = prefix.slice(0, -1);
                     }
                     return prefix;
@@ -254,10 +252,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 
                 const displayNames = matches.map(m => path.basename(m.replace(/["\/\\]/g, '')));
                 term.writeln('\r\n' + displayNames.join('   '));
-                writePrompt();
-                term.write(currentLine);
+                term.write(`\r\n${promptText}${currentLine}`);
             }
-        } else if (printable) {
+        } else if (!domEvent.altKey && !domEvent.metaKey && !domEvent.ctrlKey) {
             currentLine += key;
             term.write(key);
         }

@@ -39,73 +39,91 @@ function updatePresence(details = "Idle", state = "In the main menu", lineCount 
 const runningProcesses = new Map();
 let activeInteractiveProcess = null;
 
+// MODIFIED: This function now returns a Promise, allowing the renderer process to 'await'
+// the completion of a command. This is critical for running commands sequentially and
+// preventing zombie processes.
 function runCommand(command, cwd, event) {
-    const trimmedCommand = command.trim();
-    if (!trimmedCommand) {
-        event.sender.send('command-close', 0);
-        return;
-    }
-    
-    const [cmd, ...args] = trimmedCommand.split(' ');
-    if (cmd === 'cd') {
-        let targetDir = args.join(' ').trim();
-        if (!targetDir || targetDir === '~') {
-            targetDir = userHomeDir;
+    return new Promise((resolve, reject) => {
+        const trimmedCommand = command.trim();
+        if (!trimmedCommand) {
+            event.sender.send('command-close', 0);
+            resolve(0);
+            return;
         }
-        const newCwd = path.resolve(cwd, targetDir);
-        try {
-            if (fs.statSync(newCwd).isDirectory()) {
-                event.sender.send('terminal:update-cwd', newCwd);
-            } else {
-                event.sender.send('command-error', `\r\ncd: not a directory: ${newCwd}`);
+        
+        const [cmd, ...args] = trimmedCommand.split(' ');
+        if (cmd === 'cd') {
+            let targetDir = args.join(' ').trim();
+            if (!targetDir || targetDir === '~') {
+                targetDir = userHomeDir;
             }
-        } catch (error) {
-            event.sender.send('command-error', `\r\ncd: no such file or directory: ${newCwd}`);
+            const newCwd = path.resolve(cwd, targetDir);
+            try {
+                if (fs.statSync(newCwd).isDirectory()) {
+                    event.sender.send('terminal:update-cwd', newCwd);
+                } else {
+                    event.sender.send('command-error', `\r\ncd: not a directory: ${newCwd}`);
+                }
+            } catch (error) {
+                event.sender.send('command-error', `\r\ncd: no such file or directory: ${newCwd}`);
+            }
+            event.sender.send('command-close', 0);
+            resolve(0);
+            return;
         }
-        event.sender.send('command-close', 0);
-        return;
-    }
 
-    const process = spawn(cmd, args, { cwd, shell: true });
-    activeInteractiveProcess = process;
-    const processId = process.pid;
-    runningProcesses.set(processId, process);
+        const process = spawn(cmd, args, { cwd, shell: true });
+        activeInteractiveProcess = process;
+        const processId = process.pid;
+        runningProcesses.set(processId, process);
 
-    process.stdout.on('data', (data) => event.sender.send('command-output', data.toString()));
-    process.stderr.on('data', (data) => event.sender.send('command-error', data.toString()));
-    process.on('close', (code) => {
-        runningProcesses.delete(processId);
-        activeInteractiveProcess = null;
-        event.sender.send('command-close', code);
-    });
-    process.on('error', (err) => {
-        runningProcesses.delete(processId);
-        activeInteractiveProcess = null;
-        event.sender.send('command-error', `Error: ${err.message}`);
+        process.stdout.on('data', (data) => event.sender.send('command-output', data.toString()));
+        process.stderr.on('data', (data) => event.sender.send('command-error', data.toString()));
+        
+        process.on('close', (code) => {
+            runningProcesses.delete(processId);
+            if (activeInteractiveProcess && activeInteractiveProcess.pid === processId) {
+                activeInteractiveProcess = null;
+            }
+            event.sender.send('command-close', code);
+            resolve(code); // Resolve the promise with the exit code
+        });
+
+        process.on('error', (err) => {
+            runningProcesses.delete(processId);
+             if (activeInteractiveProcess && activeInteractiveProcess.pid === processId) {
+                activeInteractiveProcess = null;
+            }
+            event.sender.send('command-error', `Error: ${err.message}`);
+            event.sender.send('command-close', 1);
+            reject(err); // Reject the promise on error
+        });
     });
 }
 
 ipcMain.on('terminal:write-to-stdin', (event, data) => {
-    if (activeInteractiveProcess) {
+    if (activeInteractiveProcess && activeInteractiveProcess.stdin && !activeInteractiveProcess.stdin.destroyed) {
         activeInteractiveProcess.stdin.write(data);
     }
 });
 
 ipcMain.on('terminal:kill-process', () => {
     if (activeInteractiveProcess) {
-        activeInteractiveProcess.kill('SIGINT');
-        activeInteractiveProcess = null;
+        // Use 'SIGINT' to simulate Ctrl+C, which is more graceful than 'SIGKILL'
+        activeInteractiveProcess.kill('SIGINT'); 
     }
 });
 
-// NEW: Handler for tab autocompletion requests from the terminal.
+// MODIFIED: Autocomplete logic fixed to handle subdirectories and return correct suggestions.
 ipcMain.handle('terminal:autocomplete', (event, { partial, cwd }) => {
     try {
-        const entries = fs.readdirSync(cwd, { withFileTypes: true });
-        // Handle paths with spaces correctly by not splitting them
         const baseName = path.basename(partial);
         const dirName = path.dirname(partial);
-        const prefix = (dirName === '.') ? '' : dirName + (cwd.includes('\\') ? '\\' : '/');
+        
+        // The directory we need to read from
+        const searchPath = path.resolve(cwd, dirName);
+
+        const entries = fs.readdirSync(searchPath, { withFileTypes: true });
         
         const matches = entries
             .filter(entry => entry.name.toLowerCase().startsWith(baseName.toLowerCase()))
@@ -119,7 +137,8 @@ ipcMain.handle('terminal:autocomplete', (event, { partial, cwd }) => {
                 if (entry.isDirectory()) {
                     name += (process.platform === 'win32' ? '\\' : '/');
                 }
-                return prefix + name;
+                // Re-attach the directory part of the partial and normalize slashes
+                return path.join(dirName, name).replace(/\\/g, '/');
             });
         return matches;
     } catch (e) {
@@ -292,7 +311,8 @@ ipcMain.handle('dialog:openDirectory', async () => {
 ipcMain.handle('get-app-path', () => app.getAppPath());
 ipcMain.handle('get-home-dir', () => os.homedir());
 ipcMain.handle('update-discord-presence', (event, { details, state, lineCount }) => { updatePresence(details, state, lineCount); });
-ipcMain.handle('run-command', (event, { command, cwd }) => { runCommand(command.replace(/~~~/g, ' '), cwd, event); });
+// MODIFIED: The handler now directly returns the promise from the modified runCommand function.
+ipcMain.handle('run-command', (event, { command, cwd }) => runCommand(command.replace(/~~~/g, ' '), cwd, event));
 ipcMain.handle('fs:getAllPaths', (event, dirPath) => { try { const p = dirPath === '/' ? userHomeDir : dirPath; const i = fs.readdirSync(p, { withFileTypes: true }); return i.map(t => ({ name: t.name, path: path.join(p, t.name), isFile: t.isFile() })); } catch (e) { if (e.code === 'ENOENT') return []; console.error(`Error reading directory ${dirPath}:`, e); return []; } });
 ipcMain.handle('fs:getFileContent', (event, filePath) => { try { if (fs.existsSync(filePath)) return fs.readFileSync(filePath, 'utf-8'); return null; } catch (e) { console.error(e); return null; } });
 ipcMain.handle('fs:saveFileContent', async (event, { filePath, content }) => { try { fs.writeFileSync(filePath, content); return { success: true }; } catch (e) { return { success: false, error: e.message }; } });

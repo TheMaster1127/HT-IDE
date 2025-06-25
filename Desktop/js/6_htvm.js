@@ -123,6 +123,8 @@ async function runJsCode(code) {
         const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
         const userFunc = new AsyncFunction('__debug_pause__', codeToRun);
 
+        // MODIFIED: Set execution state for potential stdin from JS code (less common, but for consistency)
+        isExecuting = true;
         await userFunc(__debug_pause__);
 
     } catch (e) {
@@ -138,6 +140,8 @@ async function runJsCode(code) {
         }
         debuggerState.isActive = false;
         debuggerState.isPaused = false;
+        isExecuting = false; // Reset state
+        writePrompt(); // Write new prompt
         clearHighlight();
     }
 }
@@ -198,9 +202,11 @@ async function runHtvmCode(code) {
             await runJsCode(compiled);
         } else {
             printExecutionEndMessage();
+            writePrompt();
         }
     } else {
         printExecutionEndMessage();
+        writePrompt();
     }
 }
 
@@ -208,9 +214,8 @@ async function handleRun(e) {
     e?.preventDefault();
     if (!currentOpenFile) return;
 
-    if (debuggerState.isActive) {
-        term.writeln(`\x1b[31mError: Cannot start a new execution while the debugger is active.\x1b[0m`);
-        term.writeln(`\x1b[33mPlease 'Resume' or 'Stop' the current debugging session first.\x1b[0m`);
+    if (isExecuting || debuggerState.isActive) {
+        term.writeln(`\x1b[31mError: Cannot start a new execution while another process is active.\x1b[0m`);
         term.write('$ ');
         return;
     }
@@ -231,7 +236,11 @@ async function handleRun(e) {
     } else if (ext === 'html') {
         runHtmlCode(editor.getValue());
     } else {
-        // --- NEW: For all other languages, use the .htpr property file system ---
+        // MODIFIED: Set the global execution flag. The 'onCommandClose' event listener
+        // in 8_main.js will automatically reset this flag and write a new prompt
+        // when the final command from the property file finishes.
+        // This is the key fix for enabling stdin for python, C++, etc.
+        isExecuting = true;
         await runPropertyCommand('run');
     }
 }
