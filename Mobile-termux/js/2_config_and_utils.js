@@ -13,7 +13,8 @@ const instructionSetKeys = {
 };
 
 const hotkeyConfig = {
-    runFile:      { label: 'Run File', default: { key: 'Enter', ctrl: true, shift: false, alt: false }, secondary: { key: 'F5', ctrl: false, shift: false, alt: false } },
+    runFile:      { label: 'Run File (F5 / .htpr)', default: { key: 'Enter', ctrl: true, shift: false, alt: false }, secondary: { key: 'F5', ctrl: false, shift: false, alt: false } },
+    compileFile:  { label: 'Compile File (Ctrl+F7 / .htpc)', default: { key: 'F7', ctrl: true, shift: false, alt: false } },
     saveFile:     { label: 'Save File', default: { key: 's', ctrl: true, shift: false, alt: false } },
     formatFile:   { label: 'Format HTVM File', default: { key: 'f', ctrl: true, shift: true, alt: false } },
     closeTab:     { label: 'Close Tab', default: { key: 'w', ctrl: true, shift: false, alt: false } },
@@ -70,6 +71,12 @@ const uiThemeConfig = {
     '--btn-export-import-text': { label: '"Export/Import" Text', default: '#ffffff', type: 'color', category: 'Sidebar Buttons', description: 'Text for the "Export/Import" button.', hasBoldToggle: true, defaultBold: false },
     '--btn-open-folder-bg': { label: '"Open New Folder" BG', default: '#0e639c', type: 'color', category: 'Sidebar Buttons', description: 'Background color for the "Open New Folder" button.' },
     '--btn-open-folder-text': { label: '"Open New Folder" Text', default: '#ffffff', type: 'color', category: 'Sidebar Buttons', description: 'Text color for the "Open New Folder" button.', hasBoldToggle: true, defaultBold: false },
+    // --- MODIFIED: Renamed from "Web Server" to "Sidebar Buttons" for consistency
+    '--btn-http-server-start-bg': { label: 'Start Server Button BG', default: '#4caf50', type: 'color', category: 'Sidebar Buttons', description: 'Background color for the "Start Server" button.' },
+    '--btn-http-server-start-text': { label: 'Start Server Button Text', default: '#ffffff', type: 'color', category: 'Sidebar Buttons', description: 'Text color for the "Start Server" button.', hasBoldToggle: true, defaultBold: false },
+    '--btn-http-server-stop-bg': { label: 'Stop Server Button BG', default: '#f44336', type: 'color', category: 'Sidebar Buttons', description: 'Background color for the "Stop Server" button when it is running.' },
+    '--btn-http-server-stop-text': { label: 'Stop Server Button Text', default: '#ffffff', type: 'color', category: 'Sidebar Buttons', description: 'Text color for the "Stop Server" button.', hasBoldToggle: true, defaultBold: false },
+
 
     // --- Sidebar Category ---
     '--sidebar-bg': { label: 'Sidebar Background', default: '#121212', type: 'color', category: 'Sidebar', description: 'The main background color of the file explorer sidebar.' },

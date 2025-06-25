@@ -1,3 +1,5 @@
+// js/5_editor.js
+
 // --- Editor and Tab Management ---
 
 function setupGutterEvents() {
@@ -22,10 +24,25 @@ function setupGutterEvents() {
     });
 }
 
-function openFileInEditor(filename) {
-    if (!filename || currentOpenFile === filename) return;
+async function openFileInEditor(filename) {
+    if (!filename) return;
+    
+    // If we are just re-focusing the same file, do nothing.
+    if (currentOpenFile === filename) return;
+
+    const content = await getFileContent(filename);
+    if (content === null) {
+        const staleTabIndex = openTabs.indexOf(filename);
+        if (staleTabIndex > -1) {
+            openTabs.splice(staleTabIndex, 1);
+        }
+        alert(`Could not open file: ${filename}. It may not exist or there was a server error.`);
+        await renderAll();
+        return; 
+    }
+    
     if (currentOpenFile) {
-        saveFileContent(currentOpenFile, editor.getValue(), true);
+        lastActiveTab = currentOpenFile;
         lsSet('state_' + currentOpenFile, {
             scrollTop: editor.session.getScrollTop(),
             cursor: editor.getCursorPosition()
@@ -33,21 +50,18 @@ function openFileInEditor(filename) {
     }
 
     if (!fileSessions.has(filename)) {
-        const content = lsGet('file_' + filename) ?? "";
+        const isHtvmLike = filename.endsWith('.htvm') || filename.endsWith('.htpc') || filename.endsWith('.htpr');
         const mode = ace.require("ace/ext/modelist").getModeForPath(filename).mode;
-        const session = ace.createEditSession(content, filename.endsWith('.htvm') ? 'ace/mode/htvm' : mode);
+        const session = ace.createEditSession(content, isHtvmLike ? 'ace/mode/htvm' : mode);
         session.on('change', () => checkDirtyState(filename));
         fileSessions.set(filename, session);
     }
 
     editor.setSession(fileSessions.get(filename));
 
-    // RENDER BREAKPOINTS FOR THE OPENED FILE
     const breakpoints = fileBreakpoints.get(filename) || new Set();
     editor.session.clearBreakpoints();
-    breakpoints.forEach(row => {
-        editor.session.setBreakpoint(row, "ace_breakpoint");
-    });
+    breakpoints.forEach(row => editor.session.setBreakpoint(row, "ace_breakpoint"));
 
     const state = lsGet('state_' + filename);
     if (state) {
@@ -62,48 +76,78 @@ function openFileInEditor(filename) {
     currentOpenFile = filename;
     if (!openTabs.includes(filename)) openTabs.push(filename);
 
-    renderAll();
+    await renderAll();
     updateEditorModeForHtvm();
+
+    const activeTab = document.querySelector('.tab.active');
+    if (activeTab) {
+        activeTab.scrollIntoView({
+            block: 'nearest',
+            inline: 'nearest' 
+        });
+    }
 }
 
-function closeTab(filenameToClose, force = false) {
+async function closeTab(filenameToClose, force = false) {
     if (!force && fileSessions.has(filenameToClose) && !fileSessions.get(filenameToClose).getUndoManager().isClean()) {
         if (!confirm("You have unsaved changes. Close anyway?")) return;
     }
 
     const index = openTabs.indexOf(filenameToClose);
     if (index === -1) return;
-
+    
     if (!force) recentlyClosedTabs.push(filenameToClose);
+    
     openTabs.splice(index, 1);
+    
+    if (!force) {
+        fileSessions.delete(filenameToClose);
+    }
 
     if (currentOpenFile === filenameToClose) {
         currentOpenFile = null;
-        if (openTabs.length > 0) {
-            openFileInEditor(openTabs[Math.max(0, index - 1)]);
+        lastActiveTab = null;
+        const nextFileToOpen = openTabs[Math.max(0, index - 1)] || null;
+        
+        if (nextFileToOpen) {
+            await openFileInEditor(nextFileToOpen); 
         } else {
             editor.setSession(ace.createEditSession("// No file open."));
             editor.setReadOnly(true);
             document.getElementById('htvm-controls').style.display = 'none';
+            await renderAll(); 
         }
+    } else {
+        await renderAll();
     }
-    renderAll();
 }
 
-function handleCloseTabRequest(filename) {
+async function handleCloseTabRequest(filename) {
     if (!filename) return;
     if (fileSessions.has(filename)) {
         if (!fileSessions.get(filename).getUndoManager().isClean()) {
-            saveFileContent(filename, editor.getValue(), true);
+            const contentToSave = fileSessions.get(filename).getValue();
+            await saveFileContent(filename, contentToSave, true);
         }
     }
-    closeTab(filename);
+    await closeTab(filename);
 }
 
-const handleReopenTab = () => {
-    const f = recentlyClosedTabs.pop();
-    if (f && getAllPaths().includes(f)) {
-        openFileInEditor(f);
+const handleReopenTab = async () => {
+    const fileToReopen = recentlyClosedTabs.pop();
+    if (!fileToReopen) {
+        return; 
+    }
+
+    const content = await getFileContent(fileToReopen);
+
+    if (content !== null) {
+        await openFileInEditor(fileToReopen);
+    } else {
+        console.warn(`Attempted to reopen a tab for a file that no longer exists: ${fileToReopen}`);
+        if (recentlyClosedTabs.length > 0) {
+            await handleReopenTab();
+        }
     }
 };
 
@@ -140,11 +184,7 @@ function updateEditorModeForHtvm() {
         if (!currentBlock) {
             for (const marker in languageMarkers) {
                 if (marker && marker !== 'undefined' && line.includes(marker)) {
-                    currentBlock = {
-                        start: i,
-                        lang: languageMarkers[marker].lang,
-                        endMarker: languageMarkers[marker].end
-                    };
+                    currentBlock = { start: i, lang: languageMarkers[marker].lang, endMarker: languageMarkers[marker].end };
                     break;
                 }
             }
@@ -152,22 +192,14 @@ function updateEditorModeForHtvm() {
         
         if (currentBlock) {
             if (currentBlock.endMarker && currentBlock.endMarker !== 'undefined' && line.includes(currentBlock.endMarker)) {
-                detectedBlocks.push({
-                    start: currentBlock.start,
-                    end: i,
-                    lang: currentBlock.lang
-                });
+                detectedBlocks.push({ start: currentBlock.start, end: i, lang: currentBlock.lang });
                 currentBlock = null; 
             }
         }
     }
     
     if (currentBlock) {
-         detectedBlocks.push({
-            start: currentBlock.start,
-            end: lines.length -1,
-            lang: currentBlock.lang
-        });
+         detectedBlocks.push({ start: currentBlock.start, end: lines.length -1, lang: currentBlock.lang });
     }
 
     let lang = "htvm";
@@ -181,16 +213,6 @@ function updateEditorModeForHtvm() {
     const modeMap = {'js':'javascript','py':'python','cpp':'c_cpp','go':'golang','lua':'lua','cs':'csharp','java':'java','kt':'kotlin','rb':'ruby','nim':'nim','ahk':'autohotkey','swift':'swift','dart':'dart','ts':'typescript','groovy':'groovy','htvm':'htvm'};
     const finalMode = `ace/mode/${modeMap[lang] || 'text'}`;
 
-    // --- THE DEFINITIVE SLEDGEHAMMER FIX ---
-    // The bug is a deep state corruption in the Ace session, caused by previous buggy code.
-    // Smart checks are not enough. We must assume the session is poisoned and
-    // forcefully tear down and rebuild the mode from scratch on every single cursor
-    // move or tab switch inside an HTVM file. This is aggressive, but it guarantees
-    // the corrupted state is destroyed and the highlighting works consistently.
-
-    // 1. Force the mode to a neutral, temporary state. This destroys the old tokenizer.
     editor.session.setMode("ace/mode/text");
-
-    // 2. Immediately apply the correct mode. This creates a brand new, clean tokenizer.
     editor.session.setMode(finalMode);
 }

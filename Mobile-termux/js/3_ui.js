@@ -2,65 +2,69 @@
 let draggedTab = null;
 
 // --- UI Rendering Functions ---
-function renderAll() {
-    renderFileList();
+async function renderAll() {
+    await renderFileList();
     renderTabs();
+    renderTerminalTabs();
 }
 
-function renderFileList() {
+async function renderFileList() {
     const el = document.getElementById('file-list');
     el.innerHTML = '';
-    const tree = {};
-    getAllPaths().forEach(p => {
-        let l = tree;
-        p.split('/').filter(Boolean).forEach((part, i, a) => {
-            if (!l[part]) l[part] = { _children: {} };
-            if (i === a.length - 1) {
-                l[part]._isFile = !p.endsWith('/');
-                l[part]._path = p;
-            }
-            l = l[part]._children;
-        });
-    });
+    
+    el.ondragover = (e) => {
+        e.preventDefault();
+        el.style.backgroundColor = 'var(--sidebar-file-active-bg)';
+    };
+    el.ondragleave = el.ondragend = () => {
+        el.style.backgroundColor = '';
+    };
+    el.ondrop = async (e) => {
+        e.preventDefault();
+        el.style.backgroundColor = '';
+        // File drop via browser API is complex and a security risk on web servers.
+        // This functionality is simplified/removed in the web version.
+        getActiveTerminalSession()?.xterm.writeln('\x1b[33mFile dropping is not supported in the web version.\x1b[0m');
+    };
 
-    let node = tree;
-    currentDirectory.split('/').filter(Boolean).forEach(part => {
-        if (node && node[part]?._children) node = node[part]._children;
-    });
+    const allPaths = await getAllPaths();
 
     if (currentDirectory !== '/') {
         const li = document.createElement('li');
-        li.innerHTML = `<strong>..</strong>`;
+        li.innerHTML = `<strong>📁 ..</strong>`;
         li.onclick = () => {
-            const parts = currentDirectory.split('/').filter(Boolean);
-            parts.pop();
-            setCurrentDirectory(parts.length ? `/${parts.join('/')}/` : '/');
+            let parentDir = currentDirectory.replace(/[\/\\]$/, '').split(/[\/\\]/).slice(0, -1).join('/');
+            setCurrentDirectory(parentDir || '/');
         };
         el.appendChild(li);
     }
 
-    Object.keys(node || {}).sort((a, b) => (node[a]._isFile === node[b]._isFile) ? a.localeCompare(b) : node[a]._isFile ? 1 : -1).forEach(key => {
-        const item = node[key];
+    allPaths.forEach(item => {
         const li = document.createElement('li');
         const span = document.createElement('span');
         span.className = 'file-item-name';
-        span.textContent = `${item._isFile ? '📄' : '📁'} ${key}`;
-        li.onclick = () => (item._isFile ? openFileInEditor(item._path) : setCurrentDirectory(item._path));
+        
+        span.textContent = `${item.isFile ? '📄' : '📁'} ${item.name}`;
+        li.title = item.path;
+
+        li.onclick = () => (item.isFile ? openFileInEditor(item.path) : setCurrentDirectory(item.path));
 
         const delBtn = document.createElement('button');
         delBtn.textContent = '🗑️';
         delBtn.style.cssText = 'background:none;border:none;color:#aaa;cursor:pointer;margin-left:auto;visibility:hidden;';
         li.onmouseenter = () => delBtn.style.visibility = 'visible';
         li.onmouseleave = () => delBtn.style.visibility = 'hidden';
-        delBtn.onclick = e => {
+        
+        delBtn.onclick = (e) => {
             e.stopPropagation();
-            deleteItem(item._path, item._isFile);
+            deleteItem(item.path, item.isFile);
         };
 
         li.appendChild(span);
         li.appendChild(delBtn);
         el.appendChild(li);
     });
+
     updateActiveFileVisuals(currentOpenFile);
 }
 
@@ -72,11 +76,11 @@ function renderTabs() {
         tab.className = 'tab';
         tab.dataset.filename = filename;
         tab.title = filename;
-        tab.draggable = true; // Make the tab draggable
+        tab.draggable = true;
 
         const name = document.createElement('span');
         name.className = 'file-name';
-        name.textContent = filename.split('/').pop();
+        name.textContent = filename.replace(/^.*[\\\/]/, '');
         tab.appendChild(name);
 
         const close = document.createElement('span');
@@ -88,7 +92,6 @@ function renderTabs() {
         };
         tab.appendChild(close);
         
-        // Add event listeners for drag-and-drop
         tab.addEventListener('dragstart', handleDragStart);
         tab.addEventListener('dragend', handleDragEnd);
         tab.addEventListener('dragover', handleDragOver);
@@ -102,9 +105,127 @@ function renderTabs() {
     updateActiveFileVisuals(currentOpenFile);
 }
 
+// --- NEW: Terminal UI Functions ---
+
+function renderTerminalTabs() {
+    const container = document.getElementById('terminal-tabs-container');
+    // Clear existing tabs, but not the '+' button
+    while (container.firstChild && container.firstChild.id !== 'new-terminal-btn') {
+        container.removeChild(container.firstChild);
+    }
+
+    const newBtn = document.getElementById('new-terminal-btn');
+    
+    terminalSessions.forEach(session => {
+        const tab = document.createElement('div');
+        tab.className = 'terminal-tab';
+        tab.dataset.id = session.id;
+        tab.textContent = `Terminal ${session.id}`;
+        if (session.id === activeTerminalId) {
+            tab.classList.add('active');
+        }
+
+        tab.onclick = () => handleSwitchTerminal(session.id);
+
+        const closeBtn = document.createElement('span');
+        closeBtn.className = 'close-terminal-tab';
+        closeBtn.textContent = '×';
+        closeBtn.onclick = (e) => {
+            e.stopPropagation();
+            handleCloseTerminal(session.id);
+        };
+        tab.appendChild(closeBtn);
+
+        container.insertBefore(tab, newBtn);
+    });
+}
+
+async function handleNewTerminal() {
+    const isFirstTerminal = terminalSessions.size === 0;
+    const id = isFirstTerminal ? 1 : Math.max(...Array.from(terminalSessions.keys())) + 1;
+
+    const session = {
+        id: id,
+        xterm: null,
+        fitAddon: null,
+        cwd: currentDirectory, // CWD is now relative to server root
+        isExecuting: false,
+    };
+
+    terminalSessions.set(id, session);
+    await handleSwitchTerminal(id); // This will create the DOM elements and xterm instance
+    renderTerminalTabs();
+    
+    if (isFirstTerminal && session.xterm) {
+        session.xterm.writeln(`\x1b[1;32mWelcome to HT-IDE! (Workspace ID: ${IDE_ID})\x1b[0m`);
+        session.xterm.writeln(`\x1b[33mTerminal is running on the server. 'cd' is not supported.\x1b[0m`);
+    }
+
+    const activeSession = getActiveTerminalSession();
+    if(activeSession && activeSession.xterm) {
+        activeSession.xterm.focus();
+    }
+}
+
+function handleCloseTerminal(id) {
+    const session = terminalSessions.get(id);
+    if (session) {
+        socket.emit('terminal_kill', { terminalId: id });
+        session.xterm.dispose();
+        session.pane.remove();
+        terminalSessions.delete(id);
+    }
+
+    if (activeTerminalId === id) {
+        const remainingIds = Array.from(terminalSessions.keys());
+        const newActiveId = remainingIds.length > 0 ? remainingIds[0] : null;
+        if (newActiveId) {
+            handleSwitchTerminal(newActiveId);
+        } else {
+            activeTerminalId = null;
+        }
+    }
+    
+    renderTerminalTabs();
+}
+
+async function handleSwitchTerminal(id) {
+    if (activeTerminalId === id && terminalSessions.get(id)?.xterm) return;
+
+    activeTerminalId = id;
+    const panesContainer = document.getElementById('terminal-panes');
+    
+    document.querySelectorAll('.terminal-pane').forEach(p => p.classList.remove('active'));
+
+    let session = terminalSessions.get(id);
+    if (!session.pane) {
+        session.pane = document.createElement('div');
+        session.pane.className = 'terminal-pane';
+        session.pane.dataset.id = id;
+        panesContainer.appendChild(session.pane);
+
+        await createTerminalInstanceForSession(session);
+        socket.emit('terminal_start', { terminalId: id, cwd: session.cwd });
+    }
+    
+    session.pane.classList.add('active');
+    renderTerminalTabs();
+
+    if (session.xterm) {
+        session.xterm.focus();
+        session.fitAddon.fit();
+    }
+}
+
+// --- END: Terminal UI Functions ---
+
 function updateActiveFileVisuals(filename) {
     document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.filename === filename));
-    document.querySelectorAll('#file-list li').forEach(li => li.classList.toggle('active-file-list-item', li.textContent.includes(filename?.split('/').pop() || '')));
+    const activeFileItem = Array.from(document.querySelectorAll('#file-list li')).find(li => li.title === filename);
+    document.querySelectorAll('#file-list li').forEach(li => li.classList.remove('active-file-list-item'));
+    if (activeFileItem) {
+        activeFileItem.classList.add('active-file-list-item');
+    }
 }
 
 function checkDirtyState(filename) {
@@ -114,10 +235,23 @@ function checkDirtyState(filename) {
     tab.classList.toggle('dirty', isDirty);
 }
 
-function setCurrentDirectory(path) {
-    currentDirectory = path;
-    document.getElementById('current-path-display').textContent = path;
-    lsSet('lastCwd', path);
+async function setCurrentDirectory(path) {
+    currentDirectory = path.replace(/\/+/g, '/'); // Normalize slashes
+    if (currentDirectory !== '/' && currentDirectory.endsWith('/')) {
+        currentDirectory = currentDirectory.slice(0, -1);
+    }
+    if (currentDirectory === '') currentDirectory = '/';
+
+    document.getElementById('current-path-display').textContent = currentDirectory;
+    lsSet('lastCwd', currentDirectory);
+    
+    const activeSession = getActiveTerminalSession();
+    if(activeSession && !activeSession.isExecuting) {
+        activeSession.cwd = currentDirectory;
+        activeSession.xterm.writeln(`\r\n\x1b[33m(File browser path changed. Terminal CWD is fixed on server.)\x1b[0m`);
+        writePrompt(activeSession);
+    }
+    
     renderFileList();
 }
 
@@ -125,7 +259,7 @@ const toggleDropdown = () => {
     const el = document.getElementById('lang-dropdown');
     el.style.display = el.style.display === 'block' ? 'none' : 'block';
 };
-window.toggleDropdown = toggleDropdown; // Make it globally accessible for onclick
+window.toggleDropdown = toggleDropdown;
 
 function changeLanguage(name, img, lang) {
     document.getElementById('selected-lang-name').textContent = name;
@@ -133,7 +267,7 @@ function changeLanguage(name, img, lang) {
     lsSet('selectedLangExtension', lang);
     toggleDropdown();
 }
-window.changeLanguage = changeLanguage; // Make it globally accessible for onclick
+window.changeLanguage = changeLanguage;
 
 function initResizer(resizerEl, containerEl, lsKey, direction) {
     resizerEl.onmousedown = e => {
@@ -149,7 +283,7 @@ function initResizer(resizerEl, containerEl, lsKey, direction) {
             if (newSize > 100 && newSize < window[direction === 'x' ? 'innerWidth' : 'innerHeight'] - 50) {
                 containerEl.style[direction === 'x' ? 'width' : 'height'] = `${newSize}px`;
                 editor.resize();
-                fitAddon.fit();
+                terminalSessions.forEach(s => s.fitAddon?.fit());
             }
         };
         const stopDrag = () => {
@@ -163,9 +297,10 @@ function initResizer(resizerEl, containerEl, lsKey, direction) {
 }
 
 function printExecutionEndMessage() {
+    const activeSession = getActiveTerminalSession();
+    if (!activeSession) return;
     if (lsGet('clearTerminalOnRun') === true) {
-        term.writeln(`\n\x1b[1;31m=== Execution is over ===\x1b[0m`);
-        term.write('$ ');
+        activeSession.xterm.writeln(`\n\x1b[1;31m=== Execution is over ===\x1b[0m`);
     }
 }
 
@@ -175,6 +310,10 @@ function runHtmlCode(code) {
     iframe.srcdoc = code;
     panel.classList.add('visible');
     printExecutionEndMessage();
+    const activeSession = getActiveTerminalSession();
+    if (activeSession) {
+        writePrompt(activeSession);
+    }
 }
 
 function handleDownloadHtml() {
@@ -194,15 +333,17 @@ function handleDownloadHtml() {
     URL.revokeObjectURL(link.href);
 }
 
-// --- Drag & Drop Handlers ---
 function handleDragStart(e) {
     draggedTab = e.target;
     e.target.classList.add('dragging');
 }
 
 function handleDragEnd(e) {
-    e.target.classList.remove('dragging');
+    if(e.target.classList.contains('dragging')) {
+      e.target.classList.remove('dragging');
+    }
     document.querySelectorAll('.tab.drag-over').forEach(tab => tab.classList.remove('drag-over'));
+    draggedTab = null;
 }
 
 function handleDragOver(e) {
@@ -233,11 +374,8 @@ function handleDrop(e) {
     const draggedIndex = openTabs.indexOf(draggedFilename);
     const targetIndex = openTabs.indexOf(targetFilename);
     
-    // Remove the dragged tab from its original position
     openTabs.splice(draggedIndex, 1);
-    // Insert it at the new position
     openTabs.splice(targetIndex, 0, draggedFilename);
 
-    // Re-render the tabs in the new order
     renderTabs();
 }

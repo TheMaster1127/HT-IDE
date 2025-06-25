@@ -1,8 +1,13 @@
 // Global Application State
-let editor, term, fitAddon;
-let currentOpenFile = null, currentDirectory = '/', openTabs = [], recentlyClosedTabs = [];
+let editor, term, fitAddon; // 'term' and 'fitAddon' are now legacy, kept for any part not yet converted
+let currentOpenFile = null, lastActiveTab = null, currentDirectory = '/', openTabs = [], recentlyClosedTabs = [];
 const fileSessions = new Map();
 const fileBreakpoints = new Map();
+
+// --- Terminal State ---
+const terminalSessions = new Map();
+let activeTerminalId = null;
+const getActiveTerminalSession = () => activeTerminalId ? terminalSessions.get(activeTerminalId) : null;
 
 // --- NEW DEBUGGER STATE ---
 const debuggerState = {
@@ -12,6 +17,11 @@ const debuggerState = {
     resolve: null, // A function to resolve the pause promise
     reject: null,  // A function to reject on stop
 };
+
+// MODIFIED: Added server state and socket connection
+let isServerRunning = false;
+let serverPort = null;
+let socket = null;
 
 // Global IDE settings and objects
 let IDE_ID, STORAGE_PREFIX, langTools;

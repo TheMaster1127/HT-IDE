@@ -1,0 +1,9 @@
+
+; This is the property file for compiling and running C++ files.
+; The first command compiles the code.
+;g++ "%ONLYFILENAME%.cpp" "-O3" "-o" "%ONLYFILENAME%"
+g++ "%ONLYFILENAME%.cpp" "-o" "%ONLYFILENAME%"
+
+; The second command runs the compiled executable.
+; The 'cd' command is NOT needed because the IDE already runs this from the correct directory (%DIRFULLPATH%).
+"%ONLYFILENAME%.exe"

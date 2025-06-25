@@ -1,5 +1,38 @@
 // --- Modal Dialog Functions ---
 
+// NEW: A consistent, non-blocking confirmation modal to replace all native `confirm()` calls.
+function openConfirmModal(title, message, callback) {
+    const overlay = document.getElementById('modal-overlay');
+    overlay.style.pointerEvents = 'auto';
+    overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    
+    overlay.innerHTML = `<div class="modal-box">
+        <h3>${title}</h3>
+        <p style="margin: 5px 0 15px 0; white-space: pre-wrap;">${message}</p>
+        <div class="modal-buttons">
+            <button id="confirm-modal-cancel-btn" class="modal-btn-cancel">Cancel</button>
+            <button id="confirm-modal-confirm-btn" class="modal-btn-confirm">OK</button>
+        </div>
+    </div>`;
+
+    const confirmBtn = document.getElementById('confirm-modal-confirm-btn');
+    const cancelBtn = document.getElementById('confirm-modal-cancel-btn');
+
+    const closeModal = (result) => {
+        overlay.style.display = 'none';
+        overlay.innerHTML = '';
+        if (callback) callback(result);
+    };
+
+    confirmBtn.onclick = () => closeModal(true);
+    cancelBtn.onclick = () => closeModal(false);
+    
+    overlay.style.display = 'flex';
+}
+
+
 function openSessionModal(mode) {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
@@ -27,12 +60,14 @@ function openSessionModal(mode) {
             delBtn.style.cssText = 'background:none;border:none;color:#aaa;';
             delBtn.onclick = (e) => {
                 e.stopPropagation();
-                if (confirm(`Delete session "${name}"?`)) {
-                    let s = lsGet('session_list').filter(i => i !== name);
-                    lsSet('session_list', s);
-                    lsRemove(`session_data_${name}`);
-                    populate(cb);
-                }
+                openConfirmModal('Delete Session', `Are you sure you want to delete the session "${name}"?`, (confirmed) => {
+                    if (confirmed) {
+                        let s = lsGet('session_list').filter(i => i !== name);
+                        lsSet('session_list', s);
+                        lsRemove(`session_data_${name}`);
+                        populate(cb);
+                    }
+                });
             };
             li.appendChild(nameSpan);
             li.appendChild(delBtn);
@@ -57,26 +92,83 @@ function openSessionModal(mode) {
             lsSet('session_list', sessions);
             lsSet(`session_data_${name}`, openTabs);
             overlay.style.display = 'none';
-            term.writeln(`\x1b[32mSession '${name}' saved.\x1b[0m`);
+            getActiveTerminalSession()?.xterm.writeln(`\x1b[32mSession '${name}' saved.\x1b[0m`);
         };
     } else { // 'load' mode
         document.getElementById('modal-title').textContent = 'Load Session';
         document.getElementById('modal-save-content').style.display = 'none';
         document.getElementById('modal-confirm-btn').style.display = 'none';
-        populate(name => {
-            const tabs = lsGet(`session_data_${name}`);
-            if (tabs) {
-                [...openTabs].forEach(t => closeTab(t, true));
-                tabs.forEach(t => {
-                    if (getAllPaths().includes(t)) openFileInEditor(t);
-                });
+        
+        populate(async (name) => {
+            const tabsToLoad = lsGet(`session_data_${name}`);
+            if (tabsToLoad && Array.isArray(tabsToLoad)) {
+                
+                currentOpenFile = null;
+                openTabs = [];
+                fileSessions.clear();
+
+                for (const tabPath of tabsToLoad) {
+                    await openFileInEditor(tabPath);
+                }
+
+                if (openTabs.length === 0) {
+                    editor.setSession(ace.createEditSession("// No file open."));
+                    editor.setReadOnly(true);
+                    await renderAll();
+                }
             }
             overlay.style.display = 'none';
-            term.writeln(`\x1b[32mSession '${name}' loaded.\x1b[0m`);
+            getActiveTerminalSession()?.xterm.writeln(`\x1b[32mSession '${name}' loaded.\x1b[0m`);
         });
     }
     overlay.style.display = 'flex';
 }
+
+function openInputModal(title, label, defaultValue, callback) {
+    const overlay = document.getElementById('modal-overlay');
+    overlay.style.pointerEvents = 'auto';
+    overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    
+    overlay.innerHTML = `<div class="modal-box">
+        <h3>${title}</h3>
+        <p style="margin: 5px 0 10px 0;">${label}</p>
+        <input type="text" id="input-modal-field" value="${defaultValue}" style="width:calc(100% - 22px);padding:10px;margin-bottom:15px;background-color:#252525;border:1px solid #333;color:#e0e0e0;">
+        <div class="modal-buttons">
+            <button id="input-modal-cancel-btn" class="modal-btn-cancel">Cancel</button>
+            <button id="input-modal-confirm-btn" class="modal-btn-confirm">OK</button>
+        </div>
+    </div>`;
+
+    const inputField = document.getElementById('input-modal-field');
+    const confirmBtn = document.getElementById('input-modal-confirm-btn');
+    const cancelBtn = document.getElementById('input-modal-cancel-btn');
+
+    const closeModal = () => {
+        overlay.style.display = 'none';
+        overlay.innerHTML = '';
+    };
+
+    const confirmAction = () => {
+        if (callback) callback(inputField.value);
+        closeModal();
+    };
+
+    confirmBtn.onclick = confirmAction;
+    cancelBtn.onclick = closeModal;
+    inputField.onkeydown = (e) => {
+        if (e.key === 'Enter') confirmAction();
+        if (e.key === 'Escape') closeModal();
+    };
+    
+    overlay.style.display = 'flex';
+    setTimeout(() => {
+        inputField.focus();
+        inputField.select();
+    }, 10);
+}
+
 
 function renderHotkeyDisplayList() {
     const customHotkeys = lsGet('customHotkeys') || {};
@@ -91,9 +183,7 @@ function renderHotkeyDisplayList() {
             displayText += ` / ${formatHotkey(config.secondary)}`;
         }
         
-        let label = config.label;
-        if(id === 'formatFile') label = 'Format .htvm File';
-
+        const label = config.label;
         html += `<li><b>${displayText}:</b> ${label}</li>`;
     }
     return `<ul style="padding-left:20px;margin:0; font-size: 0.9em; list-style-type: none;">${html}</ul>`;
@@ -108,7 +198,11 @@ function openSettingsModal() {
             <div class="settings-column" style="flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 240px;">
                 <h4>Editor</h4>
                 <div><label for="font-size-input">Font Size: </label><input type="number" id="font-size-input" style="width:60px;background:#252525;color:#e0e0e0;border:1px solid #333;"></div>
-                <div>
+                <div><label><input type="checkbox" id="auto-pair-checkbox"> Auto-pair Brackets/Quotes</label></div>
+                <div><label><input type="checkbox" id="print-margin-checkbox"> Show Vertical Guide Line</label></div>
+                <div style="padding-left: 20px;"><label for="print-margin-column-input">Guide Line Column: </label><input type="number" id="print-margin-column-input" style="width:60px;background:#252525;color:#e0e0e0;border:1px solid #333;"></div>
+
+                <div style="margin-top: 10px;">
                     <h4>Keybinding Mode</h4>
                     <div id="keybinding-mode-group" style="padding-left: 10px;">
                         <label><input type="radio" name="keybinding-mode" value="normal"> Normal (Ace)</label>
@@ -118,9 +212,13 @@ function openSettingsModal() {
                         <label><input type="radio" name="keybinding-mode" value="sublime"> Sublime</label>
                     </div>
                 </div>
-                <div><label><input type="checkbox" id="auto-pair-checkbox"> Auto-pair Brackets/Quotes</label></div>
-                <div><label><input type="checkbox" id="print-margin-checkbox"> Show Vertical Guide Line</label></div>
-                <div style="padding-left: 20px;"><label for="print-margin-column-input">Guide Line Column: </label><input type="number" id="print-margin-column-input" style="width:60px;background:#252525;color:#e0e0e0;border:1px solid #333;"></div>
+                <div style="margin-top: 10px;">
+                    <h4>Web Server</h4>
+                    <div style="padding-left: 10px;">
+                        <div><label for="server-port-input">Port: </label><input type="number" id="server-port-input" style="width:80px;background:#252525;color:#e0e0e0;border:1px solid #333; margin-bottom: 5px;"></div>
+                        <div><label for="server-file-input">Default File: </label><input type="text" id="server-file-input" style="width:120px;background:#252525;color:#e0e0e0;border:1px solid #333;"></div>
+                    </div>
+                </div>
             </div>
             <div class="settings-column" style="flex: 1.2; padding-left: 20px; border-left: 1px solid #333; display: flex; flex-direction: column; gap: 15px; min-width: 280px;">
                 <div>
@@ -167,6 +265,8 @@ function openSettingsModal() {
     document.getElementById('autocomplete-master-checkbox').checked = lsGet('autocomplete-master') !== false;
     document.getElementById('autocomplete-keywords-checkbox').checked = lsGet('autocomplete-keywords') !== false;
     document.getElementById('autocomplete-local-checkbox').checked = lsGet('autocomplete-local') !== false;
+    document.getElementById('server-port-input').value = lsGet('serverPort') || 8080;
+    document.getElementById('server-file-input').value = lsGet('serverDefaultFile') || 'index.html';
 
     document.getElementById('customize-colors-btn').onclick = openSyntaxColorModal;
     document.getElementById('customize-theme-btn').onclick = openThemeEditorModal;
@@ -185,18 +285,24 @@ function openSettingsModal() {
         lsSet('autocomplete-master', document.getElementById('autocomplete-master-checkbox').checked);
         lsSet('autocomplete-keywords', document.getElementById('autocomplete-keywords-checkbox').checked);
         lsSet('autocomplete-local', document.getElementById('autocomplete-local-checkbox').checked);
+        lsSet('serverPort', parseInt(document.getElementById('server-port-input').value, 10) || 8080);
+        lsSet('serverDefaultFile', document.getElementById('server-file-input').value.trim() || 'index.html');
+
 
         const newSyntaxEnabled = document.getElementById('syntax-highlighting-master-checkbox').checked;
         const newHighlightOperators = document.getElementById('symbol-operator-highlighting-checkbox').checked;
         const needsReload = (initialSyntaxEnabled !== newSyntaxEnabled) || (initialHighlightOperators !== newHighlightOperators);
 
         if (needsReload) {
-            if (confirm("Some syntax highlighting settings have changed. A reload is required for them to take full effect. Your work will be saved.\n\nReload now?")) {
-                lsSet('syntaxHighlightingEnabled', newSyntaxEnabled);
-                lsSet('highlightSymbolOperators', newHighlightOperators);
-                window.dispatchEvent(new Event('beforeunload'));
-                window.location.reload();
-            }
+            const msg = "Some syntax highlighting settings have changed. A reload is required for them to take full effect. Your work will be saved.\n\nReload now?";
+            openConfirmModal("Reload Required", msg, (confirmed) => {
+                if(confirmed) {
+                    lsSet('syntaxHighlightingEnabled', newSyntaxEnabled);
+                    lsSet('highlightSymbolOperators', newHighlightOperators);
+                    window.dispatchEvent(new Event('beforeunload'));
+                    location.reload();
+                }
+            });
         }
         overlay.style.display = 'none';
     };
@@ -309,11 +415,13 @@ function openHotkeyEditorModal() {
     document.getElementById('modal-hotkeys-cancel-btn').onclick = openSettingsModal;
     
     document.getElementById('modal-hotkeys-reset-all-btn').onclick = () => {
-        if (confirm("Are you sure you want to reset all hotkeys to their defaults?")) {
-            lsRemove('customHotkeys');
-            applyAndSetHotkeys();
-            openHotkeyEditorModal();
-        }
+        openConfirmModal("Reset All Hotkeys", "Are you sure you want to reset all hotkeys to their defaults?", (confirmed) => {
+            if (confirmed) {
+                lsRemove('customHotkeys');
+                applyAndSetHotkeys();
+                openHotkeyEditorModal();
+            }
+        });
     };
     
     document.getElementById('modal-hotkeys-save-btn').onclick = () => {
@@ -378,18 +486,20 @@ function openSyntaxColorModal() {
     const infoTooltip = document.getElementById('info-tooltip');
     listContainer.addEventListener('mouseover', e => { if (e.target.classList.contains('info-icon')) { infoTooltip.textContent = e.target.dataset.infoText; infoTooltip.style.display = 'block'; } });
     listContainer.addEventListener('mouseout', e => { if (e.target.classList.contains('info-icon')) { infoTooltip.style.display = 'none'; } });
-    listContainer.addEventListener('mousemove', e => { if (infoTooltip.style.display === 'block') { const t = infoTooltip, w = window, m=15; let l = e.clientX + m, p = e.clientY + m; if (l + t.offsetWidth > w.innerWidth) l = e.clientX - t.offsetWidth - m; if (p + t.offsetHeight > w.innerHeight) p = e.clientY - t.offsetHeight - m; if(l<0)l=0; if(p<0)p=0; t.style.left = l + 'px'; t.style.top = p + 'px'; } });
+    listContainer.addEventListener('mousemove', e => { if (infoTooltip.style.display === 'block') { const t = infoTooltip, w = window, m=15; let l = e.clientX + m, p = e.clientY + m; if (l + t.offsetWidth > w.innerWidth) l = e.clientX - t.offsetWidth - m; if(l<0)l=0; if(p<0)p=0; t.style.left = l + 'px'; t.style.top = p + 'px'; } });
 
     document.getElementById('modal-colors-cancel-btn').onclick = () => openSettingsModal();
     
     document.getElementById('modal-colors-reset-btn').onclick = () => {
-        if (confirm("Are you sure you want to reset all syntax colors and styles to their defaults?")) {
-            for (const key in syntaxColorConfig) {
-                const item = syntaxColorConfig[key];
-                document.getElementById(key).value = item.default;
-                if (item.isText) document.getElementById(`bold_${key}`).checked = item.defaultBold;
+        openConfirmModal("Reset Colors", "Are you sure you want to reset all syntax colors and styles to their defaults?", (confirmed) => {
+            if (confirmed) {
+                for (const key in syntaxColorConfig) {
+                    const item = syntaxColorConfig[key];
+                    document.getElementById(key).value = item.default;
+                    if (item.isText) document.getElementById(`bold_${key}`).checked = item.defaultBold;
+                }
             }
-        }
+        });
     };
 
     document.getElementById('modal-colors-save-btn').onclick = () => {
@@ -398,10 +508,13 @@ function openSyntaxColorModal() {
             if (syntaxColorConfig[key].isText) lsSet(`boldness_${key}`, document.getElementById(`bold_${key}`).checked);
         }
         overlay.style.display = 'none';
-        if (confirm("Syntax colors and styles have been saved. A reload is required. Your work will be saved.\n\nReload now?")) {
-            window.dispatchEvent(new Event('beforeunload'));
-            window.location.reload();
-        }
+        
+        openConfirmModal("Reload Required", "Syntax colors and styles have been saved. A reload is required. Your work will be saved.\n\nReload now?", (confirmed) => {
+             if (confirmed) {
+                window.dispatchEvent(new Event('beforeunload'));
+                location.reload();
+            }
+        });
     };
 }
 
@@ -512,7 +625,7 @@ function openThemeEditorModal() {
     const infoTooltip = document.getElementById('info-tooltip');
     container.addEventListener('mouseover', e => { if (e.target.classList.contains('info-icon')) { infoTooltip.textContent = e.target.dataset.infoText; infoTooltip.style.display = 'block'; } });
     container.addEventListener('mouseout', e => { if (e.target.classList.contains('info-icon')) { infoTooltip.style.display = 'none'; } });
-    container.addEventListener('mousemove', e => { if (infoTooltip.style.display === 'block') { const t = infoTooltip, w = window, m=15; let l = e.clientX + m, p = e.clientY + m; if (l + t.offsetWidth > w.innerWidth) l = e.clientX - t.offsetWidth - m; if (p + t.offsetHeight > w.innerHeight) p = e.clientY - t.offsetHeight - m; if(l<0)l=0; if(p<0)p=0; t.style.left = l + 'px'; t.style.top = p + 'px'; } });
+    container.addEventListener('mousemove', e => { if (infoTooltip.style.display === 'block') { const t = infoTooltip, w = window, m=15; let l = e.clientX + m, p = e.clientY + m; if (l + t.offsetWidth > w.innerWidth) l = e.clientX - t.offsetWidth - m; if(l<0)l=0; if(p<0)p=0; t.style.left = l + 'px'; t.style.top = p + 'px'; } });
 
 
     document.getElementById('modal-theme-cancel-btn').onclick = () => {
@@ -523,16 +636,18 @@ function openThemeEditorModal() {
     };
     
     document.getElementById('modal-theme-reset-btn').onclick = () => {
-        if (confirm("Are you sure you want to reset all UI theme settings to their defaults? This will apply the changes live.")) {
-            for (const key in uiThemeConfig) {
-                lsRemove(`theme_${key}`);
-                if (uiThemeConfig[key].hasBoldToggle) {
-                    lsRemove(`theme_bold_${key}`);
+        openConfirmModal("Reset Theme", "Are you sure you want to reset all UI theme settings to their defaults? This will apply the changes live.", (confirmed) => {
+            if (confirmed) {
+                for (const key in uiThemeConfig) {
+                    lsRemove(`theme_${key}`);
+                    if (uiThemeConfig[key].hasBoldToggle) {
+                        lsRemove(`theme_bold_${key}`);
+                    }
                 }
+                applyUiThemeSettings(); 
+                openThemeEditorModal(); 
             }
-            applyUiThemeSettings(); 
-            openThemeEditorModal(); 
-        }
+        });
     };
 
     document.getElementById('modal-theme-save-btn').onclick = () => {
@@ -582,7 +697,7 @@ function openExportImportModal() {
         input.click();
     };
     
-    const getAllWorkspaceIds = () => {
+    window.getAllWorkspaceIds = () => {
         const ids = new Set();
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
@@ -594,7 +709,7 @@ function openExportImportModal() {
         return Array.from(ids).sort((a,b) => a - b);
     };
 
-    const clearWorkspaceData = (id) => {
+    window.clearWorkspaceData = (id) => {
         const prefix = `HT-IDE-id${id}-`;
         const keysToRemove = [];
         for (let i = 0; i < localStorage.length; i++) {
@@ -605,6 +720,15 @@ function openExportImportModal() {
         }
         keysToRemove.forEach(key => localStorage.removeItem(key));
     };
+    
+    // Web version specific workspace switch
+    window.switchWorkspace = (newId) => {
+        window.dispatchEvent(new Event('beforeunload'));
+        const newUrl = new URL(window.location);
+        newUrl.searchParams.set('id', newId);
+        window.location.href = newUrl.href;
+    };
+
 
     const workspaceOptions = getAllWorkspaceIds().map(id => `<option value="${id}">Workspace ${id}</option>`).join('');
 
@@ -612,6 +736,12 @@ function openExportImportModal() {
         <div class="modal-box" style="max-width: 600px;">
             <h3>Export / Import Data</h3>
             <p style="font-size:0.9em; color:#ccc; margin-top:0;">Importing data will overwrite existing settings and requires a reload.</p>
+            
+            <div style="border-top: 1px solid #333; margin-top: 15px; padding-top: 15px;">
+                <h4><span style="color: #569cd6;">💻</span> Workspaces</h4>
+                <p style="font-size:0.8em; margin:0 0 10px 0;">Switch between different workspaces, or create new ones.</p>
+                <button id="manage-workspaces-btn" class="modal-btn-confirm" style="width:100%;">Manage Workspaces</button>
+            </div>
             
             <div style="border-top: 1px solid #333; margin-top: 15px; padding-top: 15px;">
                 <h4><span style="color: #f51000; font-weight: bold;">⚠</span> Everything</h4>
@@ -632,7 +762,7 @@ function openExportImportModal() {
             </div>
             
             <div style="border-top: 1px solid #333; margin-top: 15px; padding-top: 15px;">
-                <h4><span style="color: #569cd6;">💻</span> Workspace</h4>
+                <h4><span style="color: #569cd6;">💾</span> Workspace File</h4>
                 <p style="font-size:0.8em; margin:0 0 10px 0;">Exports a single workspace or imports a file into a new or existing workspace.</p>
                 <select id="workspace-select" style="width:100%; padding: 8px; margin-bottom: 10px; background: #252525; color: #e0e0e0; border: 1px solid #444;">
                     ${workspaceOptions.length > 0 ? workspaceOptions : '<option disabled>No workspaces found</option>'}
@@ -652,57 +782,67 @@ function openExportImportModal() {
     document.getElementById('export-import-close-btn').onclick = () => { overlay.style.display = 'none'; };
     
     // --- Event Listeners ---
+    document.getElementById('manage-workspaces-btn').onclick = openWorkspaceManagerModal;
 
     // EVERYTHING
     document.getElementById('export-all-btn').onclick = () => {
-        let filename = prompt("Enter a filename for the full backup:", "ht-ide-backup-all.json");
-        if (!filename) return;
-        if (!filename.endsWith('.json')) filename += '.json';
-        
-        const data = {};
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key.startsWith('HT-IDE-')) {
-                data[key] = localStorage.getItem(key);
+        openInputModal('Export All Data', 'Enter a filename for the full backup:', 'ht-ide-backup-all.json', (filename) => {
+            if (!filename) return;
+            if (!filename.endsWith('.json')) filename += '.json';
+            
+            const data = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith('HT-IDE-')) {
+                    data[key] = localStorage.getItem(key);
+                }
             }
-        }
-        triggerDownload(data, filename);
+            triggerDownload(data, filename);
+        });
     };
     document.getElementById('import-all-btn').onclick = () => {
-        if (!confirm("WARNING: This will delete ALL current workspaces and settings and replace them with the data from the file. This cannot be undone. Continue?")) return;
-        handleFileUpload(data => {
-            localStorage.clear();
-            for (const key in data) {
-                localStorage.setItem(key, data[key]);
+        const msg = "WARNING: This will delete ALL current workspaces and settings and replace them with the data from the file. This cannot be undone.\n\nContinue?";
+        openConfirmModal("Import All Data", msg, (confirmed) => {
+            if (confirmed) {
+                handleFileUpload(data => {
+                    localStorage.clear();
+                    for (const key in data) {
+                        localStorage.setItem(key, data[key]);
+                    }
+                    alert("Import complete. The IDE will now reload.");
+                    location.reload();
+                });
             }
-            alert("Import complete. The IDE will now reload.");
-            window.location.reload();
         });
     };
 
     // THEME
     document.getElementById('export-theme-btn').onclick = () => {
-        let filename = prompt("Enter a filename for the theme backup:", "ht-ide-theme.json");
-        if (!filename) return;
-        if (!filename.endsWith('.json')) filename += '.json';
+        openInputModal('Export Theme', 'Enter a filename for the theme backup:', 'ht-ide-theme.json', (filename) => {
+            if (!filename) return;
+            if (!filename.endsWith('.json')) filename += '.json';
 
-        const data = {};
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key.startsWith(STORAGE_PREFIX) && (key.includes('-theme_') || key.includes('-color_') || key.includes('-boldness_') || key.includes('syntaxHighlighting'))) {
-                data[key.replace(STORAGE_PREFIX, '')] = localStorage.getItem(key);
+            const data = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith(STORAGE_PREFIX) && (key.includes('-theme_') || key.includes('-color_') || key.includes('-boldness_') || key.includes('syntaxHighlighting'))) {
+                    data[key.replace(STORAGE_PREFIX, '')] = localStorage.getItem(key);
+                }
             }
-        }
-        triggerDownload(data, filename);
+            triggerDownload(data, filename);
+        });
     };
     document.getElementById('import-theme-btn').onclick = () => {
-        if (!confirm("This will overwrite your current theme settings for this workspace. Continue?")) return;
-        handleFileUpload(data => {
-            for (const key in data) {
-                 localStorage.setItem(STORAGE_PREFIX + key, data[key]);
+        openConfirmModal("Import Theme", "This will overwrite your current theme settings for this workspace. Continue?", (confirmed) => {
+            if (confirmed) {
+                handleFileUpload(data => {
+                     for (const key in data) {
+                         localStorage.setItem(STORAGE_PREFIX + key, data[key]);
+                    }
+                    alert("Theme import complete. The IDE will now reload to apply changes.");
+                    location.reload();
+                });
             }
-            alert("Theme import complete. The IDE will now reload to apply changes.");
-            window.location.reload();
         });
     };
     
@@ -711,33 +851,36 @@ function openExportImportModal() {
         const id = document.getElementById('workspace-select').value;
         if (!id) return alert("Please select a workspace to export.");
         
-        let filename = prompt(`Enter a filename for the Workspace ${id} backup:`, `ht-ide-workspace-${id}.json`);
-        if (!filename) return;
-        if (!filename.endsWith('.json')) filename += '.json';
+        openInputModal('Export Workspace', `Enter a filename for the Workspace ${id} backup:`, `ht-ide-workspace-${id}.json`, (filename) => {
+            if (!filename) return;
+            if (!filename.endsWith('.json')) filename += '.json';
 
-        const prefix = `HT-IDE-id${id}-`;
-        const data = {};
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key.startsWith(prefix)) {
-                data[key.replace(prefix, '')] = localStorage.getItem(key);
+            const prefix = `HT-IDE-id${id}-`;
+            const data = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith(prefix)) {
+                    data[key.replace(prefix, '')] = localStorage.getItem(key);
+                }
             }
-        }
-        triggerDownload(data, filename);
+            triggerDownload(data, filename);
+        });
     };
 
     document.getElementById('import-workspace-btn').onclick = () => {
         const allIds = getAllWorkspaceIds().map(Number);
         const newId = allIds.length > 0 ? Math.max(...allIds) + 1 : 0;
-        if (!confirm(`This will import the workspace from the file into a new workspace with ID ${newId}. Continue?`)) return;
-        
-        handleFileUpload(data => {
-            const newPrefix = `HT-IDE-id${newId}-`;
-            for (const key in data) {
-                localStorage.setItem(newPrefix + key, data[key]);
+        openConfirmModal("Import to New Workspace", `This will import the workspace from the file into a new workspace with ID ${newId}. Continue?`, (confirmed) => {
+            if (confirmed) {
+                handleFileUpload(data => {
+                    const newPrefix = `HT-IDE-id${newId}-`;
+                    for (const key in data) {
+                        localStorage.setItem(newPrefix + key, data[key]);
+                    }
+                    alert(`Workspace imported successfully to ID ${newId}. You will now be redirected to the new workspace.`);
+                    window.switchWorkspace(newId);
+                });
             }
-            alert(`Workspace imported successfully to ID ${newId}. You will now be redirected to the new workspace.`);
-            window.location.href = window.location.pathname + `?id=${newId}`;
         });
     };
 
@@ -745,19 +888,108 @@ function openExportImportModal() {
         const idToOverwrite = document.getElementById('workspace-select').value;
         if (!idToOverwrite) return alert("Please select a workspace to overwrite.");
 
-        if (!confirm(`EXTREME WARNING:\n\nYou are about to permanently delete all data in Workspace ${idToOverwrite} and replace it with data from a file.\n\nTHIS CANNOT BE UNDONE.\n\nAre you absolutely sure you want to proceed?`)) return;
-
-        handleFileUpload(data => {
-            clearWorkspaceData(idToOverwrite);
-            const prefix = `HT-IDE-id${idToOverwrite}-`;
-             for (const key in data) {
-                localStorage.setItem(prefix + key, data[key]);
+        const msg = `EXTREME WARNING:\n\nYou are about to permanently delete all data in Workspace ${idToOverwrite} and replace it with data from a file.\n\nTHIS CANNOT BE UNDONE.\n\nAre you absolutely sure you want to proceed?`;
+        openConfirmModal("Overwrite Workspace", msg, (confirmed) => {
+            if(confirmed) {
+                handleFileUpload(data => {
+                    clearWorkspaceData(idToOverwrite);
+                    const prefix = `HT-IDE-id${idToOverwrite}-`;
+                     for (const key in data) {
+                        localStorage.setItem(prefix + key, data[key]);
+                    }
+                    alert(`Workspace ${idToOverwrite} has been overwritten. The IDE will now reload.`);
+                    window.switchWorkspace(idToOverwrite);
+                });
             }
-            alert(`Workspace ${idToOverwrite} has been overwritten. The IDE will now reload.`);
-            window.location.href = window.location.pathname + `?id=${idToOverwrite}`;
         });
     };
 }
+
+function openWorkspaceManagerModal() {
+    const overlay = document.getElementById('modal-overlay');
+    overlay.style.pointerEvents = 'auto';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+
+    const populateList = () => {
+        const listEl = document.getElementById('workspace-manager-list');
+        listEl.innerHTML = '';
+        const allIds = window.getAllWorkspaceIds();
+        const currentId = getIdeId();
+
+        if (allIds.length === 0) {
+            allIds.push('0');
+        }
+
+        allIds.forEach(id => {
+            const li = document.createElement('li');
+            const isActive = id === currentId;
+            li.style.cssText = `display:flex; align-items:center; gap:10px; ${isActive ? 'background-color:#004a6e; font-weight:bold;' : ''}`;
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = `Workspace ${id} ${isActive ? '(Active)' : ''}`;
+            nameSpan.style.flexGrow = '1';
+
+            const btnGroup = document.createElement('div');
+
+            if (!isActive) {
+                const switchBtn = document.createElement('button');
+                switchBtn.textContent = 'Switch';
+                switchBtn.style.backgroundColor = '#0e639c';
+                switchBtn.onclick = () => {
+                    window.switchWorkspace(id);
+                };
+                btnGroup.appendChild(switchBtn);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = '🗑️';
+                deleteBtn.title = 'Delete Workspace';
+                deleteBtn.style.marginLeft = '8px';
+                deleteBtn.onclick = () => {
+                    const msg = `Are you sure you want to permanently delete all data for Workspace ${id}? This cannot be undone.`;
+                    openConfirmModal("Delete Workspace", msg, (confirmed) => {
+                        if (confirmed) {
+                            window.clearWorkspaceData(id);
+                            populateList();
+                        }
+                    });
+                };
+                btnGroup.appendChild(deleteBtn);
+            }
+
+            li.appendChild(nameSpan);
+            li.appendChild(btnGroup);
+            listEl.appendChild(li);
+        });
+    };
+
+    overlay.innerHTML = `
+        <div class="modal-box" style="width:90%; max-width:600px;">
+            <h3>Manage Workspaces</h3>
+            <p style="margin-top:0; color:#ccc;">Each workspace has its own separate files, settings, and themes.</p>
+            <ul class="modal-list" id="workspace-manager-list"></ul>
+            <div class="modal-buttons">
+                 <button id="workspace-add-new-btn" style="float:left; background-color:#2a8f2a;">Create New Workspace</button>
+                 <button id="workspace-manager-back-btn">Back to Export/Import</button>
+            </div>
+        </div>`;
+
+    document.getElementById('workspace-manager-back-btn').onclick = openExportImportModal;
+    document.getElementById('workspace-add-new-btn').onclick = () => {
+        const allIds = getAllWorkspaceIds().map(Number);
+        const newId = allIds.length > 0 ? Math.max(...allIds) + 1 : 0;
+        const msg = `This will create and switch to a new, empty workspace with ID ${newId}. Continue?`;
+        openConfirmModal("Create New Workspace", msg, (confirmed) => {
+            if (confirmed) {
+                window.switchWorkspace(newId);
+            }
+        });
+    };
+
+    populateList();
+}
+
 
 function updateHotkeyTitles() {
     const customHotkeys = lsGet('customHotkeys') || {};
@@ -766,25 +998,22 @@ function updateHotkeyTitles() {
         activeHotkeys[id] = customHotkeys[id] || hotkeyConfig[id].default;
     }
 
-    // Update Run Button Title
     const runBtn = document.getElementById('run-btn');
     if (runBtn) {
+        const runConfig = hotkeyConfig['runFile'];
         const runHotkeyStr = formatHotkey(activeHotkeys.runFile);
-        // F5 is a non-customizable secondary key
-        runBtn.title = `Run (F5 or ${runHotkeyStr})`;
+        runBtn.title = `${runConfig.label} (${formatHotkey(runConfig.secondary)} or ${runHotkeyStr})`;
     }
 
-    // Update Format Button Title
     const formatBtn = document.getElementById('format-btn');
     if (formatBtn) {
         const formatHotkeyStr = formatHotkey(activeHotkeys.formatFile);
         formatBtn.title = `Format HTVM File (${formatHotkeyStr})`;
     }
 
-    // Update Toggle Sidebar Button Title
     const toggleSidebarBtn = document.getElementById('main-toggle-sidebar-btn');
     if (toggleSidebarBtn) {
         const toggleHotkeyStr = formatHotkey(activeHotkeys.toggleSidebar);
         toggleSidebarBtn.title = `Toggle File Explorer (${toggleHotkeyStr})`;
     }
-}	
+}

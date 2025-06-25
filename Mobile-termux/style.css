@@ -42,6 +42,13 @@
     --btn-open-folder-bg: #0e639c;
     --btn-open-folder-text: #ffffff;
     --btn-open-folder-text-bold: normal;
+    /* MODIFIED: Added server button variables */
+    --btn-http-server-start-bg: #4caf50;
+    --btn-http-server-start-text: #ffffff;
+    --btn-http-server-start-text-bold: normal;
+    --btn-http-server-stop-bg: #f44336;
+    --btn-http-server-stop-text: #ffffff;
+    --btn-http-server-stop-text-bold: normal;
 
     /* --- Sidebar Variables --- */
     --sidebar-bg: #121212; 
@@ -193,6 +200,19 @@ body.preload * { transition: none !important; }
 #load-instructions-btn { background-color: var(--btn-manage-instr-bg); color: var(--btn-manage-instr-text); font-weight: var(--btn-manage-instr-text-bold); }
 #htvm-to-htvm-btn { background-color: var(--btn-htvm-to-htvm-bg); color: var(--btn-htvm-to-htvm-text); font-weight: var(--btn-htvm-to-htvm-text-bold); }
 #export-import-btn { background-color: var(--btn-export-import-bg); color: var(--btn-export-import-text); font-weight: var(--btn-export-import-text-bold); }
+/* MODIFIED: Added HTTP Server button styles */
+#http-server-btn {
+    grid-column: 1 / -1;
+    background-color: var(--btn-http-server-start-bg);
+    color: var(--btn-http-server-start-text);
+    font-weight: var(--btn-http-server-start-text-bold);
+    transition: background-color 0.3s ease;
+}
+#http-server-btn.running {
+    background-color: var(--btn-http-server-stop-bg);
+    color: var(--btn-http-server-stop-text);
+    font-weight: var(--btn-http-server-stop-text-bold);
+}
 #open-folder-btn { grid-column: 1 / -1; background-color: var(--btn-open-folder-bg); color: var(--btn-open-folder-text); font-weight: var(--btn-open-folder-text-bold); }
 #sidebar-resizer { width: var(--resizer-size); background-color: var(--resizer-bg); cursor: ew-resize; flex-shrink: 0; }
 #sidebar-resizer:hover { background-color: var(--resizer-hover-bg); }
@@ -247,7 +267,17 @@ body.preload * { transition: none !important; }
 #terminal-resizer { height: 8px; background-color: var(--resizer-bg); cursor: ns-resize; flex-shrink: 0; }
 #terminal-resizer:hover { background-color: var(--resizer-hover-bg); }
 #terminal-container { height: 200px; min-height: 40px; background-color: #000; flex-shrink: 0; overflow: hidden; display: flex; flex-direction: column; }
-#terminal { width: 100%; height: 100%; flex-grow: 1; }
+#terminal-tabs-container { display: flex; background-color: var(--top-bar-bg); padding: 4px 4px 0 4px; overflow-x: auto; flex-shrink: 0; align-items: center; }
+#new-terminal-btn { background-color: var(--tab-inactive-bg); color: var(--tab-inactive-text); border: none; border-radius: 3px; width: 28px; height: 28px; font-size: 1.2em; cursor: pointer; margin-left: 4px; }
+#new-terminal-btn:hover { background-color: var(--tab-hover-bg); }
+.terminal-tab { padding: 6px 10px; background-color: var(--tab-inactive-bg); color: var(--tab-inactive-text); font-weight: var(--tab-inactive-text-bold); margin-right: 2px; cursor: pointer; border-radius: 4px 4px 0 0; font-size: 0.85em; display: flex; align-items: center; flex-shrink: 0; }
+.terminal-tab:hover { background-color: var(--tab-hover-bg); }
+.terminal-tab.active { background-color: #000; color: var(--tab-active-text); font-weight: var(--tab-active-text-bold); }
+.terminal-tab .close-terminal-tab { margin-left: 8px; font-weight: bold; cursor: pointer; color: var(--tab-close-icon); }
+#terminal-panes { position: relative; width: 100%; flex-grow: 1; }
+.terminal-pane { position: absolute; top: 0; left: 0; width: 100%; height: 100%; visibility: hidden; }
+.terminal-pane.active { visibility: visible; }
+#terminal { width: 100%; height: 100%; } /* Kept for backwards compatibility if needed, but panes are preferred */
 #output-panel.visible ~ #output-panel-resizer { display: block; }
 #output-panel-resizer { width: var(--resizer-size); background-color: var(--resizer-bg); cursor: ew-resize; flex-shrink: 0; display: none; }
 #output-panel { width: 0; background-color: #fff; display: flex; flex-direction: column; transition: width 0.3s ease; overflow: hidden; }
