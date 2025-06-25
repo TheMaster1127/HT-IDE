@@ -37,10 +37,37 @@ function updatePresence(details = "Idle", state = "In the main menu", lineCount 
 }
 
 const runningProcesses = new Map();
+let activeInteractiveProcess = null;
 
 function runCommand(command, cwd, event) {
-    const [cmd, ...args] = command.split(' ');
+    const trimmedCommand = command.trim();
+    if (!trimmedCommand) {
+        event.sender.send('command-close', 0);
+        return;
+    }
+    
+    const [cmd, ...args] = trimmedCommand.split(' ');
+    if (cmd === 'cd') {
+        let targetDir = args.join(' ').trim();
+        if (!targetDir || targetDir === '~') {
+            targetDir = userHomeDir;
+        }
+        const newCwd = path.resolve(cwd, targetDir);
+        try {
+            if (fs.statSync(newCwd).isDirectory()) {
+                event.sender.send('terminal:update-cwd', newCwd);
+            } else {
+                event.sender.send('command-error', `\r\ncd: not a directory: ${newCwd}`);
+            }
+        } catch (error) {
+            event.sender.send('command-error', `\r\ncd: no such file or directory: ${newCwd}`);
+        }
+        event.sender.send('command-close', 0);
+        return;
+    }
+
     const process = spawn(cmd, args, { cwd, shell: true });
+    activeInteractiveProcess = process;
     const processId = process.pid;
     runningProcesses.set(processId, process);
 
@@ -48,13 +75,59 @@ function runCommand(command, cwd, event) {
     process.stderr.on('data', (data) => event.sender.send('command-error', data.toString()));
     process.on('close', (code) => {
         runningProcesses.delete(processId);
+        activeInteractiveProcess = null;
         event.sender.send('command-close', code);
     });
     process.on('error', (err) => {
         runningProcesses.delete(processId);
+        activeInteractiveProcess = null;
         event.sender.send('command-error', `Error: ${err.message}`);
     });
 }
+
+ipcMain.on('terminal:write-to-stdin', (event, data) => {
+    if (activeInteractiveProcess) {
+        activeInteractiveProcess.stdin.write(data);
+    }
+});
+
+ipcMain.on('terminal:kill-process', () => {
+    if (activeInteractiveProcess) {
+        activeInteractiveProcess.kill('SIGINT');
+        activeInteractiveProcess = null;
+    }
+});
+
+// NEW: Handler for tab autocompletion requests from the terminal.
+ipcMain.handle('terminal:autocomplete', (event, { partial, cwd }) => {
+    try {
+        const entries = fs.readdirSync(cwd, { withFileTypes: true });
+        // Handle paths with spaces correctly by not splitting them
+        const baseName = path.basename(partial);
+        const dirName = path.dirname(partial);
+        const prefix = (dirName === '.') ? '' : dirName + (cwd.includes('\\') ? '\\' : '/');
+        
+        const matches = entries
+            .filter(entry => entry.name.toLowerCase().startsWith(baseName.toLowerCase()))
+            .map(entry => {
+                let name = entry.name;
+                // Add quotes if the name contains spaces
+                if (/\s/.test(name)) {
+                    name = `"${name}"`;
+                }
+                // Add a slash if it's a directory
+                if (entry.isDirectory()) {
+                    name += (process.platform === 'win32' ? '\\' : '/');
+                }
+                return prefix + name;
+            });
+        return matches;
+    } catch (e) {
+        // If directory doesn't exist or other error, return no matches
+        return [];
+    }
+});
+
 
 function createWindow() {
     const mainWindow = new BrowserWindow({
@@ -95,9 +168,6 @@ app.whenReady().then(async () => {
         const focusedWindow = BrowserWindow.getFocusedWindow();
         if (focusedWindow) focusedWindow.webContents.reloadIgnoringCache();
     });
-    
-    // MODIFIED: Removed zoom shortcuts. They will be handled by the renderer process
-    // to allow the zoom level to be saved in localStorage.
 });
 
 app.on('will-quit', () => {
@@ -113,7 +183,6 @@ app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
 });
 
-// MODIFIED: Added handler to set zoom level from renderer.
 ipcMain.on('app:set-zoom-level', (event, level) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (win) {
@@ -221,6 +290,7 @@ ipcMain.handle('dialog:openDirectory', async () => {
 });
 
 ipcMain.handle('get-app-path', () => app.getAppPath());
+ipcMain.handle('get-home-dir', () => os.homedir());
 ipcMain.handle('update-discord-presence', (event, { details, state, lineCount }) => { updatePresence(details, state, lineCount); });
 ipcMain.handle('run-command', (event, { command, cwd }) => { runCommand(command.replace(/~~~/g, ' '), cwd, event); });
 ipcMain.handle('fs:getAllPaths', (event, dirPath) => { try { const p = dirPath === '/' ? userHomeDir : dirPath; const i = fs.readdirSync(p, { withFileTypes: true }); return i.map(t => ({ name: t.name, path: path.join(p, t.name), isFile: t.isFile() })); } catch (e) { if (e.code === 'ENOENT') return []; console.error(`Error reading directory ${dirPath}:`, e); return []; } });

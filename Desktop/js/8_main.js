@@ -13,6 +13,23 @@ window.addEventListener('keyup', (e) => {
     }
 });
 
+// --- NEW: Terminal Interaction State ---
+let commandHistory = [];
+let historyIndex = -1;
+let currentLine = ""; // For building commands
+let isExecuting = false;
+let processInputLine = ""; // For sending input to running processes
+
+// --- NEW: Function to display the command prompt ---
+function writePrompt() {
+    currentLine = "";
+    processInputLine = "";
+    isExecuting = false;
+    const shortCwd = terminalCwd.length > 30 ? `...${terminalCwd.slice(-27)}` : terminalCwd;
+    term.write(`\r\n\x1b[1;32m${shortCwd}\x1b[0m $ `);
+}
+window.writePrompt = writePrompt;
+
 
 function applyAndSetHotkeys() {
     if (hotkeyListener) document.removeEventListener('keydown', hotkeyListener);
@@ -24,6 +41,11 @@ function applyAndSetHotkeys() {
     }
 
     hotkeyListener = async (e) => {
+        // If the terminal is focused, let it handle the key event first.
+        if (term.element.contains(document.activeElement)) {
+            return;
+        }
+
         const checkMatch = (config) => {
             if (!config) return false;
             const key = e.key.toLowerCase();
@@ -51,35 +73,29 @@ function applyAndSetHotkeys() {
             }
         }
         
-        // MODIFIED: Complete overhaul of Ctrl+Tab logic
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'tab') {
             e.preventDefault();
             if (openTabs.length < 2) return;
 
             if (!tabCycleState.isCycling) {
-                // First press: This is a TOGGLE action.
-                // It switches to the last active tab.
                 if (lastActiveTab && openTabs.includes(lastActiveTab) && lastActiveTab !== currentOpenFile) {
                     await openFileInEditor(lastActiveTab);
                 } else {
-                    // Fallback: If no useful last tab, cycle forward once.
                     const currentIndex = openTabs.indexOf(currentOpenFile);
                     await openFileInEditor(openTabs[(currentIndex + 1) % openTabs.length]);
                 }
-                // Now, set the flag so any subsequent presses (while Ctrl is held) will cycle.
                 tabCycleState.isCycling = true; 
             } else {
-                // Subsequent presses: This is a CYCLE action.
                 const currentIndex = openTabs.indexOf(currentOpenFile);
                 let nextIndex;
-                if (e.shiftKey) { // Cycle backward with Shift
+                if (e.shiftKey) { 
                     nextIndex = (currentIndex - 1 + openTabs.length) % openTabs.length;
-                } else { // Cycle forward
+                } else { 
                     nextIndex = (currentIndex + 1) % openTabs.length;
                 }
                 await openFileInEditor(openTabs[nextIndex]);
             }
-            return; // Done with this hotkey
+            return;
         }
 
 
@@ -136,15 +152,126 @@ document.addEventListener('DOMContentLoaded', async () => {
     term.open(document.getElementById('terminal'));
     fitAddon.fit();
 
-    window.electronAPI.onCommandOutput((data) => term.write(data));
-    window.electronAPI.onCommandError((data) => term.write(`\x1b[31m${data}\x1b[0m`));
-    window.electronAPI.onCommandClose((code) => term.writeln(`\n\x1b[33mProcess exited with code: ${code}\x1b[0m`));
+    // MODIFIED: Complete overhaul of terminal key handling
+    term.onKey(async ({ key, domEvent }) => {
+        const printable = !domEvent.altKey && !domEvent.metaKey;
+
+        // --- Ctrl+C Handler ---
+        if (domEvent.ctrlKey && domEvent.key.toLowerCase() === 'c') {
+            if (isExecuting) {
+                window.electronAPI.terminalKillProcess();
+            } else {
+                term.write('^C');
+                writePrompt();
+            }
+            return;
+        }
+        
+        // --- State 1: A process is running and waiting for input ---
+        if (isExecuting) {
+            const printableForProcess = !domEvent.altKey && !domEvent.ctrlKey && !domEvent.metaKey;
+            if (domEvent.key === 'Enter') {
+                window.electronAPI.terminalWriteToStdin(processInputLine + '\n');
+                term.writeln('');
+                processInputLine = "";
+            } else if (domEvent.key === 'Backspace') {
+                if (processInputLine.length > 0) {
+                    term.write('\b \b');
+                    processInputLine = processInputLine.slice(0, -1);
+                }
+            } else if (printableForProcess) {
+                processInputLine += key;
+                term.write(key);
+            }
+            return;
+        }
+
+        // --- State 2: Building a command at the prompt ---
+        if (domEvent.key === 'Enter') {
+            if (currentLine) {
+                commandHistory = commandHistory.filter(c => c !== currentLine);
+                commandHistory.unshift(currentLine);
+                if(commandHistory.length > 50) commandHistory.pop();
+                historyIndex = -1;
+                term.writeln('');
+                isExecuting = true; // Set state to executing
+                window.electronAPI.runCommand(currentLine, terminalCwd);
+            } else {
+                writePrompt();
+            }
+        } else if (domEvent.key === 'Backspace') {
+            if (currentLine.length > 0) {
+                term.write('\b \b');
+                currentLine = currentLine.slice(0, -1);
+            }
+        } else if (domEvent.key === 'ArrowUp') {
+            if (historyIndex < commandHistory.length - 1) {
+                historyIndex++;
+                const prompt = `\r\x1b[1;32m${terminalCwd.length > 30 ? `...${terminalCwd.slice(-27)}` : terminalCwd}\x1b[0m $ `;
+                term.write('\x1b[2K' + prompt);
+                currentLine = commandHistory[historyIndex];
+                term.write(currentLine);
+            }
+        } else if (domEvent.key === 'ArrowDown') {
+             if (historyIndex > 0) {
+                historyIndex--;
+                const prompt = `\r\x1b[1;32m${terminalCwd.length > 30 ? `...${terminalCwd.slice(-27)}` : terminalCwd}\x1b[0m $ `;
+                term.write('\x1b[2K' + prompt);
+                currentLine = commandHistory[historyIndex];
+                term.write(currentLine);
+            } else {
+                historyIndex = -1;
+                const prompt = `\r\x1b[1;32m${terminalCwd.length > 30 ? `...${terminalCwd.slice(-27)}` : terminalCwd}\x1b[0m $ `;
+                term.write('\x1b[2K' + prompt);
+                currentLine = "";
+            }
+        } else if (domEvent.key === 'Tab') {
+            domEvent.preventDefault();
+            const words = currentLine.split(/\s+/);
+            const partial = words.pop() || "";
+            if (!partial) return;
+
+            const matches = await window.electronAPI.terminalAutocomplete(partial, terminalCwd);
+
+            if (matches.length === 1) {
+                const completed = matches[0];
+                const diff = completed.substring(partial.length);
+                term.write(diff);
+                currentLine += diff;
+            } else if (matches.length > 1) {
+                const commonPrefix = matches.reduce((prefix, current) => {
+                    while (current.slice(0, prefix.length) !== prefix) {
+                        prefix = prefix.slice(0, -1);
+                    }
+                    return prefix;
+                });
+
+                if (commonPrefix.length > partial.length) {
+                    const diff = commonPrefix.substring(partial.length);
+                    term.write(diff);
+                    currentLine += diff;
+                }
+                
+                const displayNames = matches.map(m => path.basename(m.replace(/["\/\\]/g, '')));
+                term.writeln('\r\n' + displayNames.join('   '));
+                writePrompt();
+                term.write(currentLine);
+            }
+        } else if (printable) {
+            currentLine += key;
+            term.write(key);
+        }
+    });
+
+    window.electronAPI.onCommandOutput((data) => term.write(data.replace(/\n/g, "\r\n")));
+    window.electronAPI.onCommandError((data) => term.write(`\x1b[31m${data.replace(/\n/g, "\r\n")}\x1b[0m`));
+    window.electronAPI.onCommandClose((code) => writePrompt());
+    window.electronAPI.onTerminalUpdateCwd((newPath) => { terminalCwd = newPath; });
     
     window.electronAPI.onCloseTabFromContextMenu(async (filePath) => {
         await handleCloseTabRequest(filePath);
     });
 
-    // MODIFIED: Definitive fix for reloading the active file on external change.
     window.electronAPI.onFileChanged(async (filePath) => {
         const msg = `The file "${filePath.split(/[\\\/]/).pop()}" has changed on disk. Do you want to reload it? Your unsaved changes in the editor will be lost.`;
 
@@ -157,13 +284,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const cursor = session.selection.getCursor();
                         const scrollTop = session.getScrollTop();
                         
-                        // Directly set the new content into the existing session
                         session.setValue(newContent);
-                        // Mark the session as "clean" since it now matches the disk
                         session.getUndoManager().markClean();
                         checkDirtyState(filePath);
                         
-                        // Restore the user's view
                         session.selection.moveCursorToPosition(cursor);
                         session.setScrollTop(scrollTop);
                         editor.focus();
@@ -172,8 +296,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         } 
         else if (openTabs.includes(filePath)) {
-            // For background tabs, just delete the session. It will be reloaded
-            // from disk automatically if/when the user clicks on it.
             if (fileSessions.has(filePath)) {
                 fileSessions.delete(filePath);
             }
@@ -281,8 +403,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initResizer(document.getElementById('output-panel-resizer'), document.getElementById('output-panel'), 'outputPanelWidth', 'x');
 
     term.writeln(`\x1b[1;32mWelcome to HT-IDE! (Workspace ID: ${IDE_ID})\x1b[0m`);
-    term.write('$ ');
-
+    
     document.getElementById('run-js-after-htvm').checked = lsGet('runJsAfterHtvm') !== false;
     document.getElementById('full-html-checkbox').checked = lsGet('fullHtml') === true;
 
@@ -333,6 +454,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderTabs();
     }
     
+    writePrompt();
+
     const mainContent = document.querySelector('.main-content-wrapper');
     mainContent.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); });
     mainContent.addEventListener('drop', async (e) => {

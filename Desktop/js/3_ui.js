@@ -1,5 +1,7 @@
 // --- Drag & Drop State ---
 let draggedTab = null;
+// MODIFIED: Added state for the terminal's CWD
+let terminalCwd = '/'; 
 
 // --- UI Rendering Functions ---
 async function renderAll() {
@@ -56,7 +58,6 @@ async function renderFileList() {
 
         li.onclick = () => (item.isFile ? openFileInEditor(item.path) : setCurrentDirectory(item.path + '/'));
 
-        // MODIFIED: Added context menu listener to each file and folder item.
         li.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             window.electronAPI.showFileContextMenu(item.path, item.isFile);
@@ -139,15 +140,26 @@ function checkDirtyState(filename) {
     tab.classList.toggle('dirty', isDirty);
 }
 
-function setCurrentDirectory(path) {
+// MODIFIED: This function now also updates the terminal's CWD.
+async function setCurrentDirectory(path) {
     if (path === '/') {
         currentDirectory = '/';
+        // When going to root, use the actual user home directory for the terminal.
+        terminalCwd = await window.electronAPI.getHomeDir();
     } else {
         currentDirectory = path.replace(/[\\\/]$/, '') + '/';
+        terminalCwd = currentDirectory;
     }
     
     document.getElementById('current-path-display').textContent = currentDirectory;
     lsSet('lastCwd', currentDirectory);
+    
+    // Write a new prompt to the terminal to reflect the change.
+    if(window.writePrompt && !isExecuting) {
+        term.writeln(`\r\n(Directory changed to: ${terminalCwd})`);
+        writePrompt();
+    }
+    
     renderFileList();
 }
 
@@ -195,7 +207,6 @@ function initResizer(resizerEl, containerEl, lsKey, direction) {
 function printExecutionEndMessage() {
     if (lsGet('clearTerminalOnRun') === true) {
         term.writeln(`\n\x1b[1;31m=== Execution is over ===\x1b[0m`);
-        term.write('$ ');
     }
 }
 
@@ -205,6 +216,7 @@ function runHtmlCode(code) {
     iframe.srcdoc = code;
     panel.classList.add('visible');
     printExecutionEndMessage();
+    writePrompt();
 }
 
 function handleDownloadHtml() {
