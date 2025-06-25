@@ -189,6 +189,13 @@ app.whenReady().then(async () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
 
+    // MODIFIED: Added an error handler for the RPC client.
+    // This catches expected "connection closed" errors during shutdown and
+    // prevents them from showing up as unhandled exception popups.
+    rpc.on('error', (err) => {
+        console.warn(`Discord RPC error: ${err.message}`);
+    });
+
     try {
         await rpc.login({ clientId });
         discordReady = true;
