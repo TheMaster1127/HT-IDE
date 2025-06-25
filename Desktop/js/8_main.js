@@ -14,13 +14,11 @@ window.addEventListener('keyup', (e) => {
 });
 
 // MODIFIED: State variables are now in 1_state.js
-let commandHistory = [];
-let historyIndex = -1;
-let currentLine = ""; // For building commands before execution
 
 // MODIFIED: Function to display the command prompt. Now correctly handles the prompt text.
 function writePrompt() {
     currentLine = "";
+    cursorPos = 0;
     processInputLine = "";
     isExecuting = false;
     const shortCwd = terminalCwd.length > 30 ? `...${terminalCwd.slice(-27)}` : terminalCwd;
@@ -150,24 +148,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     term.open(document.getElementById('terminal'));
     fitAddon.fit();
 
-    // MODIFIED: Complete overhaul of terminal key handling to fix all reported bugs.
+    // --- MODIFIED: Complete overhaul of terminal key handling to fix all reported bugs. ---
     term.onKey(async ({ key, domEvent }) => {
+        const printable = !domEvent.altKey && !domEvent.ctrlKey && !domEvent.metaKey;
+
         // --- Ctrl+C Handler ---
         if (domEvent.ctrlKey && domEvent.key.toLowerCase() === 'c') {
             if (isExecuting) {
-                // If a process is running, send an interrupt signal.
                 window.electronAPI.terminalKillProcess();
             } else {
-                // If not, just print ^C and a new prompt line.
                 term.write('^C');
                 writePrompt();
             }
             return;
         }
-        
-        // --- State 1: A process is running and waiting for input ---
+
+        // --- State 1: A process is running and waiting for stdin ---
         if (isExecuting) {
-            const printableForProcess = !domEvent.altKey && !domEvent.ctrlKey && !domEvent.metaKey;
             if (domEvent.key === 'Enter') {
                 window.electronAPI.terminalWriteToStdin(processInputLine + '\n');
                 term.writeln('');
@@ -177,86 +174,119 @@ document.addEventListener('DOMContentLoaded', async () => {
                     term.write('\b \b');
                     processInputLine = processInputLine.slice(0, -1);
                 }
-            } else if (printableForProcess) {
+            } else if (printable) {
                 processInputLine += key;
                 term.write(key);
             }
             return;
         }
 
-        // --- State 2: Building a command at the prompt ---
+        // --- State 2: Building a command at the prompt (full editing capabilities) ---
         const shortCwd = terminalCwd.length > 30 ? `...${terminalCwd.slice(-27)}` : terminalCwd;
         const promptText = `\x1b[1;32m${shortCwd}\x1b[0m $ `;
+        const promptVisibleLength = shortCwd.length + 3; // " $ "
 
-        if (domEvent.key === 'Enter') {
-            if (currentLine.trim()) {
-                commandHistory = commandHistory.filter(c => c !== currentLine);
-                commandHistory.unshift(currentLine);
-                if(commandHistory.length > 50) commandHistory.pop();
-                historyIndex = -1;
-                term.writeln('');
-                isExecuting = true; // Set state to executing
-                await window.electronAPI.runCommand(currentLine, terminalCwd);
-            } else {
-                writePrompt();
-            }
-        } else if (domEvent.key === 'Backspace') {
-            if (currentLine.length > 0) {
-                // MODIFICATION: Instead of just moving cursor, redraw the whole line to avoid render bugs
-                currentLine = currentLine.slice(0, -1);
-                term.write('\r\x1b[K' + promptText + currentLine);
-            }
-        } else if (domEvent.key === 'ArrowUp') {
-            if (historyIndex < commandHistory.length - 1) {
-                historyIndex++;
-                currentLine = commandHistory[historyIndex];
-                term.write('\r\x1b[K' + promptText + currentLine);
-            }
-        } else if (domEvent.key === 'ArrowDown') {
-             if (historyIndex > 0) {
-                historyIndex--;
-                currentLine = commandHistory[historyIndex];
-                term.write('\r\x1b[K' + promptText + currentLine);
-            } else {
-                historyIndex = -1;
-                currentLine = "";
-                term.write('\r\x1b[K' + promptText);
-            }
-        } else if (domEvent.key === 'Tab') {
-            domEvent.preventDefault();
-            const words = currentLine.split(/(\s+)/);
-            // MODIFIED: Handle empty last word for tabbing in an empty directory
-            const partial = words.length > 0 ? words[words.length - 1] : "";
+        const redrawLine = () => {
+            term.write('\r\x1b[K'); // Go to start of line, clear it
+            term.write(promptText + currentLine);
+            term.write('\r\x1b[' + (promptVisibleLength + cursorPos) + 'C'); // Move cursor to correct position
+        };
 
-            const matches = await window.electronAPI.terminalAutocomplete(partial, terminalCwd);
-            
-            if (matches.length === 1) {
-                const completion = matches[0];
-                const diff = completion.substring(partial.length);
-                term.write(diff);
-                currentLine += diff;
-            } else if (matches.length > 1) {
-                const commonPrefix = matches.reduce((prefix, current) => {
-                    while (!current.startsWith(prefix)) {
-                        prefix = prefix.slice(0, -1);
-                    }
-                    return prefix;
-                });
-
-                if (commonPrefix.length > partial.length) {
-                    const diff = commonPrefix.substring(partial.length);
-                    term.write(diff);
-                    currentLine += diff;
+        switch (domEvent.key) {
+            case 'Enter':
+                if (currentLine.trim()) {
+                    commandHistory = commandHistory.filter(c => c !== currentLine);
+                    commandHistory.unshift(currentLine);
+                    if (commandHistory.length > 50) commandHistory.pop();
+                    historyIndex = -1;
+                    term.writeln('');
+                    isExecuting = true; // Set state to executing
+                    await window.electronAPI.runCommand(currentLine, terminalCwd);
+                } else {
+                    writePrompt();
                 }
+                break;
+
+            case 'Backspace':
+                if (cursorPos > 0) {
+                    const left = currentLine.substring(0, cursorPos - 1);
+                    const right = currentLine.substring(cursorPos);
+                    currentLine = left + right;
+                    cursorPos--;
+                    redrawLine();
+                }
+                break;
+
+            case 'ArrowLeft':
+                if (cursorPos > 0) {
+                    cursorPos--;
+                    redrawLine();
+                }
+                break;
+
+            case 'ArrowRight':
+                if (cursorPos < currentLine.length) {
+                    cursorPos++;
+                    redrawLine();
+                }
+                break;
+
+            case 'ArrowUp':
+                if (historyIndex < commandHistory.length - 1) {
+                    historyIndex++;
+                    currentLine = commandHistory[historyIndex];
+                    cursorPos = currentLine.length;
+                    redrawLine();
+                }
+                break;
+
+            case 'ArrowDown':
+                if (historyIndex > 0) {
+                    historyIndex--;
+                    currentLine = commandHistory[historyIndex];
+                } else {
+                    historyIndex = -1;
+                    currentLine = "";
+                }
+                cursorPos = currentLine.length;
+                redrawLine();
+                break;
+            
+            case 'Tab':
+                domEvent.preventDefault();
+                const words = currentLine.substring(0, cursorPos).split(/(\s+)/);
+                const partial = words.length > 0 ? words[words.length - 1] : "";
+                if (!partial.trim()) break;
+
+                const matches = await window.electronAPI.terminalAutocomplete(partial, terminalCwd);
+
+                if (matches.length === 1) {
+                    const completion = matches[0];
+                    const diff = completion.substring(partial.length);
+                    const left = currentLine.substring(0, cursorPos - partial.length);
+                    const right = currentLine.substring(cursorPos);
+                    currentLine = left + completion + right;
+                    cursorPos += diff.length;
+                    redrawLine();
+                } else if (matches.length > 1) {
+                    const displayNames = matches.map(m => m.split(/[\\\/]/).pop().replace(/"/g, ''));
+                    term.writeln('\r\n' + displayNames.join('   '));
+                    writePrompt();
+                    currentLine = currentLine; // Keep the current line
+                    cursorPos = cursorPos;
+                    redrawLine();
+                }
+                break;
                 
-                // CRITICAL FIX: Replaced unavailable 'path.basename' with browser-safe string manipulation.
-                const displayNames = matches.map(m => m.split(/[\\\/]/).pop().replace(/"/g, ''));
-                term.writeln('\r\n' + displayNames.join('   '));
-                term.write(`\r\n${promptText}${currentLine}`);
-            }
-        } else if (!domEvent.altKey && !domEvent.metaKey && !domEvent.ctrlKey) {
-            currentLine += key;
-            term.write(key);
+            default:
+                if (printable) {
+                    const left = currentLine.substring(0, cursorPos);
+                    const right = currentLine.substring(cursorPos);
+                    currentLine = left + key + right;
+                    cursorPos++;
+                    redrawLine();
+                }
+                break;
         }
     });
 

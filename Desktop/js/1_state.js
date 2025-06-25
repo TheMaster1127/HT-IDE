@@ -1,8 +1,16 @@
 // Global Application State
 let editor, term, fitAddon;
-let currentOpenFile = null, currentDirectory = '/', openTabs = [], recentlyClosedTabs = [];
+let currentOpenFile = null, lastActiveTab = null, currentDirectory = '/', openTabs = [], recentlyClosedTabs = [];
 const fileSessions = new Map();
 const fileBreakpoints = new Map();
+
+// --- Terminal State ---
+let isExecuting = false;       // Is a command currently running in the terminal?
+let processInputLine = "";     // Buffer for stdin when a process is running.
+let currentLine = "";          // For building commands at the prompt before execution.
+let cursorPos = 0;             // The cursor's position within the currentLine string.
+let commandHistory = [];       // History of executed commands.
+let historyIndex = -1;         // Current position in the command history.
 
 // --- NEW DEBUGGER STATE ---
 const debuggerState = {
@@ -15,12 +23,6 @@ const debuggerState = {
 
 // Global IDE settings and objects
 let IDE_ID, STORAGE_PREFIX, langTools;
-
-// MODIFIED: Added global state for terminal process handling.
-// This allows the 'Run' button logic (6_htvm.js) and the terminal input logic (8_main.js)
-// to share the same execution state, fixing the stdin bug.
-let isExecuting = false; // Is a command currently running in the terminal?
-let processInputLine = ""; // Buffer for stdin when a process is running.
 
 // Constants will be defined in config, but this prepares the variables
 // that will be initialized in main.js

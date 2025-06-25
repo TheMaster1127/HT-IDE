@@ -1,7 +1,6 @@
 // js/5_editor.js
 
 // --- Editor and Tab Management ---
-let lastActiveTab = null;
 
 function setupGutterEvents() {
     editor.on("guttermousedown", function(e) {
