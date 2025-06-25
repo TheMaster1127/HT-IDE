@@ -371,12 +371,11 @@ ipcMain.handle('dialog:openDirectory', async () => {
     return null;
 });
 
-// MODIFIED: Added HTTP server toggle logic
-ipcMain.handle('http:toggle', async (event, { rootPath, port: startPort }) => {
+// MODIFIED: Added HTTP server toggle logic with logging
+ipcMain.handle('http:toggle', async (event, { rootPath, port: startPort, terminalId }) => {
     if (httpServer && httpServer.listening) {
         return new Promise((resolve) => {
             httpServer.close(() => {
-                console.log('HTTP Server stopped.');
                 httpServer = null;
                 resolve({ status: 'stopped' });
             });
@@ -387,6 +386,28 @@ ipcMain.handle('http:toggle', async (event, { rootPath, port: startPort }) => {
     let port = startPort || 8080;
 
     const createServerHandler = (req, res) => {
+        const startTime = process.hrtime();
+        
+        // This function will be called after the response is sent.
+        const logRequest = () => {
+            const elapsedTime = process.hrtime(startTime);
+            const elapsedTimeMs = (elapsedTime[0] * 1e3 + elapsedTime[1] * 1e-6).toFixed(2);
+            const status = res.statusCode;
+            const logMessage = `[${status}] ${req.method} ${req.url} (${elapsedTimeMs}ms)`;
+            // Send log to the specific terminal that started the server
+            if (!event.sender.isDestroyed()) {
+                 event.sender.send('http-server-log', { terminalId, message: logMessage });
+            }
+        };
+        
+        res.on('finish', logRequest);
+        res.on('close', () => {
+            // 'close' can be emitted before 'finish' if the connection is aborted.
+            // Remove the 'finish' listener to avoid logging twice.
+            res.removeListener('finish', logRequest);
+            logRequest();
+        });
+        
         let reqUrl = req.url.split('?')[0]; // Ignore query parameters for file path
         let filePath = path.join(finalRootPath, reqUrl === '/' ? 'index.html' : reqUrl);
 
@@ -418,12 +439,11 @@ ipcMain.handle('http:toggle', async (event, { rootPath, port: startPort }) => {
             const server = http.createServer(createServerHandler);
             server.on('listening', () => {
                 httpServer = server;
-                console.log(`HTTP Server started on http://localhost:${listenPort}`);
                 resolve({ status: 'started', port: listenPort });
             });
             server.on('error', (err) => {
                 if (err.code === 'EADDRINUSE') {
-                    console.log(`Port ${listenPort} is in use, trying next...`);
+                    event.sender.send('http-server-log', { terminalId, message: `Port ${listenPort} is busy, trying next...` });
                     resolve(tryListen(listenPort + 1));
                 } else {
                     reject(err);
@@ -436,7 +456,6 @@ ipcMain.handle('http:toggle', async (event, { rootPath, port: startPort }) => {
     try {
         return await tryListen(port);
     } catch (error) {
-        console.error('Failed to start HTTP server:', error);
         return { status: 'error', message: error.message };
     }
 });

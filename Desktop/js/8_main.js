@@ -195,8 +195,7 @@ async function handleToggleHttpServer() {
         const homeDir = await window.electronAPI.getHomeDir();
         const rootDir = currentDirectory === '/' ? homeDir : currentDirectory;
         
-        // Start trying at port 8080
-        const result = await window.electronAPI.toggleHttpServer(rootDir, 8080);
+        const result = await window.electronAPI.toggleHttpServer(rootDir, 8080, activeTerm.id);
         
         if (result.status === 'started') {
             isServerRunning = true;
@@ -206,6 +205,7 @@ async function handleToggleHttpServer() {
             btn.title = `Stop the local web server running on http://localhost:${serverPort}`;
             activeTerm.xterm.writeln(`\r\n\x1b[32m✔ HTTP Server started on http://localhost:${serverPort}\x1b[0m`);
             activeTerm.xterm.writeln(`\x1b[32m  Serving files from: ${rootDir}\x1b[0m`);
+            writePrompt(activeTerm);
         } else if (result.status === 'stopped') {
             isServerRunning = false;
             serverPort = null;
@@ -213,13 +213,15 @@ async function handleToggleHttpServer() {
             btn.classList.remove('running');
             btn.title = 'Start a local web server in the current directory';
             activeTerm.xterm.writeln(`\r\n\x1b[31m✖ HTTP Server stopped.\x1b[0m`);
+            writePrompt(activeTerm);
         } else if (result.status === 'error') {
             activeTerm.xterm.writeln(`\r\n\x1b[31mError starting server: ${result.message}\x1b[0m`);
+            writePrompt(activeTerm);
         }
     } catch (error) {
         activeTerm.xterm.writeln(`\r\n\x1b[31mIPC Error toggling server: ${error.message}\x1b[0m`);
+        writePrompt(activeTerm);
     }
-    writePrompt(activeTerm);
 }
 
 
@@ -322,6 +324,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.electronAPI.onTerminalUpdateCwd(({ terminalId, newPath }) => {
         const session = terminalSessions.get(terminalId);
         if (session) session.cwd = newPath;
+    });
+
+    // MODIFIED: Added server log listener
+    window.electronAPI.onHttpServerLog(({ terminalId, message }) => {
+        const session = terminalSessions.get(terminalId);
+        if (session && session.xterm) {
+            // Write log in grey, then redraw the prompt on a new line
+            const promptVisibleLength = session.cwd.length > 30 ? 33 : session.cwd.length + 3;
+            const totalPromptLength = promptVisibleLength + session.currentLine.length;
+            session.xterm.write('\r\x1b[K'); // Clear current line
+            session.xterm.writeln(`\x1b[90m${message}\x1b[0m`); // Write log in grey
+            writePrompt(session); // Redraw prompt
+            session.xterm.write(session.currentLine); // Rewrite user's current input
+        }
     });
     
     window.electronAPI.onCloseTabFromContextMenu(async (filePath) => await handleCloseTabRequest(filePath));
@@ -517,7 +533,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // MODIFIED: Ensure server is stopped on close/reload to prevent orphaned processes
         if (isServerRunning) {
-            window.electronAPI.toggleHttpServer(currentDirectory, serverPort);
+            window.electronAPI.toggleHttpServer(currentDirectory, serverPort, getActiveTerminalSession()?.id);
         }
 
         lsSet('openTabs', openTabs);

@@ -45,6 +45,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     switchWorkspace: (newId) => ipcRenderer.send('app:switch-workspace', newId),
     setZoomLevel: (level) => ipcRenderer.send('app:set-zoom-level', level),
 
-    // --- MODIFIED: Added HTTP Server function ---
-    toggleHttpServer: (rootPath, port) => ipcRenderer.invoke('http:toggle', { rootPath, port }),
+    // --- MODIFIED: Added HTTP Server functions ---
+    toggleHttpServer: (rootPath, port, terminalId) => ipcRenderer.invoke('http:toggle', { rootPath, port, terminalId }),
+    onHttpServerLog: (callback) => ipcRenderer.on('http-server-log', (event, data) => callback(data)),
 });
