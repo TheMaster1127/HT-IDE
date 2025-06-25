@@ -18,6 +18,10 @@ const debuggerState = {
     reject: null,  // A function to reject on stop
 };
 
+// MODIFIED: Added server state
+let isServerRunning = false;
+let serverPort = null;
+
 // Global IDE settings and objects
 let IDE_ID, STORAGE_PREFIX, langTools;
 

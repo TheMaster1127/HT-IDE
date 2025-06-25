@@ -42,6 +42,13 @@
     --btn-open-folder-bg: #0e639c;
     --btn-open-folder-text: #ffffff;
     --btn-open-folder-text-bold: normal;
+    /* MODIFIED: Added server button variables */
+    --btn-http-server-start-bg: #4caf50;
+    --btn-http-server-start-text: #ffffff;
+    --btn-http-server-start-text-bold: normal;
+    --btn-http-server-stop-bg: #f44336;
+    --btn-http-server-stop-text: #ffffff;
+    --btn-http-server-stop-text-bold: normal;
 
     /* --- Sidebar Variables --- */
     --sidebar-bg: #121212; 
@@ -193,6 +200,19 @@ body.preload * { transition: none !important; }
 #load-instructions-btn { background-color: var(--btn-manage-instr-bg); color: var(--btn-manage-instr-text); font-weight: var(--btn-manage-instr-text-bold); }
 #htvm-to-htvm-btn { background-color: var(--btn-htvm-to-htvm-bg); color: var(--btn-htvm-to-htvm-text); font-weight: var(--btn-htvm-to-htvm-text-bold); }
 #export-import-btn { background-color: var(--btn-export-import-bg); color: var(--btn-export-import-text); font-weight: var(--btn-export-import-text-bold); }
+/* MODIFIED: Added HTTP Server button styles */
+#http-server-btn {
+    grid-column: 1 / -1;
+    background-color: var(--btn-http-server-start-bg);
+    color: var(--btn-http-server-start-text);
+    font-weight: var(--btn-http-server-start-text-bold);
+    transition: background-color 0.3s ease;
+}
+#http-server-btn.running {
+    background-color: var(--btn-http-server-stop-bg);
+    color: var(--btn-http-server-stop-text);
+    font-weight: var(--btn-http-server-stop-text-bold);
+}
 #open-folder-btn { grid-column: 1 / -1; background-color: var(--btn-open-folder-bg); color: var(--btn-open-folder-text); font-weight: var(--btn-open-folder-text-bold); }
 #sidebar-resizer { width: var(--resizer-size); background-color: var(--resizer-bg); cursor: ew-resize; flex-shrink: 0; }
 #sidebar-resizer:hover { background-color: var(--resizer-hover-bg); }

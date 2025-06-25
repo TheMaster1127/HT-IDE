@@ -127,6 +127,12 @@ const uiThemeConfig = {
     '--debugger-scope-bg': { label: 'Scope Panel BG', default: '#1a1a1a', type: 'color', category: 'Debugger', description: 'Background for the "Scope Variables" panel.' },
     '--debugger-var-name-color': { label: 'Variable Name Color', default: '#9cdcfe', type: 'color', category: 'Debugger', description: 'Color for variable names in the scope panel.', hasBoldToggle: true, defaultBold: false },
     '--debugger-var-value-color': { label: 'Variable Value Color', default: '#ce9178', type: 'color', category: 'Debugger', description: 'Color for variable values in the scope panel.', hasBoldToggle: true, defaultBold: false },
+
+    // --- MODIFIED: Added Web Server Category ---
+    '--btn-http-server-start-bg': { label: 'Start Server Button BG', default: '#4caf50', type: 'color', category: 'Web Server', description: 'Background color for the "Start Server" button.' },
+    '--btn-http-server-start-text': { label: 'Start Server Button Text', default: '#ffffff', type: 'color', category: 'Web Server', description: 'Text color for the "Start Server" button.', hasBoldToggle: true, defaultBold: false },
+    '--btn-http-server-stop-bg': { label: 'Stop Server Button BG', default: '#f44336', type: 'color', category: 'Web Server', description: 'Background color for the "Stop Server" button when it is running.' },
+    '--btn-http-server-stop-text': { label: 'Stop Server Button Text', default: '#ffffff', type: 'color', category: 'Web Server', description: 'Text color for the "Stop Server" button.', hasBoldToggle: true, defaultBold: false },
 };
 
 

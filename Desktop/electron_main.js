@@ -4,6 +4,7 @@ const { app, BrowserWindow, ipcMain, globalShortcut, dialog, shell, Menu } = req
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const http = require('http'); // MODIFIED: Added http module
 const { spawn } = require('child_process');
 const DiscordRPC = require('discord-rpc');
 const contextMenu = require('electron-context-menu');
@@ -17,6 +18,15 @@ let discordReady = false;
 let startTimestamp = new Date();
 
 const fileWatchers = new Map();
+
+// MODIFIED: Added global server instance and MIME types map
+let httpServer = null;
+const mimeTypes = {
+    '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
+    '.png': 'image/png', '.jpg': 'image/jpeg', '.gif': 'image/gif', '.svg': 'image/svg+xml',
+    '.wav': 'audio/wav', '.mp4': 'video/mp4', '.woff': 'application/font-woff', '.ttf': 'application/font-ttf',
+    '.eot': 'application/vnd.ms-fontobject', '.otf': 'application/font-otf', '.wasm': 'application/wasm'
+};
 
 function updatePresence(details = "Idle", state = "In the main menu", lineCount = 0) {
   if (!discordReady) return;
@@ -220,6 +230,11 @@ app.on('will-quit', () => {
     fileWatchers.forEach(watcher => watcher.close());
     fileWatchers.clear();
     
+    // MODIFIED: Ensure HTTP server is closed on quit
+    if (httpServer && httpServer.listening) {
+        httpServer.close();
+    }
+    
     terminalProcesses.forEach(processToKill => {
         if (!processToKill || processToKill.killed) {
             return;
@@ -354,6 +369,76 @@ ipcMain.handle('dialog:openDirectory', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({ properties: ['openDirectory'] });
     if (!canceled) return filePaths;
     return null;
+});
+
+// MODIFIED: Added HTTP server toggle logic
+ipcMain.handle('http:toggle', async (event, { rootPath, port: startPort }) => {
+    if (httpServer && httpServer.listening) {
+        return new Promise((resolve) => {
+            httpServer.close(() => {
+                console.log('HTTP Server stopped.');
+                httpServer = null;
+                resolve({ status: 'stopped' });
+            });
+        });
+    }
+
+    const finalRootPath = rootPath === '/' ? os.homedir() : rootPath;
+    let port = startPort || 8080;
+
+    const createServerHandler = (req, res) => {
+        let reqUrl = req.url.split('?')[0]; // Ignore query parameters for file path
+        let filePath = path.join(finalRootPath, reqUrl === '/' ? 'index.html' : reqUrl);
+
+        const serve404 = () => {
+            res.writeHead(404, { 'Content-Type': 'text/html' });
+            res.end('<h1>404 Not Found</h1>', 'utf-8');
+        };
+        
+        fs.stat(filePath, (err, stats) => {
+            if (err) return serve404();
+            
+            if (stats.isDirectory()) {
+                filePath = path.join(filePath, 'index.html');
+            }
+
+            fs.readFile(filePath, (error, content) => {
+                if (error) return serve404();
+                
+                const extname = String(path.extname(filePath)).toLowerCase();
+                const contentType = mimeTypes[extname] || 'application/octet-stream';
+                res.writeHead(200, { 'Content-Type': contentType });
+                res.end(content, 'utf-8');
+            });
+        });
+    };
+    
+    const tryListen = (listenPort) => {
+        return new Promise((resolve, reject) => {
+            const server = http.createServer(createServerHandler);
+            server.on('listening', () => {
+                httpServer = server;
+                console.log(`HTTP Server started on http://localhost:${listenPort}`);
+                resolve({ status: 'started', port: listenPort });
+            });
+            server.on('error', (err) => {
+                if (err.code === 'EADDRINUSE') {
+                    console.log(`Port ${listenPort} is in use, trying next...`);
+                    resolve(tryListen(listenPort + 1));
+                } else {
+                    reject(err);
+                }
+            });
+            server.listen(listenPort);
+        });
+    };
+
+    try {
+        return await tryListen(port);
+    } catch (error) {
+        console.error('Failed to start HTTP server:', error);
+        return { status: 'error', message: error.message };
+    }
 });
 
 ipcMain.handle('get-app-path', () => app.getAppPath());

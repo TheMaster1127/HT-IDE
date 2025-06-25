@@ -182,6 +182,46 @@ async function createTerminalInstanceForSession(session) {
 }
 window.createTerminalInstanceForSession = createTerminalInstanceForSession;
 
+// MODIFIED: Added HTTP Server toggle handler
+async function handleToggleHttpServer() {
+    const btn = document.getElementById('http-server-btn');
+    const activeTerm = getActiveTerminalSession();
+    if (!activeTerm) {
+        alert("No active terminal to show server status.");
+        return;
+    }
+
+    try {
+        const homeDir = await window.electronAPI.getHomeDir();
+        const rootDir = currentDirectory === '/' ? homeDir : currentDirectory;
+        
+        // Start trying at port 8080
+        const result = await window.electronAPI.toggleHttpServer(rootDir, 8080);
+        
+        if (result.status === 'started') {
+            isServerRunning = true;
+            serverPort = result.port;
+            btn.textContent = `⏹ Stop Server (Port: ${serverPort})`;
+            btn.classList.add('running');
+            btn.title = `Stop the local web server running on http://localhost:${serverPort}`;
+            activeTerm.xterm.writeln(`\r\n\x1b[32m✔ HTTP Server started on http://localhost:${serverPort}\x1b[0m`);
+            activeTerm.xterm.writeln(`\x1b[32m  Serving files from: ${rootDir}\x1b[0m`);
+        } else if (result.status === 'stopped') {
+            isServerRunning = false;
+            serverPort = null;
+            btn.textContent = '▶ Start Server';
+            btn.classList.remove('running');
+            btn.title = 'Start a local web server in the current directory';
+            activeTerm.xterm.writeln(`\r\n\x1b[31m✖ HTTP Server stopped.\x1b[0m`);
+        } else if (result.status === 'error') {
+            activeTerm.xterm.writeln(`\r\n\x1b[31mError starting server: ${result.message}\x1b[0m`);
+        }
+    } catch (error) {
+        activeTerm.xterm.writeln(`\r\n\x1b[31mIPC Error toggling server: ${error.message}\x1b[0m`);
+    }
+    writePrompt(activeTerm);
+}
+
 
 function applyAndSetHotkeys() {
     if (hotkeyListener) document.removeEventListener('keydown', hotkeyListener);
@@ -353,6 +393,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('export-import-btn').addEventListener('click', openExportImportModal);
     document.getElementById('open-folder-btn').addEventListener('click', handleOpenFolder);
     document.getElementById('new-terminal-btn').addEventListener('click', handleNewTerminal); // NEW
+    // MODIFIED: Added server button listener
+    document.getElementById('http-server-btn').addEventListener('click', handleToggleHttpServer);
     
     const toggleBtn = document.getElementById('main-toggle-sidebar-btn'), sidebar = document.querySelector('.sidebar'), backdrop = document.getElementById('sidebar-backdrop'), closeBtn = document.getElementById('sidebar-close-btn');
     function toggleSidebar() {
