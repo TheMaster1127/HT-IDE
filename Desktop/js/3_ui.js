@@ -161,7 +161,9 @@ function renderTerminalTabs() {
 }
 
 async function handleNewTerminal() {
-    const id = terminalSessions.size > 0 ? Math.max(...Array.from(terminalSessions.keys())) + 1 : 1;
+    // MODIFIED: Check if this is the first terminal *before* adding the new one.
+    const isFirstTerminal = terminalSessions.size === 0;
+    const id = isFirstTerminal ? 1 : Math.max(...Array.from(terminalSessions.keys())) + 1;
     const homeDir = await window.electronAPI.getHomeDir();
 
     const session = {
@@ -181,6 +183,11 @@ async function handleNewTerminal() {
     await handleSwitchTerminal(id); // This will create the DOM elements and xterm instance
     renderTerminalTabs();
     
+    // MODIFIED: If it's the very first terminal, write the welcome message.
+    if (isFirstTerminal && session.xterm) {
+        session.xterm.writeln(`\x1b[1;32mWelcome to HT-IDE! (Workspace ID: ${IDE_ID})\x1b[0m`);
+    }
+
     // Focus the new terminal
     const activeSession = getActiveTerminalSession();
     if(activeSession && activeSession.xterm) {

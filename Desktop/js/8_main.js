@@ -436,8 +436,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     initResizer(document.getElementById('terminal-resizer'), document.getElementById('terminal-container'), 'terminalHeight', 'y');
     initResizer(document.getElementById('output-panel-resizer'), document.getElementById('output-panel'), 'outputPanelWidth', 'x');
 
+    // MODIFIED: This call now handles its own welcome message logic.
     await handleNewTerminal(); // Create the first terminal on startup.
-    getActiveTerminalSession().xterm.writeln(`\x1b[1;32mWelcome to HT-IDE! (Workspace ID: ${IDE_ID})\x1b[0m`);
     
     document.getElementById('run-js-after-htvm').checked = lsGet('runJsAfterHtvm') !== false;
     document.getElementById('full-html-checkbox').checked = lsGet('fullHtml') === true;
@@ -478,8 +478,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderTabs();
     }
     
-    writePrompt(getActiveTerminalSession());
-
     const mainContent = document.querySelector('.main-content-wrapper');
     mainContent.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); });
     mainContent.addEventListener('drop', async (e) => {
@@ -516,6 +514,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         openTabs.forEach(tab => window.electronAPI.unwatchFile(tab));
         terminalSessions.forEach(s => window.electronAPI.terminalKillProcess(s.id));
+
+        // MODIFIED: Ensure server is stopped on close/reload to prevent orphaned processes
+        if (isServerRunning) {
+            window.electronAPI.toggleHttpServer(currentDirectory, serverPort);
+        }
 
         lsSet('openTabs', openTabs);
         lsSet('lastOpenFile', currentOpenFile);

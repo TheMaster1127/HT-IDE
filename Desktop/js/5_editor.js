@@ -146,10 +146,25 @@ async function handleCloseTabRequest(filename) {
 }
 
 const handleReopenTab = async () => {
-    const f = recentlyClosedTabs.pop();
-    const allPaths = (await getAllPaths()).map(p => p.path);
-    if (f && allPaths.includes(f)) {
-        await openFileInEditor(f);
+    // MODIFIED: This function is now fixed. It checks the actual file system
+    // instead of relying on the currently displayed file list.
+    const fileToReopen = recentlyClosedTabs.pop();
+    if (!fileToReopen) {
+        return; // No tabs to reopen
+    }
+
+    // Use getFileContent to check for the file's existence.
+    // It returns null if the file doesn't exist or isn't accessible.
+    const content = await window.electronAPI.getFileContent(fileToReopen);
+
+    if (content !== null) {
+        await openFileInEditor(fileToReopen);
+    } else {
+        console.warn(`Attempted to reopen a tab for a file that no longer exists: ${fileToReopen}`);
+        // Optionally, try to reopen the next one if this one failed
+        if (recentlyClosedTabs.length > 0) {
+            await handleReopenTab();
+        }
     }
 };
 
