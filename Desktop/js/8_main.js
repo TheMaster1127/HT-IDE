@@ -252,31 +252,62 @@ document.addEventListener('DOMContentLoaded', async () => {
                 redrawLine();
                 break;
             
-            case 'Tab':
+            case 'Tab': { // Using a block scope for clarity
                 domEvent.preventDefault();
-                const words = currentLine.substring(0, cursorPos).split(/(\s+)/);
-                const partial = words.length > 0 ? words[words.length - 1] : "";
-                if (!partial.trim()) break;
 
+                // Find the word to complete: the last sequence of non-space characters before the cursor
+                const lineBeforeCursor = currentLine.substring(0, cursorPos);
+                const lastWordMatch = lineBeforeCursor.match(/([^\s]+)$/);
+
+                // If no word is found (e.g., cursor is after a space), do nothing.
+                if (!lastWordMatch) break;
+                
+                const partial = lastWordMatch[0];
                 const matches = await window.electronAPI.terminalAutocomplete(partial, terminalCwd);
 
-                if (matches.length === 1) {
+                if (matches.length === 0) {
+                    // No match, do nothing
+                    break;
+                } else if (matches.length === 1) {
+                    // Single match, complete it fully
                     const completion = matches[0];
-                    const diff = completion.substring(partial.length);
-                    const left = currentLine.substring(0, cursorPos - partial.length);
-                    const right = currentLine.substring(cursorPos);
-                    currentLine = left + completion + right;
-                    cursorPos += diff.length;
+                    const startIndex = lastWordMatch.index;
+                    const rightSide = currentLine.substring(cursorPos);
+
+                    currentLine = currentLine.substring(0, startIndex) + completion + rightSide;
+                    cursorPos = startIndex + completion.length;
                     redrawLine();
-                } else if (matches.length > 1) {
-                    const displayNames = matches.map(m => m.split(/[\\\/]/).pop().replace(/"/g, ''));
-                    term.writeln('\r\n' + displayNames.join('   '));
-                    writePrompt();
-                    currentLine = currentLine; // Keep the current line
-                    cursorPos = cursorPos;
-                    redrawLine();
+                } else {
+                    // Multiple matches, find longest common prefix (LCP)
+                    let lcp = '';
+                    if (matches.length > 0) {
+                        const first = matches[0];
+                        for (let i = 0; i < first.length; i++) {
+                            const char = first[i];
+                            if (matches.every(m => m[i] === char)) {
+                                lcp += char;
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+
+                    if (lcp.length > partial.length) {
+                        // We found a longer common prefix, complete to that
+                        const startIndex = lastWordMatch.index;
+                        const rightSide = currentLine.substring(cursorPos);
+                        currentLine = currentLine.substring(0, startIndex) + lcp + rightSide;
+                        cursorPos = startIndex + lcp.length;
+                        redrawLine();
+                    } else {
+                        // User likely tabbed again, show options
+                        const displayNames = matches.map(m => m.split(/[\\\/]/).pop().replace(/"/g, ''));
+                        term.writeln('\r\n' + displayNames.join('   '));
+                        redrawLine(); // Redraw the current line below the suggestions
+                    }
                 }
                 break;
+            }
                 
             default:
                 if (printable) {

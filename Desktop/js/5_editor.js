@@ -85,6 +85,15 @@ async function openFileInEditor(filename) {
 
     await renderAll();
     updateEditorModeForHtvm();
+
+    // Scroll the active tab into view
+    const activeTab = document.querySelector('.tab.active');
+    if (activeTab) {
+        activeTab.scrollIntoView({
+            block: 'nearest',
+            inline: 'nearest' 
+        });
+    }
 }
 
 async function closeTab(filenameToClose, force = false) {
