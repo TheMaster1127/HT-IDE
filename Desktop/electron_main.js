@@ -36,14 +36,13 @@ function updatePresence(details = "Idle", state = "In the main menu", lineCount 
   }).catch(console.error);
 }
 
-const runningProcesses = new Map();
-let activeInteractiveProcess = null;
+const terminalProcesses = new Map();
 
-function runCommand(command, cwd, event) {
+function runCommand(terminalId, command, cwd, event) {
     return new Promise((resolve, reject) => {
         const trimmedCommand = command.trim();
         if (!trimmedCommand) {
-            event.sender.send('command-close', 0);
+            event.sender.send('command-close', { terminalId, code: 0 });
             resolve(0);
             return;
         }
@@ -57,80 +56,92 @@ function runCommand(command, cwd, event) {
             const newCwd = path.resolve(cwd, targetDir);
             try {
                 if (fs.statSync(newCwd).isDirectory()) {
-                    event.sender.send('terminal:update-cwd', newCwd);
+                    event.sender.send('terminal:update-cwd', { terminalId, newPath: newCwd });
                 } else {
-                    event.sender.send('command-error', `\r\ncd: not a directory: ${newCwd}`);
+                    event.sender.send('command-error', { terminalId, data: `\r\ncd: not a directory: ${newCwd}` });
                 }
             } catch (error) {
-                event.sender.send('command-error', `\r\ncd: no such file or directory: ${newCwd}`);
+                event.sender.send('command-error', { terminalId, data: `\r\ncd: no such file or directory: ${newCwd}` });
             }
-            event.sender.send('command-close', 0);
+            event.sender.send('command-close', { terminalId, code: 0 });
             resolve(0);
             return;
         }
-
-        const process = spawn(cmd, args, { cwd, shell: true });
-        activeInteractiveProcess = process;
-        const processId = process.pid;
-        runningProcesses.set(processId, process);
-
-        process.stdout.on('data', (data) => event.sender.send('command-output', data.toString()));
-        process.stderr.on('data', (data) => event.sender.send('command-error', data.toString()));
         
-        process.on('close', (code) => {
-            runningProcesses.delete(processId);
-            if (activeInteractiveProcess && activeInteractiveProcess.pid === processId) {
-                activeInteractiveProcess = null;
-            }
-            // MODIFIED: Don't send 'command-close' for single commands in a sequence
-            // The new sequence handler will manage this.
-            // event.sender.send('command-close', code); 
-            resolve(code); 
+        // MODIFIED: Added platform-specific spawn options for robust killing
+        const spawnOptions = { 
+            cwd, 
+            shell: true,
+            // On non-windows, create a detached process group to kill all children
+            detached: process.platform !== 'win32' 
+        };
+        const childProcess = spawn(cmd, args, spawnOptions);
+        terminalProcesses.set(terminalId, childProcess);
+
+        childProcess.stdout.on('data', (data) => event.sender.send('command-output', { terminalId, data: data.toString() }));
+        childProcess.stderr.on('data', (data) => event.sender.send('command-error', { terminalId, data: data.toString() }));
+        
+        childProcess.on('close', (code) => {
+            terminalProcesses.delete(terminalId);
+            resolve(code);
         });
 
-        process.on('error', (err) => {
-            runningProcesses.delete(processId);
-             if (activeInteractiveProcess && activeInteractiveProcess.pid === processId) {
-                activeInteractiveProcess = null;
-            }
-            event.sender.send('command-error', `Error: ${err.message}`);
-            // event.sender.send('command-close', 1);
-            reject(err); 
+        childProcess.on('error', (err) => {
+            terminalProcesses.delete(terminalId);
+            event.sender.send('command-error', { terminalId, data: `Error: ${err.message}` });
+            reject(err);
         });
     });
 }
 
-// NEW: A dedicated handler for running multiple commands from a property file sequentially.
-ipcMain.handle('run-command-sequence', async (event, { commands, cwd }) => {
+ipcMain.handle('run-command-sequence', async (event, { terminalId, commands, cwd }) => {
     for (const command of commands) {
         try {
-            // Await each command. If a command fails (rejects), the loop will stop.
-            await runCommand(command, cwd, event);
+            const exitCode = await runCommand(terminalId, command, cwd, event);
+            if (exitCode !== 0) {
+                 console.error(`Command sequence failed at '${command}' with code ${exitCode}`);
+                 event.sender.send('command-close', { terminalId, code: exitCode });
+                 return;
+            }
         } catch (error) {
             console.error(`Command sequence failed at '${command}':`, error);
-            // Send the final close event to reset the renderer's terminal state
-            event.sender.send('command-close', 1); // Signal error
-            return; // Exit the sequence
+            event.sender.send('command-close', { terminalId, code: 1 }); 
+            return; 
         }
     }
-    // Send the final close event only after all commands have succeeded
-    event.sender.send('command-close', 0); // Signal success
+    event.sender.send('command-close', { terminalId, code: 0 });
 });
 
 
-ipcMain.on('terminal:write-to-stdin', (event, data) => {
-    if (activeInteractiveProcess && activeInteractiveProcess.stdin && !activeInteractiveProcess.stdin.destroyed) {
-        activeInteractiveProcess.stdin.write(data);
+ipcMain.on('terminal:write-to-stdin', (event, { terminalId, data }) => {
+    const process = terminalProcesses.get(terminalId);
+    if (process && process.stdin && !process.stdin.destroyed) {
+        process.stdin.write(data);
     }
 });
 
-ipcMain.on('terminal:kill-process', () => {
-    if (activeInteractiveProcess) {
-        activeInteractiveProcess.kill('SIGINT'); 
+// MODIFIED: Implemented a more robust, platform-aware process killer.
+ipcMain.on('terminal:kill-process', (event, terminalId) => {
+    const processToKill = terminalProcesses.get(terminalId);
+    if (processToKill) {
+        if (process.platform === 'win32') {
+            // On Windows, 'taskkill' is more reliable for killing process trees.
+            spawn('taskkill', ['/pid', processToKill.pid, '/f', '/t']);
+        } else {
+            // On Unix-like systems, kill the entire process group by sending a signal
+            // to the negative PID. This requires the `detached: true` option in spawn.
+            try {
+                process.kill(-processToKill.pid, 'SIGINT');
+            } catch (e) {
+                // Fallback if killing the group fails
+                processToKill.kill('SIGINT');
+            }
+        }
+        // Let the 'close' event handle the map deletion.
     }
 });
 
-ipcMain.handle('terminal:autocomplete', (event, { partial, cwd }) => {
+ipcMain.handle('terminal:autocomplete', (event, { terminalId, partial, cwd }) => {
     try {
         const baseName = path.basename(partial);
         const dirName = path.dirname(partial);
@@ -203,6 +214,8 @@ app.on('will-quit', () => {
     globalShortcut.unregisterAll();
     fileWatchers.forEach(watcher => watcher.close());
     fileWatchers.clear();
+    terminalProcesses.forEach(proc => proc.kill());
+    terminalProcesses.clear();
     if (discordReady) {
         rpc.destroy();
     }
@@ -321,11 +334,11 @@ ipcMain.handle('dialog:openDirectory', async () => {
 ipcMain.handle('get-app-path', () => app.getAppPath());
 ipcMain.handle('get-home-dir', () => os.homedir());
 ipcMain.handle('update-discord-presence', (event, { details, state, lineCount }) => { updatePresence(details, state, lineCount); });
-ipcMain.handle('run-command', (event, { command, cwd }) => {
-    // This is for single commands from the terminal input
-    runCommand(command, cwd, event).finally(() => {
-        event.sender.send('command-close', 0);
-    });
+ipcMain.handle('run-command', async (event, { terminalId, command, cwd }) => {
+    // This is for single commands from the terminal input.
+    // It will send its own 'close' event when done.
+    const code = await runCommand(terminalId, command, cwd, event).catch(() => 1);
+    event.sender.send('command-close', { terminalId, code });
 });
 ipcMain.handle('fs:getAllPaths', (event, dirPath) => { try { const p = dirPath === '/' ? userHomeDir : dirPath; const i = fs.readdirSync(p, { withFileTypes: true }); return i.map(t => ({ name: t.name, path: path.join(p, t.name), isFile: t.isFile() })); } catch (e) { if (e.code === 'ENOENT') return []; console.error(`Error reading directory ${dirPath}:`, e); return []; } });
 ipcMain.handle('fs:getFileContent', (event, filePath) => { try { if (fs.existsSync(filePath)) return fs.readFileSync(filePath, 'utf-8'); return null; } catch (e) { console.error(e); return null; } });

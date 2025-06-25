@@ -1,12 +1,13 @@
 // --- Drag & Drop State ---
 let draggedTab = null;
-// MODIFIED: Added state for the terminal's CWD
-let terminalCwd = '/'; 
+// MODIFIED: This global is removed, each terminal will have its own CWD.
+// let terminalCwd = '/'; 
 
 // --- UI Rendering Functions ---
 async function renderAll() {
     await renderFileList();
     renderTabs();
+    renderTerminalTabs();
 }
 
 async function renderFileList() {
@@ -124,6 +125,125 @@ function renderTabs() {
     updateActiveFileVisuals(currentOpenFile);
 }
 
+// --- NEW: Terminal UI Functions ---
+
+function renderTerminalTabs() {
+    const container = document.getElementById('terminal-tabs-container');
+    // Clear existing tabs, but not the '+' button
+    while (container.firstChild && container.firstChild.id !== 'new-terminal-btn') {
+        container.removeChild(container.firstChild);
+    }
+
+    const newBtn = document.getElementById('new-terminal-btn');
+    
+    terminalSessions.forEach(session => {
+        const tab = document.createElement('div');
+        tab.className = 'terminal-tab';
+        tab.dataset.id = session.id;
+        tab.textContent = `Terminal ${session.id}`;
+        if (session.id === activeTerminalId) {
+            tab.classList.add('active');
+        }
+
+        tab.onclick = () => handleSwitchTerminal(session.id);
+
+        const closeBtn = document.createElement('span');
+        closeBtn.className = 'close-terminal-tab';
+        closeBtn.textContent = '×';
+        closeBtn.onclick = (e) => {
+            e.stopPropagation();
+            handleCloseTerminal(session.id);
+        };
+        tab.appendChild(closeBtn);
+
+        container.insertBefore(tab, newBtn);
+    });
+}
+
+async function handleNewTerminal() {
+    const id = terminalSessions.size > 0 ? Math.max(...Array.from(terminalSessions.keys())) + 1 : 1;
+    const homeDir = await window.electronAPI.getHomeDir();
+
+    const session = {
+        id: id,
+        xterm: null,
+        fitAddon: null,
+        cwd: currentDirectory === '/' ? homeDir : currentDirectory,
+        isExecuting: false,
+        commandHistory: [],
+        historyIndex: -1,
+        currentLine: "",
+        cursorPos: 0,
+        processInputLine: ""
+    };
+
+    terminalSessions.set(id, session);
+    await handleSwitchTerminal(id); // This will create the DOM elements and xterm instance
+    renderTerminalTabs();
+    
+    // Focus the new terminal
+    const activeSession = getActiveTerminalSession();
+    if(activeSession && activeSession.xterm) {
+        activeSession.xterm.focus();
+    }
+}
+
+function handleCloseTerminal(id) {
+    const session = terminalSessions.get(id);
+    if (session) {
+        window.electronAPI.terminalKillProcess(id);
+        session.xterm.dispose();
+        session.pane.remove();
+        terminalSessions.delete(id);
+    }
+
+    if (activeTerminalId === id) {
+        const remainingIds = Array.from(terminalSessions.keys());
+        const newActiveId = remainingIds.length > 0 ? remainingIds[0] : null;
+        if (newActiveId) {
+            handleSwitchTerminal(newActiveId);
+        } else {
+            activeTerminalId = null;
+        }
+    }
+    
+    renderTerminalTabs();
+}
+
+async function handleSwitchTerminal(id) {
+    if (activeTerminalId === id && terminalSessions.get(id)?.xterm) return; // Already active
+
+    activeTerminalId = id;
+    const panesContainer = document.getElementById('terminal-panes');
+    
+    // Hide all panes
+    document.querySelectorAll('.terminal-pane').forEach(p => p.classList.remove('active'));
+
+    let session = terminalSessions.get(id);
+    if (!session.pane) {
+        // Create the DOM element and xterm instance if it doesn't exist
+        session.pane = document.createElement('div');
+        session.pane.className = 'terminal-pane';
+        session.pane.dataset.id = id;
+        panesContainer.appendChild(session.pane);
+
+        // This is where the magic happens - `createTerminalInstanceForSession` is defined in 8_main.js
+        await createTerminalInstanceForSession(session);
+        writePrompt(session);
+    }
+    
+    session.pane.classList.add('active');
+    renderTerminalTabs();
+
+    if (session.xterm) {
+        session.xterm.focus();
+        session.fitAddon.fit();
+    }
+}
+
+
+// --- END: Terminal UI Functions ---
+
 function updateActiveFileVisuals(filename) {
     document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.filename === filename));
     const activeFileItem = Array.from(document.querySelectorAll('#file-list li')).find(li => li.title === filename);
@@ -140,24 +260,23 @@ function checkDirtyState(filename) {
     tab.classList.toggle('dirty', isDirty);
 }
 
-// MODIFIED: This function now also updates the terminal's CWD.
 async function setCurrentDirectory(path) {
+    const homeDir = await window.electronAPI.getHomeDir();
     if (path === '/') {
         currentDirectory = '/';
-        // When going to root, use the actual user home directory for the terminal.
-        terminalCwd = await window.electronAPI.getHomeDir();
     } else {
         currentDirectory = path.replace(/[\\\/]$/, '') + '/';
-        terminalCwd = currentDirectory;
     }
     
     document.getElementById('current-path-display').textContent = currentDirectory;
     lsSet('lastCwd', currentDirectory);
     
-    // Write a new prompt to the terminal to reflect the change.
-    if(window.writePrompt && !isExecuting) {
-        term.writeln(`\r\n(Directory changed to: ${terminalCwd})`);
-        writePrompt();
+    const activeSession = getActiveTerminalSession();
+    if(activeSession && !activeSession.isExecuting) {
+        const newCwd = currentDirectory === '/' ? homeDir : currentDirectory;
+        activeSession.cwd = newCwd;
+        activeSession.xterm.writeln(`\r\n(Directory changed to: ${newCwd})`);
+        writePrompt(activeSession);
     }
     
     renderFileList();
@@ -191,7 +310,8 @@ function initResizer(resizerEl, containerEl, lsKey, direction) {
             if (newSize > 100 && newSize < window[direction === 'x' ? 'innerWidth' : 'innerHeight'] - 50) {
                 containerEl.style[direction === 'x' ? 'width' : 'height'] = `${newSize}px`;
                 editor.resize();
-                if(fitAddon) fitAddon.fit();
+                // MODIFIED: Fit all terminal addons
+                terminalSessions.forEach(s => s.fitAddon?.fit());
             }
         };
         const stopDrag = () => {
@@ -205,8 +325,10 @@ function initResizer(resizerEl, containerEl, lsKey, direction) {
 }
 
 function printExecutionEndMessage() {
+    const activeSession = getActiveTerminalSession();
+    if (!activeSession) return;
     if (lsGet('clearTerminalOnRun') === true) {
-        term.writeln(`\n\x1b[1;31m=== Execution is over ===\x1b[0m`);
+        activeSession.xterm.writeln(`\n\x1b[1;31m=== Execution is over ===\x1b[0m`);
     }
 }
 
@@ -216,7 +338,10 @@ function runHtmlCode(code) {
     iframe.srcdoc = code;
     panel.classList.add('visible');
     printExecutionEndMessage();
-    writePrompt();
+    const activeSession = getActiveTerminalSession();
+    if (activeSession) {
+        writePrompt(activeSession);
+    }
 }
 
 function handleDownloadHtml() {

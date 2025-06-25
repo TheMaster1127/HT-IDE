@@ -94,7 +94,10 @@ function getDeclaredVariables(code) {
 
 
 async function runJsCode(code) {
-    term.writeln(`\x1b[1;33m--- JS Execution ---\x1b[0m`);
+    const activeSession = getActiveTerminalSession();
+    if (!activeSession) return;
+
+    activeSession.xterm.writeln(`\x1b[1;33m--- JS Execution ---\x1b[0m`);
     const originalLog = window.console.log;
     
     debuggerState.isActive = true;
@@ -106,7 +109,7 @@ async function runJsCode(code) {
         const declaredVars = getDeclaredVariables(code);
 
         if (breakpoints && breakpoints.size > 0) {
-            term.writeln(`\x1b[36mDebugger attached. Running with breakpoints.\x1b[0m`);
+            activeSession.xterm.writeln(`\x1b[36mDebugger attached. Running with breakpoints.\x1b[0m`);
             const lines = code.split('\n');
             const sortedBreakpoints = Array.from(breakpoints).sort((a, b) => b - a);
             
@@ -118,20 +121,19 @@ async function runJsCode(code) {
             codeToRun = lines.join('\n');
         }
         
-        window.console.log = (...args) => term.writeln(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)).join(' '));
+        window.console.log = (...args) => activeSession.xterm.writeln(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)).join(' '));
         
         const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
         const userFunc = new AsyncFunction('__debug_pause__', codeToRun);
 
-        // MODIFIED: Set execution state for potential stdin from JS code (less common, but for consistency)
-        isExecuting = true;
+        activeSession.isExecuting = true;
         await userFunc(__debug_pause__);
 
     } catch (e) {
         if (e.message !== "Execution stopped by user.") {
-             term.writeln(`\x1b[31mError: ${e.message}\x1b[0m`);
+             activeSession.xterm.writeln(`\x1b[31mError: ${e.message}\x1b[0m`);
         } else {
-             term.writeln(`\x1b[33mExecution stopped by user.\x1b[0m`);
+             activeSession.xterm.writeln(`\x1b[33mExecution stopped by user.\x1b[0m`);
         }
     } finally {
         window.console.log = originalLog;
@@ -140,26 +142,30 @@ async function runJsCode(code) {
         }
         debuggerState.isActive = false;
         debuggerState.isPaused = false;
-        isExecuting = false; // Reset state
-        writePrompt(); // Write new prompt
+        activeSession.isExecuting = false;
+        writePrompt(activeSession);
         clearHighlight();
     }
 }
 
 function formatHtvmCode(code) {
+    const activeSession = getActiveTerminalSession();
     let instructionSet = JSON.parse(localStorage.getItem(instructionSetKeys.legacyKey) || '[]');
     
-    term.writeln(`\x1b[32mFormatting HTVM file...\x1b[0m`);
+    if (activeSession) activeSession.xterm.writeln(`\x1b[32mFormatting HTVM file...\x1b[0m`);
     resetGlobalVarsOfHTVMjs();
     argHTVMinstrMORE.push(instructionSet.join('\n'));
     const formattedCode = compiler(code, instructionSet.join('\n'), "full", "htvm");
     resetGlobalVarsOfHTVMjs();
     
-    term.writeln(`\x1b[32mFormatting complete.\x1b[0m`);
+    if (activeSession) activeSession.xterm.writeln(`\x1b[32mFormatting complete.\x1b[0m`);
     return formattedCode;
 }
 
 async function runHtvmCode(code) {
+    const activeSession = getActiveTerminalSession();
+    if (!activeSession) return;
+
     resetGlobalVarsOfHTVMjs();
     const lang = lsGet('selectedLangExtension') || 'js';
     let instructionSet = JSON.parse(localStorage.getItem(instructionSetKeys.legacyKey) || '[]');
@@ -169,7 +175,7 @@ async function runHtvmCode(code) {
         instructionSet[158] = "on";
     }
     
-    term.writeln(`\x1b[32mTranspiling HTVM to ${isFullHtml ? 'HTML' : lang.toUpperCase()}...\x1b[0m`);
+    activeSession.xterm.writeln(`\x1b[32mTranspiling HTVM to ${isFullHtml ? 'HTML' : lang.toUpperCase()}...\x1b[0m`);
     const compiled = compiler(code, instructionSet.join('\n'), "full", lang);
     resetGlobalVarsOfHTVMjs();
     
@@ -202,11 +208,11 @@ async function runHtvmCode(code) {
             await runJsCode(compiled);
         } else {
             printExecutionEndMessage();
-            writePrompt();
+            writePrompt(activeSession);
         }
     } else {
         printExecutionEndMessage();
-        writePrompt();
+        writePrompt(activeSession);
     }
 }
 
@@ -214,21 +220,25 @@ async function handleRun(e) {
     e?.preventDefault();
     if (!currentOpenFile) return;
 
-    if (isExecuting || debuggerState.isActive) {
-        term.writeln(`\x1b[31mError: Cannot start a new execution while another process is active.\x1b[0m`);
-        term.write('$ ');
+    const activeSession = getActiveTerminalSession();
+    if (!activeSession) {
+        alert("No active terminal found to run the command.");
+        return;
+    }
+
+    if (activeSession.isExecuting || debuggerState.isActive) {
+        activeSession.xterm.writeln(`\x1b[31mError: Cannot start a new execution while another process is active.\x1b[0m`);
         return;
     }
     
     if (lsGet('clearTerminalOnRun') === true) {
-        term.clear();
+        activeSession.xterm.clear();
     }
 
     await saveFileContent(currentOpenFile, editor.getValue());
-    term.writeln(`\x1b[36m> Running ${currentOpenFile}...\x1b[0m`);
+    activeSession.xterm.writeln(`\x1b[36m> Running ${currentOpenFile}...\x1b[0m`);
     const ext = currentOpenFile.split('.').pop();
     
-    // Special handling for features that require direct JS execution with debugger/iframe
     if (ext === 'js') {
         await runJsCode(editor.getValue());
     } else if (ext === 'htvm') {
@@ -236,11 +246,7 @@ async function handleRun(e) {
     } else if (ext === 'html') {
         runHtmlCode(editor.getValue());
     } else {
-        // MODIFIED: Set the global execution flag. The 'onCommandClose' event listener
-        // in 8_main.js will automatically reset this flag and write a new prompt
-        // when the final command from the property file finishes.
-        // This is the key fix for enabling stdin for python, C++, etc.
-        isExecuting = true;
+        activeSession.isExecuting = true;
         await runPropertyCommand('run');
     }
 }

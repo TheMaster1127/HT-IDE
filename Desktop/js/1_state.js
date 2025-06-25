@@ -1,16 +1,13 @@
 // Global Application State
-let editor, term, fitAddon;
+let editor, term, fitAddon; // 'term' and 'fitAddon' are now legacy, kept for any part not yet converted
 let currentOpenFile = null, lastActiveTab = null, currentDirectory = '/', openTabs = [], recentlyClosedTabs = [];
 const fileSessions = new Map();
 const fileBreakpoints = new Map();
 
 // --- Terminal State ---
-let isExecuting = false;       // Is a command currently running in the terminal?
-let processInputLine = "";     // Buffer for stdin when a process is running.
-let currentLine = "";          // For building commands at the prompt before execution.
-let cursorPos = 0;             // The cursor's position within the currentLine string.
-let commandHistory = [];       // History of executed commands.
-let historyIndex = -1;         // Current position in the command history.
+const terminalSessions = new Map();
+let activeTerminalId = null;
+const getActiveTerminalSession = () => activeTerminalId ? terminalSessions.get(activeTerminalId) : null;
 
 // --- NEW DEBUGGER STATE ---
 const debuggerState = {

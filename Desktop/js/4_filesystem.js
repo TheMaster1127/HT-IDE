@@ -26,10 +26,14 @@ async function saveFileContent(filename, content, silent = false) {
             fileSessions.get(filename).getUndoManager().markClean();
             checkDirtyState(filename);
         }
-        if (!silent && term) term.writeln(`\x1b[32mFile saved: ${filename}\x1b[0m`);
+        if (!silent && getActiveTerminalSession()) {
+            getActiveTerminalSession().xterm.writeln(`\x1b[32mFile saved: ${filename}\x1b[0m`);
+        }
     } catch (error) {
         console.error(`Failed to save file ${filename}:`, error);
-        if (term) term.writeln(`\x1b[31mError saving file: ${error.message}\x1b[0m`);
+        if (getActiveTerminalSession()) {
+            getActiveTerminalSession().xterm.writeln(`\x1b[31mError saving file: ${error.message}\x1b[0m`);
+        }
     } finally {
         if (filename === currentOpenFile) {
             window.electronAPI.watchFile(filename);
@@ -55,8 +59,11 @@ async function deleteItem(pathToDelete, isFile) {
         if (!success) {
             return alert(`Error deleting item: ${error}`);
         }
-
-        term.writeln(`\x1b[31mDeleted: ${pathToDelete}\x1b[0m`);
+        
+        const activeTerm = getActiveTerminalSession();
+        if (activeTerm) {
+            activeTerm.xterm.writeln(`\x1b[31mDeleted: ${pathToDelete}\x1b[0m`);
+        }
 
         const tabsToClose = openTabs.filter(tabPath => isFile ? tabPath === pathToDelete : tabPath.startsWith(pathToDelete + (pathToDelete.includes('\\') ? '\\' : '/')));
         const isActiveFileDeleted = tabsToClose.includes(currentOpenFile);
@@ -140,10 +147,15 @@ async function handleOpenFolder() {
     }
 }
 
-// MODIFIED: This function now uses the new `runCommandSequence` handler.
 async function runPropertyCommand(type) {
+    const activeSession = getActiveTerminalSession();
+    if (!activeSession) {
+        alert("No active terminal found to run the command.");
+        return;
+    }
+
     if (!currentOpenFile) {
-        term.writeln(`\x1b[31mError: No file is open to ${type}.\x1b[0m`);
+        activeSession.xterm.writeln(`\x1b[31mError: No file is open to ${type}.\x1b[0m`);
         return;
     }
 
@@ -159,9 +171,9 @@ async function runPropertyCommand(type) {
 
     const commandsStr = await window.electronAPI.getFileContent(propFilePath);
     if (!commandsStr) {
-        term.writeln(`\x1b[33mWarning: No property file found for ".${fileExt}" files (${propFileName}).\x1b[0m`);
-        isExecuting = false;
-        writePrompt();
+        activeSession.xterm.writeln(`\x1b[33mWarning: No property file found for ".${fileExt}" files (${propFileName}).\x1b[0m`);
+        activeSession.isExecuting = false;
+        writePrompt(activeSession);
         return;
     }
 
@@ -174,10 +186,10 @@ async function runPropertyCommand(type) {
         let processedCmd = command.replace(/%FILENAME%/g, currentOpenFile);
         processedCmd = processedCmd.replace(/%ONLYFILENAME%/g, onlyFileName);
         processedCmd = processedCmd.replace(/%DIRFULLPATH%/g, dirFullPath);
-        term.writeln(`\x1b[36m> ${processedCmd}\x1b[0m`);
+        activeSession.xterm.writeln(`\x1b[36m> ${processedCmd}\x1b[0m`);
         return processedCmd;
     });
 
-    // Call the new sequence handler, which will manage the entire execution flow.
-    await window.electronAPI.runCommandSequence(processedCommands, dirFullPath);
+    // MODIFIED: Pass the active terminal ID to the sequence handler
+    await window.electronAPI.runCommandSequence(activeSession.id, processedCommands, dirFullPath);
 }

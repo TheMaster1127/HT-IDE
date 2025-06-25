@@ -25,16 +25,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onCloseTabFromContextMenu: (callback) => ipcRenderer.on('close-tab-from-context-menu', (event, filePath) => callback(filePath)),
     getAppPath: () => ipcRenderer.invoke('get-app-path'),
     getHomeDir: () => ipcRenderer.invoke('get-home-dir'),
-    runCommand: (command, cwd) => ipcRenderer.invoke('run-command', { command, cwd }),
-    // NEW: Expose the command sequence handler
-    runCommandSequence: (commands, cwd) => ipcRenderer.invoke('run-command-sequence', { commands, cwd }),
+    runCommand: (terminalId, command, cwd) => ipcRenderer.invoke('run-command', { terminalId, command, cwd }),
+    runCommandSequence: (terminalId, commands, cwd) => ipcRenderer.invoke('run-command-sequence', { terminalId, commands, cwd }),
     onCommandOutput: (callback) => ipcRenderer.on('command-output', (event, data) => callback(data)),
     onCommandError: (callback) => ipcRenderer.on('command-error', (event, data) => callback(data)),
-    onCommandClose: (callback) => ipcRenderer.on('command-close', (event, code) => callback(code)),
-    onTerminalUpdateCwd: (callback) => ipcRenderer.on('terminal:update-cwd', (event, newPath) => callback(newPath)),
-    terminalWriteToStdin: (data) => ipcRenderer.send('terminal:write-to-stdin', data),
-    terminalKillProcess: () => ipcRenderer.send('terminal:kill-process'),
-    terminalAutocomplete: (partial, cwd) => ipcRenderer.invoke('terminal:autocomplete', { partial, cwd }),
+    onCommandClose: (callback) => ipcRenderer.on('command-close', (event, data) => callback(data)),
+    onTerminalUpdateCwd: (callback) => ipcRenderer.on('terminal:update-cwd', (event, data) => callback(data)),
+    terminalWriteToStdin: (terminalId, data) => ipcRenderer.send('terminal:write-to-stdin', { terminalId, data }),
+    terminalKillProcess: (terminalId) => ipcRenderer.send('terminal:kill-process', terminalId),
+    terminalAutocomplete: (terminalId, partial, cwd) => ipcRenderer.invoke('terminal:autocomplete', { terminalId, partial, cwd }),
 
     // --- File Watching ---
     watchFile: (filePath) => ipcRenderer.send('watch-file', filePath),

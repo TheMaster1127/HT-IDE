@@ -13,18 +13,174 @@ window.addEventListener('keyup', (e) => {
     }
 });
 
-// MODIFIED: State variables are now in 1_state.js
-
-// MODIFIED: Function to display the command prompt. Now correctly handles the prompt text.
-function writePrompt() {
-    currentLine = "";
-    cursorPos = 0;
-    processInputLine = "";
-    isExecuting = false;
-    const shortCwd = terminalCwd.length > 30 ? `...${terminalCwd.slice(-27)}` : terminalCwd;
-    term.write(`\r\n\x1b[1;32m${shortCwd}\x1b[0m $ `);
+// MODIFIED: Function to display the command prompt for a specific terminal session.
+function writePrompt(session) {
+    if (!session || !session.xterm) return;
+    session.currentLine = "";
+    session.cursorPos = 0;
+    session.processInputLine = "";
+    session.isExecuting = false;
+    const shortCwd = session.cwd.length > 30 ? `...${session.cwd.slice(-27)}` : session.cwd;
+    session.xterm.write(`\r\n\x1b[1;32m${shortCwd}\x1b[0m $ `);
 }
 window.writePrompt = writePrompt;
+
+// MODIFIED: This function now contains the fully restored, robust key handling logic.
+async function createTerminalInstanceForSession(session) {
+    session.xterm = new Terminal({
+        cursorBlink: true,
+        fontFamily: 'monospace',
+        fontSize: 13,
+        theme: { background: '#000000', foreground: '#00DD00', cursor: '#00FF00' }
+    });
+    session.fitAddon = new FitAddon.FitAddon();
+    session.xterm.loadAddon(session.fitAddon);
+    session.xterm.open(session.pane);
+    session.fitAddon.fit();
+
+    // --- FULLY RESTORED onKey HANDLER ---
+    session.xterm.onKey(async ({ key, domEvent }) => {
+        const term = session.xterm;
+        const printable = !domEvent.altKey && !domEvent.ctrlKey && !domEvent.metaKey;
+
+        if (domEvent.ctrlKey && domEvent.key.toLowerCase() === 'c') {
+            if (session.isExecuting) {
+                window.electronAPI.terminalKillProcess(session.id);
+            } else {
+                term.write('^C');
+                writePrompt(session);
+            }
+            return;
+        }
+
+        if (session.isExecuting) {
+            if (domEvent.key === 'Enter') {
+                window.electronAPI.terminalWriteToStdin(session.id, session.processInputLine + '\n');
+                term.writeln('');
+                session.processInputLine = "";
+            } else if (domEvent.key === 'Backspace') {
+                if (session.processInputLine.length > 0) {
+                    term.write('\b \b');
+                    session.processInputLine = session.processInputLine.slice(0, -1);
+                }
+            } else if (printable) {
+                session.processInputLine += key;
+                term.write(key);
+            }
+            return;
+        }
+
+        const shortCwd = session.cwd.length > 30 ? `...${session.cwd.slice(-27)}` : session.cwd;
+        const promptText = `\x1b[1;32m${shortCwd}\x1b[0m $ `;
+        const promptVisibleLength = shortCwd.length + 3;
+
+        const redrawLine = () => {
+            term.write('\r\x1b[K');
+            term.write(promptText + session.currentLine);
+            term.write('\r\x1b[' + (promptVisibleLength + session.cursorPos) + 'C');
+        };
+
+        switch (domEvent.key) {
+            case 'Enter':
+                if (session.currentLine.trim()) {
+                    session.commandHistory = session.commandHistory.filter(c => c !== session.currentLine);
+                    session.commandHistory.unshift(session.currentLine);
+                    if (session.commandHistory.length > 50) session.commandHistory.pop();
+                    session.historyIndex = -1;
+                    term.writeln('');
+                    session.isExecuting = true;
+                    await window.electronAPI.runCommand(session.id, session.currentLine, session.cwd);
+                } else {
+                    writePrompt(session);
+                }
+                break;
+
+            case 'Backspace':
+                if (session.cursorPos > 0) {
+                    session.currentLine = session.currentLine.substring(0, session.cursorPos - 1) + session.currentLine.substring(session.cursorPos);
+                    session.cursorPos--;
+                    redrawLine();
+                }
+                break;
+
+            case 'ArrowLeft':
+                if (session.cursorPos > 0) { session.cursorPos--; redrawLine(); }
+                break;
+
+            case 'ArrowRight':
+                if (session.cursorPos < session.currentLine.length) { session.cursorPos++; redrawLine(); }
+                break;
+
+            case 'ArrowUp':
+                if (session.historyIndex < session.commandHistory.length - 1) {
+                    session.historyIndex++;
+                    session.currentLine = session.commandHistory[session.historyIndex];
+                    session.cursorPos = session.currentLine.length;
+                    redrawLine();
+                }
+                break;
+
+            case 'ArrowDown':
+                if (session.historyIndex > 0) {
+                    session.historyIndex--;
+                    session.currentLine = session.commandHistory[session.historyIndex];
+                } else {
+                    session.historyIndex = -1;
+                    session.currentLine = "";
+                }
+                session.cursorPos = session.currentLine.length;
+                redrawLine();
+                break;
+
+            case 'Tab': {
+                domEvent.preventDefault();
+                const lineBeforeCursor = session.currentLine.substring(0, session.cursorPos);
+                const lastWordMatch = lineBeforeCursor.match(/([^\s]+)$/);
+                if (!lastWordMatch) break;
+                
+                const partial = lastWordMatch[0];
+                const matches = await window.electronAPI.terminalAutocomplete(session.id, partial, session.cwd);
+
+                if (matches.length === 0) {
+                    break;
+                } else if (matches.length === 1) {
+                    const completion = matches[0];
+                    session.currentLine = session.currentLine.substring(0, lastWordMatch.index) + completion + session.currentLine.substring(session.cursorPos);
+                    session.cursorPos = lastWordMatch.index + completion.length;
+                    redrawLine();
+                } else {
+                    let lcp = '';
+                    const first = matches[0];
+                    for (let i = 0; i < first.length; i++) {
+                        const char = first[i];
+                        if (matches.every(m => m[i] === char)) { lcp += char; }
+                        else { break; }
+                    }
+
+                    if (lcp.length > partial.length) {
+                        session.currentLine = session.currentLine.substring(0, lastWordMatch.index) + lcp + session.currentLine.substring(session.cursorPos);
+                        session.cursorPos = lastWordMatch.index + lcp.length;
+                        redrawLine();
+                    } else {
+                        const displayNames = matches.map(m => m.split(/[\\\/]/).pop().replace(/"/g, ''));
+                        term.writeln('\r\n' + displayNames.join('   '));
+                        redrawLine();
+                    }
+                }
+                break;
+            }
+                
+            default:
+                if (printable) {
+                    session.currentLine = session.currentLine.substring(0, session.cursorPos) + key + session.currentLine.substring(session.cursorPos);
+                    session.cursorPos++;
+                    redrawLine();
+                }
+                break;
+        }
+    });
+}
+window.createTerminalInstanceForSession = createTerminalInstanceForSession;
 
 
 function applyAndSetHotkeys() {
@@ -37,8 +193,8 @@ function applyAndSetHotkeys() {
     }
 
     hotkeyListener = async (e) => {
-        // If the terminal is focused, let it handle the key event first.
-        if (term.element.contains(document.activeElement)) {
+        const activeTermSession = getActiveTerminalSession();
+        if (activeTermSession && activeTermSession.xterm.element.contains(document.activeElement)) {
             return;
         }
 
@@ -53,20 +209,8 @@ function applyAndSetHotkeys() {
 
         if (e.ctrlKey || e.metaKey) {
             let currentZoom = lsGet('zoomLevel') || 0;
-            if (e.key === '=') {
-                e.preventDefault();
-                currentZoom += 0.5;
-                window.electronAPI.setZoomLevel(currentZoom);
-                lsSet('zoomLevel', currentZoom);
-                return;
-            }
-            if (e.key === '-') {
-                e.preventDefault();
-                currentZoom -= 0.5;
-                window.electronAPI.setZoomLevel(currentZoom);
-                lsSet('zoomLevel', currentZoom);
-                return;
-            }
+            if (e.key === '=') { e.preventDefault(); currentZoom += 0.5; window.electronAPI.setZoomLevel(currentZoom); lsSet('zoomLevel', currentZoom); return; }
+            if (e.key === '-') { e.preventDefault(); currentZoom -= 0.5; window.electronAPI.setZoomLevel(currentZoom); lsSet('zoomLevel', currentZoom); return; }
         }
         
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'tab') {
@@ -77,51 +221,32 @@ function applyAndSetHotkeys() {
                 if (lastActiveTab && openTabs.includes(lastActiveTab) && lastActiveTab !== currentOpenFile) {
                     await openFileInEditor(lastActiveTab);
                 } else {
-                    const currentIndex = openTabs.indexOf(currentOpenFile);
-                    await openFileInEditor(openTabs[(currentIndex + 1) % openTabs.length]);
+                    await openFileInEditor(openTabs[(openTabs.indexOf(currentOpenFile) + 1) % openTabs.length]);
                 }
                 tabCycleState.isCycling = true; 
             } else {
                 const currentIndex = openTabs.indexOf(currentOpenFile);
-                let nextIndex;
-                if (e.shiftKey) { 
-                    nextIndex = (currentIndex - 1 + openTabs.length) % openTabs.length;
-                } else { 
-                    nextIndex = (currentIndex + 1) % openTabs.length;
-                }
+                let nextIndex = e.shiftKey ? (currentIndex - 1 + openTabs.length) % openTabs.length : (currentIndex + 1) % openTabs.length;
                 await openFileInEditor(openTabs[nextIndex]);
             }
             return;
         }
 
 
-        if (e.key === 'F5') {
-            e.preventDefault();
-            await handleRun(e);
-            return;
-        }
-        
+        if (e.key === 'F5') { e.preventDefault(); await handleRun(e); return; }
         if (checkMatch(activeHotkeys.runFile)) { e.preventDefault(); await handleRun(e); }
         else if (checkMatch(activeHotkeys.compileFile)) { e.preventDefault(); await runPropertyCommand('compile'); }
         else if (checkMatch(activeHotkeys.saveFile)) { e.preventDefault(); await saveFileContent(currentOpenFile, editor.getValue()); }
         else if (checkMatch(activeHotkeys.formatFile)) {
             e.preventDefault();
-            if (!currentOpenFile || !currentOpenFile.endsWith('.htvm')) {
-                alert("The formatter only works with .htvm files.");
-                return;
-            }
+            if (!currentOpenFile || !currentOpenFile.endsWith('.htvm')) { alert("The formatter only works with .htvm files."); return; }
             try { editor.session.setValue(formatHtvmCode(editor.getValue())); }
-            catch (err) { term.writeln(`\x1b[31mAn error occurred during formatting: ${err.message}\x1b[0m`); }
+            catch (err) { getActiveTerminalSession()?.xterm.writeln(`\x1b[31mAn error occurred during formatting: ${err.message}\x1b[0m`); }
         }
         else if (checkMatch(activeHotkeys.closeTab)) {
             e.preventDefault();
-            if (openTabs.length === 0) {
-                if (await window.electronAPI.showExitConfirm()) {
-                    window.close();
-                }
-            } else {
-                await handleCloseTabRequest(currentOpenFile);
-            }
+            if (openTabs.length === 0) { if (await window.electronAPI.showExitConfirm()) { window.close(); } }
+            else { await handleCloseTabRequest(currentOpenFile); }
         }
         else if (checkMatch(activeHotkeys.reopenTab)) { e.preventDefault(); await handleReopenTab(); }
         else if (checkMatch(activeHotkeys.toggleSidebar)) { e.preventDefault(); document.getElementById('main-toggle-sidebar-btn').click(); }
@@ -142,197 +267,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     applyUiThemeSettings();
 
     editor = ace.edit("editor");
-    term = new Terminal({ cursorBlink: true, fontFamily: 'monospace', fontSize: 13, theme: { background: '#000000', foreground: '#00DD00', cursor: '#00FF00' } });
-    fitAddon = new FitAddon.FitAddon();
-    term.loadAddon(fitAddon);
-    term.open(document.getElementById('terminal'));
-    fitAddon.fit();
-
-    // --- MODIFIED: Complete overhaul of terminal key handling to fix all reported bugs. ---
-    term.onKey(async ({ key, domEvent }) => {
-        const printable = !domEvent.altKey && !domEvent.ctrlKey && !domEvent.metaKey;
-
-        // --- Ctrl+C Handler ---
-        if (domEvent.ctrlKey && domEvent.key.toLowerCase() === 'c') {
-            if (isExecuting) {
-                window.electronAPI.terminalKillProcess();
-            } else {
-                term.write('^C');
-                writePrompt();
-            }
-            return;
-        }
-
-        // --- State 1: A process is running and waiting for stdin ---
-        if (isExecuting) {
-            if (domEvent.key === 'Enter') {
-                window.electronAPI.terminalWriteToStdin(processInputLine + '\n');
-                term.writeln('');
-                processInputLine = "";
-            } else if (domEvent.key === 'Backspace') {
-                if (processInputLine.length > 0) {
-                    term.write('\b \b');
-                    processInputLine = processInputLine.slice(0, -1);
-                }
-            } else if (printable) {
-                processInputLine += key;
-                term.write(key);
-            }
-            return;
-        }
-
-        // --- State 2: Building a command at the prompt (full editing capabilities) ---
-        const shortCwd = terminalCwd.length > 30 ? `...${terminalCwd.slice(-27)}` : terminalCwd;
-        const promptText = `\x1b[1;32m${shortCwd}\x1b[0m $ `;
-        const promptVisibleLength = shortCwd.length + 3; // " $ "
-
-        const redrawLine = () => {
-            term.write('\r\x1b[K'); // Go to start of line, clear it
-            term.write(promptText + currentLine);
-            term.write('\r\x1b[' + (promptVisibleLength + cursorPos) + 'C'); // Move cursor to correct position
-        };
-
-        switch (domEvent.key) {
-            case 'Enter':
-                if (currentLine.trim()) {
-                    commandHistory = commandHistory.filter(c => c !== currentLine);
-                    commandHistory.unshift(currentLine);
-                    if (commandHistory.length > 50) commandHistory.pop();
-                    historyIndex = -1;
-                    term.writeln('');
-                    isExecuting = true; // Set state to executing
-                    await window.electronAPI.runCommand(currentLine, terminalCwd);
-                } else {
-                    writePrompt();
-                }
-                break;
-
-            case 'Backspace':
-                if (cursorPos > 0) {
-                    const left = currentLine.substring(0, cursorPos - 1);
-                    const right = currentLine.substring(cursorPos);
-                    currentLine = left + right;
-                    cursorPos--;
-                    redrawLine();
-                }
-                break;
-
-            case 'ArrowLeft':
-                if (cursorPos > 0) {
-                    cursorPos--;
-                    redrawLine();
-                }
-                break;
-
-            case 'ArrowRight':
-                if (cursorPos < currentLine.length) {
-                    cursorPos++;
-                    redrawLine();
-                }
-                break;
-
-            case 'ArrowUp':
-                if (historyIndex < commandHistory.length - 1) {
-                    historyIndex++;
-                    currentLine = commandHistory[historyIndex];
-                    cursorPos = currentLine.length;
-                    redrawLine();
-                }
-                break;
-
-            case 'ArrowDown':
-                if (historyIndex > 0) {
-                    historyIndex--;
-                    currentLine = commandHistory[historyIndex];
-                } else {
-                    historyIndex = -1;
-                    currentLine = "";
-                }
-                cursorPos = currentLine.length;
-                redrawLine();
-                break;
-            
-            case 'Tab': { // Using a block scope for clarity
-                domEvent.preventDefault();
-
-                // Find the word to complete: the last sequence of non-space characters before the cursor
-                const lineBeforeCursor = currentLine.substring(0, cursorPos);
-                const lastWordMatch = lineBeforeCursor.match(/([^\s]+)$/);
-
-                // If no word is found (e.g., cursor is after a space), do nothing.
-                if (!lastWordMatch) break;
-                
-                const partial = lastWordMatch[0];
-                const matches = await window.electronAPI.terminalAutocomplete(partial, terminalCwd);
-
-                if (matches.length === 0) {
-                    // No match, do nothing
-                    break;
-                } else if (matches.length === 1) {
-                    // Single match, complete it fully
-                    const completion = matches[0];
-                    const startIndex = lastWordMatch.index;
-                    const rightSide = currentLine.substring(cursorPos);
-
-                    currentLine = currentLine.substring(0, startIndex) + completion + rightSide;
-                    cursorPos = startIndex + completion.length;
-                    redrawLine();
-                } else {
-                    // Multiple matches, find longest common prefix (LCP)
-                    let lcp = '';
-                    if (matches.length > 0) {
-                        const first = matches[0];
-                        for (let i = 0; i < first.length; i++) {
-                            const char = first[i];
-                            if (matches.every(m => m[i] === char)) {
-                                lcp += char;
-                            } else {
-                                break;
-                            }
-                        }
-                    }
-
-                    if (lcp.length > partial.length) {
-                        // We found a longer common prefix, complete to that
-                        const startIndex = lastWordMatch.index;
-                        const rightSide = currentLine.substring(cursorPos);
-                        currentLine = currentLine.substring(0, startIndex) + lcp + rightSide;
-                        cursorPos = startIndex + lcp.length;
-                        redrawLine();
-                    } else {
-                        // User likely tabbed again, show options
-                        const displayNames = matches.map(m => m.split(/[\\\/]/).pop().replace(/"/g, ''));
-                        term.writeln('\r\n' + displayNames.join('   '));
-                        redrawLine(); // Redraw the current line below the suggestions
-                    }
-                }
-                break;
-            }
-                
-            default:
-                if (printable) {
-                    const left = currentLine.substring(0, cursorPos);
-                    const right = currentLine.substring(cursorPos);
-                    currentLine = left + key + right;
-                    cursorPos++;
-                    redrawLine();
-                }
-                break;
-        }
-    });
-
-    window.electronAPI.onCommandOutput((data) => term.write(data.replace(/\n/g, "\r\n")));
-    window.electronAPI.onCommandError((data) => term.write(`\x1b[31m${data.replace(/\n/g, "\r\n")}\x1b[0m`));
-    window.electronAPI.onCommandClose((code) => writePrompt());
-    window.electronAPI.onTerminalUpdateCwd((newPath) => { terminalCwd = newPath; });
     
-    window.electronAPI.onCloseTabFromContextMenu(async (filePath) => {
-        await handleCloseTabRequest(filePath);
+    // MODIFIED: Global IPC listeners now route data to the correct terminal.
+    window.electronAPI.onCommandOutput(({ terminalId, data }) => {
+        terminalSessions.get(terminalId)?.xterm.write(data.replace(/\n/g, "\r\n"));
     });
+    window.electronAPI.onCommandError(({ terminalId, data }) => {
+        terminalSessions.get(terminalId)?.xterm.write(`\x1b[31m${data.replace(/\n/g, "\r\n")}\x1b[0m`);
+    });
+    window.electronAPI.onCommandClose(({ terminalId, code }) => {
+        const session = terminalSessions.get(terminalId);
+        if (session) writePrompt(session);
+    });
+    window.electronAPI.onTerminalUpdateCwd(({ terminalId, newPath }) => {
+        const session = terminalSessions.get(terminalId);
+        if (session) session.cwd = newPath;
+    });
+    
+    window.electronAPI.onCloseTabFromContextMenu(async (filePath) => await handleCloseTabRequest(filePath));
 
     window.electronAPI.onFileChanged(async (filePath) => {
         const msg = `The file "${filePath.split(/[\\\/]/).pop()}" has changed on disk. Do you want to reload it? Your unsaved changes in the editor will be lost.`;
-
         if (filePath === currentOpenFile) {
             openConfirmModal("File Changed on Disk", msg, async (confirmed) => {
                 if (confirmed) {
@@ -341,11 +296,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const session = editor.session;
                         const cursor = session.selection.getCursor();
                         const scrollTop = session.getScrollTop();
-                        
                         session.setValue(newContent);
                         session.getUndoManager().markClean();
                         checkDirtyState(filePath);
-                        
                         session.selection.moveCursorToPosition(cursor);
                         session.setScrollTop(scrollTop);
                         editor.focus();
@@ -353,10 +306,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             });
         } 
-        else if (openTabs.includes(filePath)) {
-            if (fileSessions.has(filePath)) {
-                fileSessions.delete(filePath);
-            }
+        else if (openTabs.includes(filePath) && fileSessions.has(filePath)) {
+            fileSessions.delete(filePath);
         }
     });
     
@@ -364,10 +315,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const separator = appPath.includes('\\') ? '\\' : '/';
     await window.electronAPI.createItem(`${appPath}${separator}property files`, false);
 
-
-    Object.keys(draftCompletions).forEach(lang => {
-        lsSet(`lang_completions_${lang}`, draftCompletions[lang]);
-    });
+    Object.keys(draftCompletions).forEach(lang => lsSet(`lang_completions_${lang}`, draftCompletions[lang]));
 
     initializeInstructionSetManagement();
     
@@ -389,14 +337,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     editor.setFontSize(parseInt(lsGet('fontSize') || 14, 10));
 
     const keybindingMode = lsGet('keybindingMode') || 'normal';
-    if (keybindingMode !== 'normal') {
-        editor.setKeyboardHandler(`ace/keyboard/${keybindingMode}`);
-    }
+    if (keybindingMode !== 'normal') editor.setKeyboardHandler(`ace/keyboard/${keybindingMode}`);
     
     setupGutterEvents();
-
     editor.on('changeSelection', debounce(updateEditorModeForHtvm, 200));
 
+    // --- Button Event Listeners ---
     document.getElementById('new-file-btn').addEventListener('click', handleNewFile);
     document.getElementById('new-folder-btn').addEventListener('click', handleNewFolder);
     document.getElementById('save-session-btn').addEventListener('click', () => openSessionModal('save'));
@@ -406,21 +352,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('htvm-to-htvm-btn').addEventListener('click', openHtvmToHtvmModal);
     document.getElementById('export-import-btn').addEventListener('click', openExportImportModal);
     document.getElementById('open-folder-btn').addEventListener('click', handleOpenFolder);
+    document.getElementById('new-terminal-btn').addEventListener('click', handleNewTerminal); // NEW
     
-    const toggleBtn = document.getElementById('main-toggle-sidebar-btn');
-    const sidebar = document.querySelector('.sidebar');
-    const backdrop = document.getElementById('sidebar-backdrop');
-    const closeBtn = document.getElementById('sidebar-close-btn');
-
+    const toggleBtn = document.getElementById('main-toggle-sidebar-btn'), sidebar = document.querySelector('.sidebar'), backdrop = document.getElementById('sidebar-backdrop'), closeBtn = document.getElementById('sidebar-close-btn');
     function toggleSidebar() {
         const isCollapsed = sidebar.classList.contains('collapsed');
         sidebar.classList.toggle('collapsed');
         lsSet('sidebarCollapsed', !isCollapsed);
         const isMobileView = getComputedStyle(sidebar).position === 'absolute';
         if (isMobileView) backdrop.style.display = isCollapsed ? 'block' : 'none';
-        setTimeout(() => { editor.resize(); fitAddon.fit(); }, 310);
+        setTimeout(() => { editor.resize(); terminalSessions.forEach(s => s.fitAddon?.fit()); }, 310);
     }
-
     toggleBtn.addEventListener('click', toggleSidebar);
     backdrop.addEventListener('click', toggleSidebar);
     closeBtn.addEventListener('click', toggleSidebar);
@@ -431,25 +373,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         e.preventDefault(); e.stopPropagation();
         if (draggedTab) return;
         const files = e.dataTransfer.files;
-        if (files.length > 0 && files[0].path) {
-            await openFileInEditor(files[0].path);
-        }
+        if (files.length > 0 && files[0].path) await openFileInEditor(files[0].path);
     });
 
-
-    document.getElementById('lang-dropdown').addEventListener('click', e => {
-        const item = e.target.closest('.dropdown-item');
-        if (item) changeLanguage(item.dataset.name, item.dataset.img, item.dataset.lang);
-    });
+    document.getElementById('lang-dropdown').addEventListener('click', e => { if (e.target.closest('.dropdown-item')) changeLanguage(e.target.closest('.dropdown-item').dataset.name, e.target.closest('.dropdown-item').dataset.img, e.target.closest('.dropdown-item').dataset.lang); });
     document.getElementById('run-js-after-htvm').onchange = e => lsSet('runJsAfterHtvm', e.target.checked);
     document.getElementById('full-html-checkbox').onchange = e => lsSet('fullHtml', e.target.checked);
     document.getElementById('run-btn').addEventListener('click', handleRun);
     document.getElementById('format-btn').addEventListener('click', () => {
-        if (!currentOpenFile || !currentOpenFile.endsWith('.htvm')) {
-            alert("The formatter only works with .htvm files."); return;
-        }
+        if (!currentOpenFile || !currentOpenFile.endsWith('.htvm')) { alert("The formatter only works with .htvm files."); return; }
         try { editor.session.setValue(formatHtvmCode(editor.getValue())); }
-        catch (err) { term.writeln(`\x1b[31mAn error occurred during formatting: ${err.message}\x1b[0m`); }
+        catch (err) { getActiveTerminalSession()?.xterm.writeln(`\x1b[31mAn error occurred during formatting: ${err.message}\x1b[0m`); }
     });
     document.getElementById('close-output-btn').addEventListener('click', () => document.getElementById('output-panel').classList.remove('visible'));
     document.getElementById('download-html-btn').addEventListener('click', handleDownloadHtml);
@@ -460,27 +394,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     initResizer(document.getElementById('terminal-resizer'), document.getElementById('terminal-container'), 'terminalHeight', 'y');
     initResizer(document.getElementById('output-panel-resizer'), document.getElementById('output-panel'), 'outputPanelWidth', 'x');
 
-    term.writeln(`\x1b[1;32mWelcome to HT-IDE! (Workspace ID: ${IDE_ID})\x1b[0m`);
+    await handleNewTerminal(); // Create the first terminal on startup.
+    getActiveTerminalSession().xterm.writeln(`\x1b[1;32mWelcome to HT-IDE! (Workspace ID: ${IDE_ID})\x1b[0m`);
     
     document.getElementById('run-js-after-htvm').checked = lsGet('runJsAfterHtvm') !== false;
     document.getElementById('full-html-checkbox').checked = lsGet('fullHtml') === true;
 
     const savedBreakpoints = lsGet('fileBreakpoints');
-    if (savedBreakpoints) {
-        for (const file in savedBreakpoints) {
-            fileBreakpoints.set(file, new Set(savedBreakpoints[file]));
-        }
-    }
+    if (savedBreakpoints) { for (const file in savedBreakpoints) { fileBreakpoints.set(file, new Set(savedBreakpoints[file])); } }
 
     const sidebarWidth = lsGet('sidebarWidth'); if (sidebarWidth) document.querySelector('.sidebar').style.width = sidebarWidth;
     const terminalHeight = lsGet('terminalHeight'); if (terminalHeight) document.getElementById('terminal-container').style.height = terminalHeight;
     const outputWidth = lsGet('outputPanelWidth'); if (outputWidth) document.getElementById('output-panel').style.width = outputWidth;
     
-    if (lsGet('sidebarCollapsed') !== false) {
-        document.querySelector('.sidebar').classList.add('collapsed');
-    } else {
-        document.querySelector('.sidebar').classList.remove('collapsed');
-    }
+    if (lsGet('sidebarCollapsed') !== false) { document.querySelector('.sidebar').classList.add('collapsed'); }
+    else { document.querySelector('.sidebar').classList.remove('collapsed'); }
 
     const savedLang = lsGet('selectedLangExtension');
     if (savedLang) {
@@ -498,44 +426,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     const lastFile = lsGet('lastOpenFile');
     lastActiveTab = lsGet('lastActiveTab'); 
 
-    for (const path of savedOpenTabs) {
-        await openFileInEditor(path);
-    }
+    for (const path of savedOpenTabs) { await openFileInEditor(path); }
 
-    if (lastFile && openTabs.includes(lastFile)) {
-        await openFileInEditor(lastFile);
-    } else if (openTabs.length > 0) {
-        await openFileInEditor(openTabs[0]);
-    } else {
+    if (lastFile && openTabs.includes(lastFile)) { await openFileInEditor(lastFile); }
+    else if (openTabs.length > 0) { await openFileInEditor(openTabs[0]); }
+    else {
         editor.setSession(ace.createEditSession("// No file open."));
         editor.setReadOnly(true);
         renderTabs();
     }
     
-    writePrompt();
+    writePrompt(getActiveTerminalSession());
 
     const mainContent = document.querySelector('.main-content-wrapper');
     mainContent.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); });
     mainContent.addEventListener('drop', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        
+        e.preventDefault(); e.stopPropagation();
         if (draggedTab) return;
-        
         const files = e.dataTransfer.files;
         if (files.length > 0) {
-            const isOverEditor = e.target.closest('#editor-container');
-            if (isOverEditor) {
-                for (const file of files) {
-                    if (file.path) await openFileInEditor(file.path);
-                }
-            } else {
+            if (e.target.closest('#editor-container')) { for (const file of files) { if (file.path) await openFileInEditor(file.path); } }
+            else {
                 for (const file of files) {
                     if (file.path) {
                         const { success, error } = await window.electronAPI.dropFile(file.path, currentDirectory);
-                        if (!success) {
-                            term.writeln(`\x1b[31mError dropping file ${file.name}: ${error}\x1b[0m`);
-                        }
+                        if (!success) getActiveTerminalSession()?.xterm.writeln(`\x1b[31mError dropping file ${file.name}: ${error}\x1b[0m`);
                     }
                 }
                 await renderFileList();
@@ -545,7 +460,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     window.addEventListener('resize', debounce(() => {
         editor.resize();
-        fitAddon.fit();
+        terminalSessions.forEach(s => s.fitAddon?.fit());
         const sidebar = document.querySelector('.sidebar');
         const backdrop = document.getElementById('sidebar-backdrop');
         const isDesktopView = getComputedStyle(sidebar).position !== 'absolute';
@@ -558,6 +473,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             lsSet('state_' + currentOpenFile, { scrollTop: editor.session.getScrollTop(), cursor: editor.getCursorPosition() });
         }
         openTabs.forEach(tab => window.electronAPI.unwatchFile(tab));
+        terminalSessions.forEach(s => window.electronAPI.terminalKillProcess(s.id));
 
         lsSet('openTabs', openTabs);
         lsSet('lastOpenFile', currentOpenFile);
@@ -565,18 +481,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         lsSet('lastCwd', currentDirectory);
 
         const serializableBreakpoints = {};
-        for (const [file, bpSet] of fileBreakpoints.entries()) {
-            serializableBreakpoints[file] = Array.from(bpSet);
-        }
+        for (const [file, bpSet] of fileBreakpoints.entries()) { serializableBreakpoints[file] = Array.from(bpSet); }
         lsSet('fileBreakpoints', serializableBreakpoints);
     });
 
     editor.on('mousemove', function (e) {
         const tooltip = document.getElementById('value-tooltip');
-        if (!tooltip || !debuggerState.isPaused) {
-            if (tooltip) tooltip.style.display = 'none';
-            return;
-        }
+        if (!tooltip || !debuggerState.isPaused) { if (tooltip) tooltip.style.display = 'none'; return; }
         
         const pos = e.getDocumentPosition();
         const token = editor.session.getTokenAt(pos.row, pos.column);
@@ -600,7 +511,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     setTimeout(() => {
         document.body.classList.remove('preload');
-        fitAddon.fit();
+        getActiveTerminalSession()?.fitAddon.fit();
     }, 50);
 });
 
