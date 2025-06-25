@@ -26,13 +26,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getAppPath: () => ipcRenderer.invoke('get-app-path'),
     getHomeDir: () => ipcRenderer.invoke('get-home-dir'),
     runCommand: (command, cwd) => ipcRenderer.invoke('run-command', { command, cwd }),
+    // NEW: Expose the command sequence handler
+    runCommandSequence: (commands, cwd) => ipcRenderer.invoke('run-command-sequence', { commands, cwd }),
     onCommandOutput: (callback) => ipcRenderer.on('command-output', (event, data) => callback(data)),
     onCommandError: (callback) => ipcRenderer.on('command-error', (event, data) => callback(data)),
     onCommandClose: (callback) => ipcRenderer.on('command-close', (event, code) => callback(code)),
     onTerminalUpdateCwd: (callback) => ipcRenderer.on('terminal:update-cwd', (event, newPath) => callback(newPath)),
     terminalWriteToStdin: (data) => ipcRenderer.send('terminal:write-to-stdin', data),
     terminalKillProcess: () => ipcRenderer.send('terminal:kill-process'),
-    // NEW: Expose the autocomplete function.
     terminalAutocomplete: (partial, cwd) => ipcRenderer.invoke('terminal:autocomplete', { partial, cwd }),
 
     // --- File Watching ---

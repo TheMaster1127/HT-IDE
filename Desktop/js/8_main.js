@@ -202,8 +202,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         } else if (domEvent.key === 'Backspace') {
             if (currentLine.length > 0) {
-                term.write('\b \b');
+                // MODIFICATION: Instead of just moving cursor, redraw the whole line to avoid render bugs
                 currentLine = currentLine.slice(0, -1);
+                term.write('\r\x1b[K' + promptText + currentLine);
             }
         } else if (domEvent.key === 'ArrowUp') {
             if (historyIndex < commandHistory.length - 1) {
@@ -224,10 +225,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else if (domEvent.key === 'Tab') {
             domEvent.preventDefault();
             const words = currentLine.split(/(\s+)/);
-            const partial = words.pop() || "";
-            const precedingWhitespace = words.pop() || "";
-            
-            if (!partial.trim()) return;
+            // MODIFIED: Handle empty last word for tabbing in an empty directory
+            const partial = words.length > 0 ? words[words.length - 1] : "";
 
             const matches = await window.electronAPI.terminalAutocomplete(partial, terminalCwd);
             
@@ -250,7 +249,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     currentLine += diff;
                 }
                 
-                const displayNames = matches.map(m => path.basename(m.replace(/["\/\\]/g, '')));
+                // CRITICAL FIX: Replaced unavailable 'path.basename' with browser-safe string manipulation.
+                const displayNames = matches.map(m => m.split(/[\\\/]/).pop().replace(/"/g, ''));
                 term.writeln('\r\n' + displayNames.join('   '));
                 term.write(`\r\n${promptText}${currentLine}`);
             }

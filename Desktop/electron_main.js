@@ -39,9 +39,6 @@ function updatePresence(details = "Idle", state = "In the main menu", lineCount 
 const runningProcesses = new Map();
 let activeInteractiveProcess = null;
 
-// MODIFIED: This function now returns a Promise, allowing the renderer process to 'await'
-// the completion of a command. This is critical for running commands sequentially and
-// preventing zombie processes.
 function runCommand(command, cwd, event) {
     return new Promise((resolve, reject) => {
         const trimmedCommand = command.trim();
@@ -85,8 +82,10 @@ function runCommand(command, cwd, event) {
             if (activeInteractiveProcess && activeInteractiveProcess.pid === processId) {
                 activeInteractiveProcess = null;
             }
-            event.sender.send('command-close', code);
-            resolve(code); // Resolve the promise with the exit code
+            // MODIFIED: Don't send 'command-close' for single commands in a sequence
+            // The new sequence handler will manage this.
+            // event.sender.send('command-close', code); 
+            resolve(code); 
         });
 
         process.on('error', (err) => {
@@ -95,11 +94,29 @@ function runCommand(command, cwd, event) {
                 activeInteractiveProcess = null;
             }
             event.sender.send('command-error', `Error: ${err.message}`);
-            event.sender.send('command-close', 1);
-            reject(err); // Reject the promise on error
+            // event.sender.send('command-close', 1);
+            reject(err); 
         });
     });
 }
+
+// NEW: A dedicated handler for running multiple commands from a property file sequentially.
+ipcMain.handle('run-command-sequence', async (event, { commands, cwd }) => {
+    for (const command of commands) {
+        try {
+            // Await each command. If a command fails (rejects), the loop will stop.
+            await runCommand(command, cwd, event);
+        } catch (error) {
+            console.error(`Command sequence failed at '${command}':`, error);
+            // Send the final close event to reset the renderer's terminal state
+            event.sender.send('command-close', 1); // Signal error
+            return; // Exit the sequence
+        }
+    }
+    // Send the final close event only after all commands have succeeded
+    event.sender.send('command-close', 0); // Signal success
+});
+
 
 ipcMain.on('terminal:write-to-stdin', (event, data) => {
     if (activeInteractiveProcess && activeInteractiveProcess.stdin && !activeInteractiveProcess.stdin.destroyed) {
@@ -109,18 +126,15 @@ ipcMain.on('terminal:write-to-stdin', (event, data) => {
 
 ipcMain.on('terminal:kill-process', () => {
     if (activeInteractiveProcess) {
-        // Use 'SIGINT' to simulate Ctrl+C, which is more graceful than 'SIGKILL'
         activeInteractiveProcess.kill('SIGINT'); 
     }
 });
 
-// MODIFIED: Autocomplete logic fixed to handle subdirectories and return correct suggestions.
 ipcMain.handle('terminal:autocomplete', (event, { partial, cwd }) => {
     try {
         const baseName = path.basename(partial);
         const dirName = path.dirname(partial);
         
-        // The directory we need to read from
         const searchPath = path.resolve(cwd, dirName);
 
         const entries = fs.readdirSync(searchPath, { withFileTypes: true });
@@ -129,20 +143,16 @@ ipcMain.handle('terminal:autocomplete', (event, { partial, cwd }) => {
             .filter(entry => entry.name.toLowerCase().startsWith(baseName.toLowerCase()))
             .map(entry => {
                 let name = entry.name;
-                // Add quotes if the name contains spaces
                 if (/\s/.test(name)) {
                     name = `"${name}"`;
                 }
-                // Add a slash if it's a directory
                 if (entry.isDirectory()) {
                     name += (process.platform === 'win32' ? '\\' : '/');
                 }
-                // Re-attach the directory part of the partial and normalize slashes
                 return path.join(dirName, name).replace(/\\/g, '/');
             });
         return matches;
     } catch (e) {
-        // If directory doesn't exist or other error, return no matches
         return [];
     }
 });
@@ -311,8 +321,12 @@ ipcMain.handle('dialog:openDirectory', async () => {
 ipcMain.handle('get-app-path', () => app.getAppPath());
 ipcMain.handle('get-home-dir', () => os.homedir());
 ipcMain.handle('update-discord-presence', (event, { details, state, lineCount }) => { updatePresence(details, state, lineCount); });
-// MODIFIED: The handler now directly returns the promise from the modified runCommand function.
-ipcMain.handle('run-command', (event, { command, cwd }) => runCommand(command.replace(/~~~/g, ' '), cwd, event));
+ipcMain.handle('run-command', (event, { command, cwd }) => {
+    // This is for single commands from the terminal input
+    runCommand(command, cwd, event).finally(() => {
+        event.sender.send('command-close', 0);
+    });
+});
 ipcMain.handle('fs:getAllPaths', (event, dirPath) => { try { const p = dirPath === '/' ? userHomeDir : dirPath; const i = fs.readdirSync(p, { withFileTypes: true }); return i.map(t => ({ name: t.name, path: path.join(p, t.name), isFile: t.isFile() })); } catch (e) { if (e.code === 'ENOENT') return []; console.error(`Error reading directory ${dirPath}:`, e); return []; } });
 ipcMain.handle('fs:getFileContent', (event, filePath) => { try { if (fs.existsSync(filePath)) return fs.readFileSync(filePath, 'utf-8'); return null; } catch (e) { console.error(e); return null; } });
 ipcMain.handle('fs:saveFileContent', async (event, { filePath, content }) => { try { fs.writeFileSync(filePath, content); return { success: true }; } catch (e) { return { success: false, error: e.message }; } });

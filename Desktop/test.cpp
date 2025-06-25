@@ -1,10 +1,12 @@
 #include <algorithm>
 #include <any>
+#include <chrono>
 #include <cstdint>
 #include <iostream>
 #include <optional>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <type_traits>
 #include <vector>
 
@@ -26,6 +28,11 @@ int INT(const std::string& str) {
     return value;
 }
 
+// Function to sleep for a specified number of milliseconds
+void Sleep(int milliseconds) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
+}
+
 // Function to get input from the user, similar to Python's input() function
 std::string input(const std::string& prompt) {
     std::string userInput;
@@ -45,6 +52,7 @@ int main(int argc, char* argv[]) {
     //gui pid:"gui1" fB button x50% y20%;
     int num = INT(input("how mnay loops: "));
     for (int A_Index1 = 0; A_Index1 < num + 0; A_Index1++) {
+        Sleep(100);
         print(A_Index1);
     }
     

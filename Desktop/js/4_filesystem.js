@@ -47,8 +47,6 @@ function saveFileContentSync(filename, content) {
 }
 
 async function deleteItem(pathToDelete, isFile) {
-    // MODIFIED: Replaced confirm() with the new custom, non-blocking modal.
-    // This is the CRITICAL fix for the input freeze bug.
     const message = `Are you sure you want to delete the ${isFile ? "file" : "folder"} "${pathToDelete}"? This is permanent!`;
     openConfirmModal("Confirm Deletion", message, async (confirmed) => {
         if (!confirmed) return;
@@ -142,7 +140,7 @@ async function handleOpenFolder() {
     }
 }
 
-// --- NEW: Property File Command Runner ---
+// MODIFIED: This function now uses the new `runCommandSequence` handler.
 async function runPropertyCommand(type) {
     if (!currentOpenFile) {
         term.writeln(`\x1b[31mError: No file is open to ${type}.\x1b[0m`);
@@ -162,21 +160,24 @@ async function runPropertyCommand(type) {
     const commandsStr = await window.electronAPI.getFileContent(propFilePath);
     if (!commandsStr) {
         term.writeln(`\x1b[33mWarning: No property file found for ".${fileExt}" files (${propFileName}).\x1b[0m`);
-        printExecutionEndMessage();
+        isExecuting = false;
+        writePrompt();
         return;
     }
 
     const dirFullPath = currentOpenFile.substring(0, currentOpenFile.lastIndexOf(separator));
     const onlyFileName = currentOpenFile.substring(currentOpenFile.lastIndexOf(separator) + 1).split('.').slice(0, -1).join('.');
     
-    const commands = commandsStr.split(/[\r\n]+/).filter(cmd => cmd.trim() && !cmd.trim().startsWith(';'));
+    const rawCommands = commandsStr.split(/[\r\n]+/).filter(cmd => cmd.trim() && !cmd.trim().startsWith(';'));
 
-    for (const command of commands) {
+    const processedCommands = rawCommands.map(command => {
         let processedCmd = command.replace(/%FILENAME%/g, currentOpenFile);
         processedCmd = processedCmd.replace(/%ONLYFILENAME%/g, onlyFileName);
         processedCmd = processedCmd.replace(/%DIRFULLPATH%/g, dirFullPath);
-        
         term.writeln(`\x1b[36m> ${processedCmd}\x1b[0m`);
-        await window.electronAPI.runCommand(processedCmd, dirFullPath);
-    }
+        return processedCmd;
+    });
+
+    // Call the new sequence handler, which will manage the entire execution flow.
+    await window.electronAPI.runCommandSequence(processedCommands, dirFullPath);
 }

@@ -1,4 +1,4 @@
-
+import time
 
 # used the print func
 
@@ -10,6 +10,10 @@ def INT(value):
     except ValueError:
         # If conversion fails, raise a TypeError
         raise TypeError("Cannot convert to integer")
+
+def Sleep(milliseconds: int) -> None:
+    # Sleep for the specified number of milliseconds
+    time.sleep(milliseconds / 1000)
 
 # used imput func
 
@@ -23,5 +27,6 @@ def INT(value):
 #gui pid:"gui1" fB button x50% y20%;
 num = INT(input("how mnay loops: "))
 for A_Index1 in range(0, num + 0):
+    Sleep(100)
     print(A_Index1)
 
