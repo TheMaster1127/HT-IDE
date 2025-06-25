@@ -371,8 +371,8 @@ ipcMain.handle('dialog:openDirectory', async () => {
     return null;
 });
 
-// MODIFIED: Added HTTP server toggle logic with logging
-ipcMain.handle('http:toggle', async (event, { rootPath, port: startPort, terminalId }) => {
+// MODIFIED: HTTP server now accepts port and default file
+ipcMain.handle('http:toggle', async (event, { rootPath, port: startPort, defaultFile, terminalId }) => {
     if (httpServer && httpServer.listening) {
         return new Promise((resolve) => {
             httpServer.close(() => {
@@ -383,18 +383,18 @@ ipcMain.handle('http:toggle', async (event, { rootPath, port: startPort, termina
     }
 
     const finalRootPath = rootPath === '/' ? os.homedir() : rootPath;
-    let port = startPort || 8080;
+    let port = startPort; // Use the provided port setting
+    const finalDefaultFile = defaultFile || 'index.html';
 
     const createServerHandler = (req, res) => {
         const startTime = process.hrtime();
         
-        // This function will be called after the response is sent.
         const logRequest = () => {
             const elapsedTime = process.hrtime(startTime);
             const elapsedTimeMs = (elapsedTime[0] * 1e3 + elapsedTime[1] * 1e-6).toFixed(2);
             const status = res.statusCode;
-            const logMessage = `[${status}] ${req.method} ${req.url} (${elapsedTimeMs}ms)`;
-            // Send log to the specific terminal that started the server
+            let statusColor = status >= 200 && status < 300 ? '\x1b[32m' : (status >= 400 ? '\x1b[31m' : '\x1b[33m');
+            const logMessage = `${statusColor}[${status}]\x1b[0m ${req.method} ${req.url} (${elapsedTimeMs}ms)`;
             if (!event.sender.isDestroyed()) {
                  event.sender.send('http-server-log', { terminalId, message: logMessage });
             }
@@ -402,14 +402,12 @@ ipcMain.handle('http:toggle', async (event, { rootPath, port: startPort, termina
         
         res.on('finish', logRequest);
         res.on('close', () => {
-            // 'close' can be emitted before 'finish' if the connection is aborted.
-            // Remove the 'finish' listener to avoid logging twice.
             res.removeListener('finish', logRequest);
             logRequest();
         });
         
-        let reqUrl = req.url.split('?')[0]; // Ignore query parameters for file path
-        let filePath = path.join(finalRootPath, reqUrl === '/' ? 'index.html' : reqUrl);
+        let reqUrl = req.url.split('?')[0];
+        let filePath = path.join(finalRootPath, reqUrl === '/' ? finalDefaultFile : reqUrl);
 
         const serve404 = () => {
             res.writeHead(404, { 'Content-Type': 'text/html' });
@@ -420,7 +418,7 @@ ipcMain.handle('http:toggle', async (event, { rootPath, port: startPort, termina
             if (err) return serve404();
             
             if (stats.isDirectory()) {
-                filePath = path.join(filePath, 'index.html');
+                filePath = path.join(filePath, finalDefaultFile);
             }
 
             fs.readFile(filePath, (error, content) => {
@@ -443,8 +441,8 @@ ipcMain.handle('http:toggle', async (event, { rootPath, port: startPort, termina
             });
             server.on('error', (err) => {
                 if (err.code === 'EADDRINUSE') {
-                    event.sender.send('http-server-log', { terminalId, message: `Port ${listenPort} is busy, trying next...` });
-                    resolve(tryListen(listenPort + 1));
+                    event.sender.send('http-server-log', { terminalId, message: `\x1b[31mError: Port ${listenPort} is busy. Please choose another port in Settings.\x1b[0m` });
+                    resolve({ status: 'error', message: `Port ${listenPort} is in use.` });
                 } else {
                     reject(err);
                 }

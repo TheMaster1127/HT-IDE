@@ -1,117 +1,293 @@
-# HT-IDE
+# HT-IDE Desktop Edition
 
-The IDE of the future — seamlessly built for HTVM, customizable, efficient, and ready to power the next generation of programming.
+**A powerful, multi-language desktop IDE with a custom-built transpiler, integrated terminal, debugger, and extensive customization options, all powered by Electron and Node.js.**
 
-**THIS PROJECT IS STILL IN DEVELOPMENT**
 
-![image](https://github.com/user-attachments/assets/baef0e77-fcc8-4ed9-9607-f9bbe1ab4114)
 
 ---
 
-## **HT-IDE: The Complete Feature Breakdown**
+## Table of Contents
 
-Welcome to your custom-built Integrated Development Environment. This is far more than a simple text editor; it's a complete, persistent, and "insanely good" coding powerhouse designed for maximum productivity and ultimate personalization.
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation & Running](#installation--running)
+- [Core Features](#core-features)
+  - [1. File & Project Management](#1-file--project-management)
+    - [File Explorer](#file-explorer)
+    - [Session Management](#session-management)
+    - [Workspaces](#workspaces)
+    - [Export & Import](#export--import)
+  - [2. The Code Editor](#2-the-code-editor)
+    - [Multi-Tab Interface](#multi-tab-interface)
+    - [Syntax Highlighting](#syntax-highlighting)
+    - [File Status Indicators](#file-status-indicators)
+    - [Context Menus](#context-menus)
+  - [3. The Integrated Terminal](#3-the-integrated-terminal)
+    - [Multiple Terminal Tabs](#multiple-terminal-tabs)
+    - [Shell Functionality](#shell-functionality)
+  - [4. HTVM Transpiler Integration](#4-htvm-transpiler-integration)
+    - [On-the-fly Transpilation](#on-the-fly-transpilation)
+    - [Language Target Selector](#language-target-selector)
+    - [HTVM Code Formatter](#htvm-code-formatter)
+    - [Instruction Set Management](#instruction-set-management)
+  - [5. Code Execution & Debugging](#5-code-execution--debugging)
+    - [Running Files](#running-files)
+    - [Built-in JavaScript Debugger](#built-in-javascript-debugger)
+    - [HTML Output Panel](#html-output-panel)
+  - [6. Built-in Web Server](#6-built-in-web-server)
+  - [7. Extensive Customization](#7-extensive-customization)
+    - [General Settings](#general-settings)
+    - [UI Theme Editor](#ui-theme-editor)
+    - [Syntax Color Editor](#syntax-color-editor)
+    - [Hotkey Customization](#hotkey-customization)
+- [Discord Integration](#discord-integration)
+- [Default Hotkeys](#default-hotkeys)
+- [Project Structure](#project-structure)
+- [License](#license)
 
-### **The Core Experience: Code, Edit, Run**
+---
 
-These are the foundational features you'll use every day.
+## Getting Started
 
-*   **Advanced Code Editor:**
-    *   Powered by the robust **Ace Editor** core.
-    *   **Dynamic Syntax Highlighting:** Intelligently switches highlighting based on the language, including real-time mode changes inside `.htvm` files for embedded code blocks (JS, Python, C++, etc.).
-    *   **Intelligent Autocompletion:** Provides suggestions for language keywords, functions, and even words already present in your current file.
-    *   **Pro-Level Keybindings:** Switch between Normal (Ace), Vim, Emacs, VSCode, and Sublime keymaps to feel right at home.
-    *   **Multi-Cursor Editing:** Hold `Ctrl` (or `Cmd`) and click to place multiple cursors for simultaneous editing.
-    *   **Find & Replace:** Standard `Ctrl+F` functionality for searching within a file.
+### Prerequisites
 
-*   **Integrated Terminal:**
-    *   A full-featured **xterm.js** terminal is built into the bottom panel.
-    *   Perfect for viewing program output, save confirmations, and transpilation logs.
-    *   Can be configured to automatically clear before each run.
+To run the HT-IDE from the source code, you will need [Node.js](https://nodejs.org/) installed on your system, which includes the `npm` package manager.
 
-*   **Multi-Language Execution:**
-    *   **Run Button (`▶ Run`):** Execute your code with a single click (or hotkey).
-    *   **JavaScript Runner:** Directly executes `.js` files, displaying `console.log` output in the terminal.
-    *   **HTML Preview:** Renders `.html` files instantly in a dedicated, resizable side panel with a "Download" option.
-    *   **HTVM Transpiler & Runner:** The core engine that runs `.htvm` files (see HTVM Powerhouse section).
+### Installation & Running
 
-### **File & Project Management**
+1.  **Clone the repository** or download the source code to a local directory.
+2.  **Open a terminal** in the root directory of the project.
+3.  **Install dependencies** by running the command:
+    ```bash
+    npm install
+    ```
+4.  **Launch the application** with the command:
+    ```bash
+    npm start
+    ```
 
-A complete virtual file system that lives in your browser.
+---
 
-*   **Sidebar File Explorer:** A familiar, tree-like view of your project.
-*   **File & Folder Operations:** Easily create new files and folders within your current directory.
-*   **Full Navigation:** Navigate into folders and use the `..` entry to go back up.
-*   **Intuitive Tab System:**
-    *   Open multiple files in a clean, tabbed interface.
-    *   **Drag & Drop Reordering:** Click and drag a tab to change its position.
-    *   **Unsaved Changes Indicator:** A `*` symbol appears on tabs with unsaved work.
-    *   **Quick Close/Re-open:** Close tabs with `Ctrl+W` and instantly re-open the last closed tab with `Ctrl+Shift+T` (or your custom hotkeys).
+## Core Features
 
-### **The HTVM Powerhouse**
+### 1. File & Project Management
 
-This is the unique engine that sets HT-IDE apart.
+#### File Explorer
+The IDE features a robust file explorer in the left-hand sidebar.
+-   **Open a Project:** Click the **Open New Folder** button to open a system dialog and select a project directory. The IDE's file system will root itself in that directory.
+-   **Navigation:** Click on folders to navigate into them. Click the `📁 ..` entry to go up one level. The current absolute path is always displayed at the top of the sidebar.
+-   **Create Files & Folders:** Use the **New File** and **New Folder** buttons to create items in the currently viewed directory.
+-   **Delete Items:** Hover over any file or folder to reveal a `🗑️` icon to permanently delete it.
+-   **Drag and Drop:** You can drag files and folders from your operating system directly into the file explorer to copy them into your project.
 
-*   **Multi-Target Transpilation:**
-    *   Convert `.htvm` source code to a vast array of popular languages: **JavaScript, Python, C++, Go, Lua, C#, Java, Kotlin, Ruby, Nim, AutoHotKey, Swift, Dart, TypeScript, and Groovy.**
-    *   The target language is selected via a convenient dropdown in the top bar.
-    *   **Special JS/HTML Options:**
-        *   `Run JS`: Automatically execute the JavaScript code immediately after it's generated.
-        *   `Full HTML`: Wrap the generated JavaScript in a complete, runnable HTML5 document.
+#### Session Management
+-   **Save Session:** Click **Save Session** to save the currently open set of tabs under a specific name. This is perfect for quickly restoring your work context.
+-   **Load Session:** Click **Load Session** to close all current tabs and open a previously saved session. The IDE will find the files by their absolute paths, regardless of your current working directory.
 
-*   **Instruction Set Management:**
-    *   **Centralized Manager:** A dedicated modal to handle all your HTVM instruction sets.
-    *   **Add, Rename, Delete:** Easily manage your collection of instruction files.
-    *   **Apply & Reload:** Switch between different instruction sets with a single click, which reloads the IDE to apply the changes globally.
-    *   **The Instruction Set Editor:** A powerful, built-in tool to create and modify instruction sets.
-        *   **Full UI:** Edit function metadata like name, target language, libraries, category, and description.
-        *   **Live Description Preview:** See how your description formatting (using `~~~` for newlines) will look.
-        *   **Embedded Ace Editor:** The function body is editable in a full code editor with proper syntax highlighting for its specified language (JS, Python, etc.).
-        *   **Easy Organization:** Search, filter, and view functions by category, and toggle the visibility of internal functions.
+#### Workspaces
+HT-IDE supports multiple workspaces, which are completely isolated environments. Each workspace has its own:
+-   Open files and sessions.
+-   UI and syntax theme settings.
+-   General settings and hotkeys.
+-   Instruction Sets.
+This allows you to maintain separate configurations for different projects or tasks. You can create, switch, and delete workspaces via the **Manage Workspaces** button in the Export/Import modal.
 
-*   **HTVM-to-HTVM Converter:** A utility to translate `.htvm` files written with one instruction set into code compatible with another, making code migration seamless.
+#### Export & Import
+The **Export/Import** modal provides powerful tools for data management:
+-   **Export/Import Everything:** Create a full backup of all your workspaces and settings, or restore from one.
+-   **Export/Import Theme:** Share your custom UI and syntax color themes with others.
+-   **Export/Import Workspace:** Back up a single workspace or import one into a new or existing workspace ID.
 
-### **Advanced Debugging Tools**
+### 2. The Code Editor
 
-A simple yet powerful debugger for your JavaScript and transpiled-to-JS code.
+The editor is powered by the mature and performant **Ace Editor**.
 
-*   **Gutter Breakpoints:** Simply click in the gutter (the area with line numbers) to set or remove a breakpoint on any line.
-*   **Execution Pause:** When you run code, execution will pause at the first breakpoint it hits.
-*   **Draggable Debugger Modal:**
-    *   A non-blocking window appears, showing that execution is paused.
-    *   **Controls:** Resume execution (`F8`) or stop it entirely.
-    *   **Scope Inspector:** Automatically displays all user-declared variables and their current values at the moment of the pause.
-*   **Value Hover:** While paused, simply hover your mouse over a variable name in the editor to see its value in a tooltip.
+#### Multi-Tab Interface
+-   Open multiple files simultaneously in a familiar tabbed interface.
+-   **Drag & Drop Reordering:** Click and drag tabs to reorder them.
+-   **Drag & Drop Opening:** Drag a file from your OS or the sidebar directly into the editor area to open it.
 
-### **Ultimate Customization & Personalization**
+#### Syntax Highlighting
+-   Provides rich syntax highlighting for dozens of common programming languages out of the box.
+-   **Dynamic HTVM Highlighting:** When editing `.htvm` files, the editor intelligently switches its syntax highlighting on-the-fly. If your cursor is inside a `js`, `py`, `cpp`, etc., block, it will use that language's highlighter, otherwise defaulting to the HTVM highlighter.
 
-Tailor every single aspect of the IDE to your exact preference.
+#### File Status Indicators
+-   **Active File:** The active tab is visually distinct and the corresponding file in the sidebar is highlighted.
+-   **Dirty Indicator:** An asterisk (`*`) appears next to the filename in a tab if the file has unsaved changes. The IDE automatically saves files on close or before running a command.
 
-*   **Full UI Theme Editor:**
-    *   **Live-Preview:** Changes are applied instantly as you edit them.
-    *   **Categorized & Organized:** Modify colors and styles for the General UI, Sidebar, Buttons, File Tabs, and more.
-    *   **Total Control:** Use color pickers, boldness toggles, and sliders (for scrollbar size, etc.) to customize dozens of UI elements.
-*   **Syntax Color Editor:** Independently control the color and boldness of every HTVM syntax element (commands, keywords, strings, comments, etc.).
-*   **Editor Settings:** Tweak font size, keybinding modes, bracket auto-pairing, and the vertical print margin line.
-*   **Customizable Hotkeys:** Remap the keyboard shortcuts for all major actions (Run, Save, Format, Close Tab, etc.) in a dedicated, conflict-aware modal.
+#### Context Menus
+-   **Tab:** Right-click a tab to get options to **Close** it or **Open File Location** in your system's file explorer.
+-   **File Explorer:** Right-click a file or folder in the sidebar to **Open File Location**.
 
-### **Session & Data Management**
+### 3. The Integrated Terminal
 
-Your work and setups are always safe and portable.
+#### Multiple Terminal Tabs
+-   Click the `+` button in the terminal panel to open a new, independent terminal instance.
+-   Each terminal maintains its own command history and current working directory.
 
-*   **Session Manager:** Save and load your entire set of open tabs as a named "session," allowing you to quickly switch between different project contexts.
-*   **Comprehensive Export/Import System:**
-    *   **Export/Import Everything:** Create a full backup of *all* workspaces and settings in a single JSON file.
-    *   **Export/Import Theme:** Save just your visual theme settings to share or reuse.
-    *   **Export/Import Workspace:** Back up or migrate a single workspace, including all its files and settings.
-    *   **Full Control:** The system now prompts you for a filename ("Save As") for all exports and gives you the option to import a workspace to a **new ID** or **overwrite an existing one** (with a strong confirmation warning).
-*   **Persistent State:** The IDE automatically remembers your open files, panel sizes, breakpoints, and all settings, so you can close the browser and pick up exactly where you left off.
+#### Shell Functionality
+-   **Real-time CWD Sync:** When you navigate through folders in the sidebar, the terminal's prompt automatically updates to reflect your new location.
+-   **Command History:** Use the `Up` and `Down` arrow keys to cycle through previous commands.
+-   **Path Autocompletion:** Press `Tab` to autocomplete file and directory paths, just like a native shell.
+-   **Process Management:** Press `Ctrl+C` to terminate a running command.
 
-### **User Interface & Quality of Life**
+### 4. HTVM Transpiler Integration
 
-Small details that make a big difference.
+HT-IDE is built around its unique **HTVM (High-level Transpiled Virtual Machine)** language.
 
-*   **Responsive Design:** The UI intelligently adapts for use on smaller screens and mobile devices.
-*   **Resizable Panels:** Drag the borders between the file explorer, editor, terminal, and HTML output panel to create your perfect layout.
-*   **Informative Tooltips:** Hover over help icons (`ℹ️`) in settings modals to get detailed explanations of what each option does.
-*   **Workspace Isolation:** Each workspace (identified by the `?id=` in the URL) is completely sandboxed, with its own files, settings, and instruction sets, preventing data leaks.
+#### On-the-fly Transpilation
+-   When you run a `.htvm` file, the IDE uses the core `HTVM.js` engine to transpile it to your selected target language.
+-   The resulting file (e.g., `my_script.js`) is automatically saved in the same directory and opened in a new tab.
+
+#### Language Target Selector
+-   A dropdown in the top bar allows you to select the output language for HTVM transpilation.
+-   **Run JS/Full HTML:** Special options for JavaScript targets allow you to either run the generated JS code directly in the terminal or wrap it in a full HTML document for browser execution.
+
+#### HTVM Code Formatter
+-   Click the **Format** button (or use `Ctrl+Shift+F`) to automatically clean up and standardize the indentation and spacing of your `.htvm` file.
+
+#### Instruction Set Management
+-   The power of the HTVM transpiler comes from its instruction sets. Manage them via the **Manage Instructions** button.
+-   You can add new sets from files, edit existing ones in a dedicated editor, rename them, and switch the active set (requires a reload).
+-   The **HTVM to HTVM** converter allows you to translate `.htvm` files written for one instruction set to another.
+
+### 5. Code Execution & Debugging
+
+#### Running Files
+The behavior of the **▶ Run** button (`Ctrl+Enter` or `F5`) is context-aware:
+-   **.js:** Executes the file directly using Node.js, with output in the terminal.
+-   **.htvm:** Transpiles the file to the selected target language. If the target is JS, it will also execute it.
+-   **.html:** Renders the file in a dedicated HTML Output panel within the IDE.
+-   **Other Files:** The IDE will look for a corresponding `.htpr` (run) or `.htpc` (compile) "property file" in the `property files` directory. This allows you to define custom build and run commands for any language (e.g., C++, Python, Go).
+
+#### Built-in JavaScript Debugger
+-   **Set Breakpoints:** Simply click in the editor's "gutter" (the area with line numbers) to set or remove a breakpoint on that line.
+-   **Debugger Panel:** When a breakpoint is hit during JS execution, a movable debugger panel appears.
+-   **Inspect Scope:** The panel shows all variables currently in scope and their values.
+-   **Variable Hover:** While paused, you can hover over variable names in the editor to see their current value in a tooltip.
+-   **Controls:** You can **Resume** (`F8`) execution or **Stop** it entirely.
+
+#### HTML Output Panel
+-   When running an HTML file, it is rendered in a special side panel.
+-   This panel allows you to **Download** the generated HTML or close the panel.
+
+### 6. Built-in Web Server
+-   Instantly launch a local HTTP server by clicking the **▶ Start Server** button in the sidebar.
+-   The server uses the current project directory as its root.
+-   All requests (`GET`, `POST`, etc.) are automatically logged to the terminal that was active when the server was started, showing status codes and response times.
+-   The IDE automatically finds an available port, starting from the one specified in Settings (default: 8080).
+-   Click the **⏹ Stop Server** button to terminate it.
+
+### 7. Extensive Customization
+
+Nearly every aspect of the IDE's appearance and behavior can be changed. Access these options via the **Settings** button.
+
+#### General Settings
+-   **Editor:** Change font size, keybinding mode (Vim, Emacs, VSCode, etc.), and other editor behaviors.
+-   **Web Server:** Configure the default port and the default file to serve (e.g., `index.html`).
+-   **Terminal & Autocomplete:** Toggle various helper features.
+
+#### UI Theme Editor
+-   A powerful theme editor allows you to change the color, font weight, and size of virtually every UI element, from buttons and sidebars to scrollbars and modal dialogs. Changes are previewed live.
+
+#### Syntax Color Editor
+-   Independently customize the colors and font styles for every token in the syntax highlighter (keywords, strings, comments, etc.).
+
+#### Hotkey Customization
+-   Remap the default keyboard shortcuts for actions like "Run File", "Save File", "Close Tab", and more to fit your personal workflow.
+
+---
+
+## Discord Integration
+HT-IDE features Discord Rich Presence, which automatically shows your current status in your Discord profile. It displays:
+-   That you are using HT-IDE.
+-   The name of the file you are currently editing.
+-   The project folder you are in.
+-   The total number of lines in the current file.
+
+---
+
+## Default Hotkeys
+
+| Action | Default Hotkey | Notes |
+| :--- | :--- | :--- |
+| Run File | `Ctrl + Enter` / `F5` | `F5` is a secondary, non-customizable hotkey. |
+| Compile File | `Ctrl + F7` | Requires a `.htpc` property file. |
+| Save File | `Ctrl + S` | |
+| Format HTVM File | `Ctrl + Shift + F` | Only works on `.htvm` files. |
+| Close Tab | `Ctrl + W` | |
+| Re-open Last Closed Tab &nbsp; &nbsp; | `Ctrl + Shift + T` &nbsp; &nbsp; | |
+| Toggle Sidebar | `Ctrl + B` | |
+| Zoom In | `Ctrl + =` | |
+| Zoom Out | `Ctrl + -` | |
+
+---
+
+## Project Structure
+<details>
+<summary>Click to view the project's directory structure</summary>
+
+```
+╔═════════════════════════════════════════════════════════════════════════════╗
+║                      HT-IDE Electron Project Structure                      ║
+╚═════════════════════════════════════════════════════════════════════════════╝
+[HT-IDE_ROOT]/
+├── 📦 package.json             // Defines the project, dependencies (Electron), and scripts.
+├── 📦 package-lock.json        // Locks dependency versions for consistent installs.
+│
+├── 🚀 electron_main.js         // The main process entry point for the desktop app (Node.js backend).
+├── 🌉 preload.js                // Securely bridges the backend (Node.js) and frontend.
+│
+├── 🌐 HT-IDE.html               // The main application skeleton (Renderer Process UI).
+├── 🎨 style.css                 // All visual styling, colors, and layout.
+│
+├── 📜 HTVM.js                   // The core compiler engine. (HTVM)
+├── 📜 htvm-mode.js              // Ace Editor syntax highlighting rules for .htvm files.
+├── 📜 htvm_completions.js       // Autocomplete data for the editor.
+│
+├── 📝 README.md                 // Project description and instructions.
+├── 📝 LICENCE                   // The project's license file.
+├── 🖼️ icon.png                   // The application and browser tab icon.
+│
+├── 📁 node_modules/             // Directory for all project dependencies (managed by npm).
+│
+├── 📁 property files/           // For custom compile/run commands (.htpc, .htpr).
+│
+├── 📁 js/                       // All application logic (Renderer), loaded in order.
+│   ├── 📜 1_state.js              // Global variables (the app's central memory).
+│   ├── 📜 2_autocomplete_keywords.js   // All autocomplete keywords for non HTVM langs.
+│   ├── 📜 2_config_and_utils.js   // Shared "toolbox" and configuration data.
+│   ├── 📜 2_config_and_utils_reset_htvm.js   // The function to reset the HTVM vars.
+│   ├── 📜 3_ui.js                 // Renders and updates the UI (file list, tabs).
+│   ├── 📜 4_filesystem.js         // Manages file system calls via the preload bridge (No longer uses localStorage!).
+│   ├── 📜 5_editor.js             // Controls the Ace Editor and file sessions (the "Brain").
+│   ├── 📜 6_htvm.js               // Integrates your HTVM engine with the IDE.
+│   ├── 📜 7_modals_1.js           // Logic for Core modals (Session, Settings).
+│   ├── 📜 7_modals_2.js           // Logic for Instruction Set modals.
+│   ├── 📜 7_modals_3.js           // Logic for the Debugger modal.
+│   └── 📜 8_main.js               // App entry point, wires everything together (the "Conductor").
+│
+└── 📁 images/                   // Icons for the language selector dropdown.
+    ├── 🖼️ ahk.png
+    ├── 🖼️ cpp.png
+    ├── 🖼️ csharp.png
+    ├── 🖼️ dart.png
+    ├── 🖼️ go.png
+    ├── 🖼️ groovy.png
+    ├── 🖼️ java.png
+    ├── 🖼️ js.png
+    ├── 🖼️ kotlin.png
+    ├── 🖼️ lua.png
+    ├── 🖼️ nim.png
+    ├── 🖼️ python.png
+    ├── 🖼️ ruby.png
+    ├── 🖼️ swift.png
+    └── 🖼️ ts.png
+```
+
+</details>
+
+---
+
+## License
+This project is licensed under the **MIT License**.

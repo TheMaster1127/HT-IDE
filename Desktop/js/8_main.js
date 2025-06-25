@@ -182,7 +182,7 @@ async function createTerminalInstanceForSession(session) {
 }
 window.createTerminalInstanceForSession = createTerminalInstanceForSession;
 
-// MODIFIED: Added HTTP Server toggle handler
+// MODIFIED: HTTP Server toggle handler now reads from settings
 async function handleToggleHttpServer() {
     const btn = document.getElementById('http-server-btn');
     const activeTerm = getActiveTerminalSession();
@@ -195,7 +195,11 @@ async function handleToggleHttpServer() {
         const homeDir = await window.electronAPI.getHomeDir();
         const rootDir = currentDirectory === '/' ? homeDir : currentDirectory;
         
-        const result = await window.electronAPI.toggleHttpServer(rootDir, 8080, activeTerm.id);
+        // Read port and default file from settings, with defaults
+        const port = lsGet('serverPort') || 8080;
+        const defaultFile = lsGet('serverDefaultFile') || 'index.html';
+        
+        const result = await window.electronAPI.toggleHttpServer(rootDir, port, defaultFile, activeTerm.id);
         
         if (result.status === 'started') {
             isServerRunning = true;
@@ -215,7 +219,7 @@ async function handleToggleHttpServer() {
             activeTerm.xterm.writeln(`\r\n\x1b[31m✖ HTTP Server stopped.\x1b[0m`);
             writePrompt(activeTerm);
         } else if (result.status === 'error') {
-            activeTerm.xterm.writeln(`\r\n\x1b[31mError starting server: ${result.message}\x1b[0m`);
+            // Error is now logged by the main process, so we just redraw the prompt.
             writePrompt(activeTerm);
         }
     } catch (error) {
@@ -331,8 +335,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const session = terminalSessions.get(terminalId);
         if (session && session.xterm) {
             // Write log in grey, then redraw the prompt on a new line
-            const promptVisibleLength = session.cwd.length > 30 ? 33 : session.cwd.length + 3;
-            const totalPromptLength = promptVisibleLength + session.currentLine.length;
             session.xterm.write('\r\x1b[K'); // Clear current line
             session.xterm.writeln(`\x1b[90m${message}\x1b[0m`); // Write log in grey
             writePrompt(session); // Redraw prompt

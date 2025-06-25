@@ -199,13 +199,18 @@ function renderHotkeyDisplayList() {
 function openSettingsModal() {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
+    // MODIFIED: Re-arranged the HTML to logically group Editor settings together.
     overlay.innerHTML = `<div class="modal-box" style="max-width: 850px;">
         <h3>Settings + Help</h3>
         <div id="settings-columns-container" style="display: flex; gap: 20px; border-top: 1px solid #333; padding-top: 15px; overflow-x: auto; padding-bottom: 15px;">
             <div class="settings-column" style="flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 240px;">
                 <h4>Editor</h4>
                 <div><label for="font-size-input">Font Size: </label><input type="number" id="font-size-input" style="width:60px;background:#252525;color:#e0e0e0;border:1px solid #333;"></div>
-                <div>
+                <div><label><input type="checkbox" id="auto-pair-checkbox"> Auto-pair Brackets/Quotes</label></div>
+                <div><label><input type="checkbox" id="print-margin-checkbox"> Show Vertical Guide Line</label></div>
+                <div style="padding-left: 20px;"><label for="print-margin-column-input">Guide Line Column: </label><input type="number" id="print-margin-column-input" style="width:60px;background:#252525;color:#e0e0e0;border:1px solid #333;"></div>
+
+                <div style="margin-top: 10px;">
                     <h4>Keybinding Mode</h4>
                     <div id="keybinding-mode-group" style="padding-left: 10px;">
                         <label><input type="radio" name="keybinding-mode" value="normal"> Normal (Ace)</label>
@@ -215,9 +220,13 @@ function openSettingsModal() {
                         <label><input type="radio" name="keybinding-mode" value="sublime"> Sublime</label>
                     </div>
                 </div>
-                <div><label><input type="checkbox" id="auto-pair-checkbox"> Auto-pair Brackets/Quotes</label></div>
-                <div><label><input type="checkbox" id="print-margin-checkbox"> Show Vertical Guide Line</label></div>
-                <div style="padding-left: 20px;"><label for="print-margin-column-input">Guide Line Column: </label><input type="number" id="print-margin-column-input" style="width:60px;background:#252525;color:#e0e0e0;border:1px solid #333;"></div>
+                <div style="margin-top: 10px;">
+                    <h4>Web Server</h4>
+                    <div style="padding-left: 10px;">
+                        <div><label for="server-port-input">Port: </label><input type="number" id="server-port-input" style="width:80px;background:#252525;color:#e0e0e0;border:1px solid #333; margin-bottom: 5px;"></div>
+                        <div><label for="server-file-input">Default File: </label><input type="text" id="server-file-input" style="width:120px;background:#252525;color:#e0e0e0;border:1px solid #333;"></div>
+                    </div>
+                </div>
             </div>
             <div class="settings-column" style="flex: 1.2; padding-left: 20px; border-left: 1px solid #333; display: flex; flex-direction: column; gap: 15px; min-width: 280px;">
                 <div>
@@ -264,6 +273,8 @@ function openSettingsModal() {
     document.getElementById('autocomplete-master-checkbox').checked = lsGet('autocomplete-master') !== false;
     document.getElementById('autocomplete-keywords-checkbox').checked = lsGet('autocomplete-keywords') !== false;
     document.getElementById('autocomplete-local-checkbox').checked = lsGet('autocomplete-local') !== false;
+    document.getElementById('server-port-input').value = lsGet('serverPort') || 8080;
+    document.getElementById('server-file-input').value = lsGet('serverDefaultFile') || 'index.html';
 
     document.getElementById('customize-colors-btn').onclick = openSyntaxColorModal;
     document.getElementById('customize-theme-btn').onclick = openThemeEditorModal;
@@ -282,6 +293,9 @@ function openSettingsModal() {
         lsSet('autocomplete-master', document.getElementById('autocomplete-master-checkbox').checked);
         lsSet('autocomplete-keywords', document.getElementById('autocomplete-keywords-checkbox').checked);
         lsSet('autocomplete-local', document.getElementById('autocomplete-local-checkbox').checked);
+        lsSet('serverPort', parseInt(document.getElementById('server-port-input').value, 10) || 8080);
+        lsSet('serverDefaultFile', document.getElementById('server-file-input').value.trim() || 'index.html');
+
 
         const newSyntaxEnabled = document.getElementById('syntax-highlighting-master-checkbox').checked;
         const newHighlightOperators = document.getElementById('symbol-operator-highlighting-checkbox').checked;
