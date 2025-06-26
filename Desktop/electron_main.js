@@ -4,7 +4,7 @@ const { app, BrowserWindow, ipcMain, globalShortcut, dialog, shell, Menu } = req
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const http = require('http'); // MODIFIED: Added http module
+const http = require('http');
 const { spawn } = require('child_process');
 const DiscordRPC = require('discord-rpc');
 const contextMenu = require('electron-context-menu');
@@ -19,7 +19,6 @@ let startTimestamp = new Date();
 
 const fileWatchers = new Map();
 
-// MODIFIED: Added global server instance and MIME types map
 let httpServer = null;
 const mimeTypes = {
     '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
@@ -189,6 +188,32 @@ function createWindow() {
         }
     });
 
+    // --- MODIFICATION START ---
+    // The following logic ensures that developer shortcuts (like Ctrl+Shift+I)
+    // are only active when the application window is focused. They are
+    // unregistered when the window loses focus, fixing the issue where they
+    // would override shortcuts in other applications.
+
+    const registerDevShortcuts = () => {
+        globalShortcut.register('CommandOrControl+Shift+I', () => {
+            mainWindow.webContents.toggleDevTools();
+        });
+        globalShortcut.register('CommandOrControl+Shift+R', () => {
+            mainWindow.webContents.reloadIgnoringCache();
+        });
+    };
+
+    mainWindow.on('focus', () => {
+        registerDevShortcuts();
+    });
+
+    mainWindow.on('blur', () => {
+        globalShortcut.unregisterAll();
+    });
+
+    // --- MODIFICATION END ---
+
+
     mainWindow.setMenu(null);
     mainWindow.loadFile('HT-IDE.html');
 }
@@ -199,9 +224,6 @@ app.whenReady().then(async () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
 
-    // MODIFIED: Added an error handler for the RPC client.
-    // This catches expected "connection closed" errors during shutdown and
-    // prevents them from showing up as unhandled exception popups.
     rpc.on('error', (err) => {
         console.warn(`Discord RPC error: ${err.message}`);
     });
@@ -215,22 +237,16 @@ app.whenReady().then(async () => {
         console.error('Failed to initialize Discord RPC:', error);
     }
 
-    globalShortcut.register('CommandOrControl+Shift+I', () => {
-        const focusedWindow = BrowserWindow.getFocusedWindow();
-        if (focusedWindow) focusedWindow.webContents.toggleDevTools();
-    });
-    globalShortcut.register('CommandOrControl+Shift+R', () => {
-        const focusedWindow = BrowserWindow.getFocusedWindow();
-        if (focusedWindow) focusedWindow.webContents.reloadIgnoringCache();
-    });
+    // MODIFIED: Global shortcuts removed from here and moved into the `createWindow`
+    // function to be context-aware (only active when the app is focused).
 });
 
 app.on('will-quit', () => {
+    // This is a good failsafe to ensure all shortcuts are cleared when the app closes.
     globalShortcut.unregisterAll();
     fileWatchers.forEach(watcher => watcher.close());
     fileWatchers.clear();
     
-    // MODIFIED: Ensure HTTP server is closed on quit
     if (httpServer && httpServer.listening) {
         httpServer.close();
     }
@@ -371,7 +387,6 @@ ipcMain.handle('dialog:openDirectory', async () => {
     return null;
 });
 
-// MODIFIED: HTTP server now accepts port and default file
 ipcMain.handle('http:toggle', async (event, { rootPath, port: startPort, defaultFile, terminalId }) => {
     if (httpServer && httpServer.listening) {
         return new Promise((resolve) => {
@@ -406,12 +421,10 @@ ipcMain.handle('http:toggle', async (event, { rootPath, port: startPort, default
             logRequest();
         });
         
-        // MODIFIED: Decode URL to handle UTF-8 characters (e.g., emojis, icons) in filenames.
         const reqUrl = decodeURIComponent(req.url.split('?')[0]);
         let filePath = path.join(finalRootPath, reqUrl === '/' ? finalDefaultFile : reqUrl);
 
         const serve404 = () => {
-            // MODIFIED: Ensure 404 page is also served with UTF-8.
             res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
             res.end('<h1>404 Not Found</h1>', 'utf-8');
         };
@@ -426,7 +439,6 @@ ipcMain.handle('http:toggle', async (event, { rootPath, port: startPort, default
             fs.readFile(filePath, (error, content) => {
                 if (error) return serve404();
                 
-                // MODIFIED: Append charset=utf-8 to text-based MIME types for proper rendering.
                 const extname = String(path.extname(filePath)).toLowerCase();
                 let contentType = mimeTypes[extname] || 'application/octet-stream';
                 if (contentType.startsWith('text/') || contentType === 'application/json' || contentType === 'application/javascript' || contentType === 'image/svg+xml') {
@@ -434,7 +446,6 @@ ipcMain.handle('http:toggle', async (event, { rootPath, port: startPort, default
                 }
 
                 res.writeHead(200, { 'Content-Type': contentType });
-                // MODIFIED: Send the raw buffer. The browser will use the Content-Type header to interpret it correctly.
                 res.end(content);
             });
         });
