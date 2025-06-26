@@ -406,11 +406,13 @@ ipcMain.handle('http:toggle', async (event, { rootPath, port: startPort, default
             logRequest();
         });
         
-        let reqUrl = req.url.split('?')[0];
+        // MODIFIED: Decode URL to handle UTF-8 characters (e.g., emojis, icons) in filenames.
+        const reqUrl = decodeURIComponent(req.url.split('?')[0]);
         let filePath = path.join(finalRootPath, reqUrl === '/' ? finalDefaultFile : reqUrl);
 
         const serve404 = () => {
-            res.writeHead(404, { 'Content-Type': 'text/html' });
+            // MODIFIED: Ensure 404 page is also served with UTF-8.
+            res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
             res.end('<h1>404 Not Found</h1>', 'utf-8');
         };
         
@@ -424,10 +426,16 @@ ipcMain.handle('http:toggle', async (event, { rootPath, port: startPort, default
             fs.readFile(filePath, (error, content) => {
                 if (error) return serve404();
                 
+                // MODIFIED: Append charset=utf-8 to text-based MIME types for proper rendering.
                 const extname = String(path.extname(filePath)).toLowerCase();
-                const contentType = mimeTypes[extname] || 'application/octet-stream';
+                let contentType = mimeTypes[extname] || 'application/octet-stream';
+                if (contentType.startsWith('text/') || contentType === 'application/json' || contentType === 'application/javascript' || contentType === 'image/svg+xml') {
+                    contentType += '; charset=utf-8';
+                }
+
                 res.writeHead(200, { 'Content-Type': contentType });
-                res.end(content, 'utf-8');
+                // MODIFIED: Send the raw buffer. The browser will use the Content-Type header to interpret it correctly.
+                res.end(content);
             });
         });
     };

@@ -9,5 +9,5 @@ The IDE of the future — seamlessly designed for HTVM, fully customizable, effi
 
 ---
 
-### Navigate to the `Desktop`, `Mobile-Termux`, or `WEB` folder to find their respective README files and documentation.
+### Navigate to the `Desktop` or `WEB` folder to find their respective README files and documentation.
 
