@@ -254,6 +254,7 @@ HT-IDE features Discord Rich Presence, which automatically shows your current st
 ├── 📁 property files/           // For custom compile/run commands (.htpc, .htpr).
 │
 ├── 📁 js/                       // All application logic (Renderer), loaded in order.
+│   ├── 📜 0_storage_init.js       // Intercepts localStorage calls and redirects them to the backend.
 │   ├── 📜 1_state.js              // Global variables (the app's central memory).
 │   ├── 📜 2_autocomplete_keywords.js   // All autocomplete keywords for non HTVM langs.
 │   ├── 📜 2_config_and_utils.js   // Shared "toolbox" and configuration data.
