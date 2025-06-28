@@ -1,4 +1,4 @@
-// --- Modal Dialog Functions ---
+//---Modal Dialog Functions---
 
 // NEW: A consistent, non-blocking confirmation modal to replace all native `confirm()` calls.
 function openConfirmModal(title, message, callback) {
@@ -196,10 +196,38 @@ function renderHotkeyDisplayList() {
     return `<ul style="padding-left:20px;margin:0; font-size: 0.9em; list-style-type: none;">${html}</ul>`;
 }
 
-function openSettingsModal() {
+/**
+ * FIX: Captures the current (potentially unsaved) state of the settings modal form controls.
+ * @returns {object|null} An object with the current values, or null if the modal isn't open.
+ */
+function captureSettingsState() {
+    const container = document.querySelector('.modal-box');
+    if (!container) return null;
+    try {
+        const state = {};
+        state.fontSize = container.querySelector('#font-size-input').value;
+        state.keybindingMode = container.querySelector('input[name="keybinding-mode"]:checked').value;
+        state.autoPair = container.querySelector('#auto-pair-checkbox').checked;
+        state.showPrintMargin = container.querySelector('#print-margin-checkbox').checked;
+        state.printMarginColumn = container.querySelector('#print-margin-column-input').value;
+        state.syntaxHighlightingEnabled = container.querySelector('#syntax-highlighting-master-checkbox').checked;
+        state.highlightSymbolOperators = container.querySelector('#symbol-operator-highlighting-checkbox').checked;
+        state.clearTerminalOnRun = container.querySelector('#clear-terminal-on-run-checkbox').checked;
+        state.autocompleteMaster = container.querySelector('#autocomplete-master-checkbox').checked;
+        state.autocompleteKeywords = container.querySelector('#autocomplete-keywords-checkbox').checked;
+        state.autocompleteLocal = container.querySelector('#autocomplete-local-checkbox').checked;
+        state.serverPort = container.querySelector('#server-port-input').value;
+        state.serverDefaultFile = container.querySelector('#server-file-input').value;
+        return state;
+    } catch (e) {
+        console.error("Could not capture settings state, elements might not be in DOM.", e);
+        return null;
+    }
+}
+
+function openSettingsModal(initialState = null) {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
-    // MODIFIED: Re-arranged the HTML to logically group Editor settings together.
     overlay.innerHTML = `<div class="modal-box" style="max-width: 850px;">
         <h3>Settings + Help</h3>
         <div id="settings-columns-container" style="display: flex; gap: 20px; border-top: 1px solid #333; padding-top: 15px; overflow-x: auto; padding-bottom: 15px;">
@@ -261,6 +289,7 @@ function openSettingsModal() {
     const initialSyntaxEnabled = lsGet('syntaxHighlightingEnabled') !== false;
     const initialHighlightOperators = lsGet('highlightSymbolOperators') !== false;
 
+    // Load initial values from DB / editor state
     document.getElementById('font-size-input').value = editor.getFontSize();
     const currentMode = lsGet('keybindingMode') || 'normal';
     document.querySelector(`input[name="keybinding-mode"][value="${currentMode}"]`).checked = true;
@@ -276,10 +305,27 @@ function openSettingsModal() {
     document.getElementById('server-port-input').value = lsGet('serverPort') || 8080;
     document.getElementById('server-file-input').value = lsGet('serverDefaultFile') || 'index.html';
 
-    document.getElementById('customize-colors-btn').onclick = openSyntaxColorModal;
-    document.getElementById('customize-theme-btn').onclick = openThemeEditorModal;
-    document.getElementById('customize-hotkeys-btn').onclick = openHotkeyEditorModal;
+    // FIX: If a state was passed in (i.e., returning from a sub-modal), apply it.
+    if (initialState) {
+        if (initialState.fontSize !== undefined) document.getElementById('font-size-input').value = initialState.fontSize;
+        if (initialState.keybindingMode) document.querySelector(`input[name="keybinding-mode"][value="${initialState.keybindingMode}"]`).checked = true;
+        if (initialState.autoPair !== undefined) document.getElementById('auto-pair-checkbox').checked = initialState.autoPair;
+        if (initialState.showPrintMargin !== undefined) document.getElementById('print-margin-checkbox').checked = initialState.showPrintMargin;
+        if (initialState.printMarginColumn !== undefined) document.getElementById('print-margin-column-input').value = initialState.printMarginColumn;
+        if (initialState.syntaxHighlightingEnabled !== undefined) document.getElementById('syntax-highlighting-master-checkbox').checked = initialState.syntaxHighlightingEnabled;
+        if (initialState.highlightSymbolOperators !== undefined) document.getElementById('symbol-operator-highlighting-checkbox').checked = initialState.highlightSymbolOperators;
+        if (initialState.clearTerminalOnRun !== undefined) document.getElementById('clear-terminal-on-run-checkbox').checked = initialState.clearTerminalOnRun;
+        if (initialState.autocompleteMaster !== undefined) document.getElementById('autocomplete-master-checkbox').checked = initialState.autocompleteMaster;
+        if (initialState.autocompleteKeywords !== undefined) document.getElementById('autocomplete-keywords-checkbox').checked = initialState.autocompleteKeywords;
+        if (initialState.autocompleteLocal !== undefined) document.getElementById('autocomplete-local-checkbox').checked = initialState.autocompleteLocal;
+        if (initialState.serverPort !== undefined) document.getElementById('server-port-input').value = initialState.serverPort;
+        if (initialState.serverDefaultFile !== undefined) document.getElementById('server-file-input').value = initialState.serverDefaultFile;
+    }
 
+    // FIX: Setup sub-modal buttons to pass the current state forward
+    document.getElementById('customize-colors-btn').onclick = () => openSyntaxColorModal(captureSettingsState());
+    document.getElementById('customize-theme-btn').onclick = () => openThemeEditorModal(captureSettingsState());
+    document.getElementById('customize-hotkeys-btn').onclick = () => openHotkeyEditorModal(captureSettingsState());
 
     document.getElementById('modal-ok-btn').onclick = () => {
         editor.setFontSize(parseInt(document.getElementById('font-size-input').value, 10)); lsSet('fontSize', editor.getFontSize());
@@ -331,7 +377,7 @@ function formatHotkey(config) {
     return parts.join(' + ');
 }
 
-function openHotkeyEditorModal() {
+function openHotkeyEditorModal(settingsState) {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
     const customHotkeys = lsGet('customHotkeys') || {};
@@ -420,14 +466,14 @@ function openHotkeyEditorModal() {
         };
     });
 
-    document.getElementById('modal-hotkeys-cancel-btn').onclick = openSettingsModal;
+    document.getElementById('modal-hotkeys-cancel-btn').onclick = () => openSettingsModal(settingsState);
     
     document.getElementById('modal-hotkeys-reset-all-btn').onclick = () => {
         openConfirmModal("Reset All Hotkeys", "Are you sure you want to reset all hotkeys to their defaults?", (confirmed) => {
             if (confirmed) {
                 lsRemove('customHotkeys');
                 applyAndSetHotkeys();
-                openHotkeyEditorModal();
+                openHotkeyEditorModal(settingsState);
             }
         });
     };
@@ -439,12 +485,12 @@ function openHotkeyEditorModal() {
         });
         lsSet('customHotkeys', newCustomHotkeys);
         applyAndSetHotkeys();
-        openSettingsModal();
+        openSettingsModal(settingsState);
     };
 }
 
 
-function openSyntaxColorModal() {
+function openSyntaxColorModal(settingsState) {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
 
@@ -496,7 +542,7 @@ function openSyntaxColorModal() {
     listContainer.addEventListener('mouseout', e => { if (e.target.classList.contains('info-icon')) { infoTooltip.style.display = 'none'; } });
     listContainer.addEventListener('mousemove', e => { if (infoTooltip.style.display === 'block') { const t = infoTooltip, w = window, m=15; let l = e.clientX + m, p = e.clientY + m; if (l + t.offsetWidth > w.innerWidth) l = e.clientX - t.offsetWidth - m; if(l<0)l=0; if(p<0)p=0; t.style.left = l + 'px'; t.style.top = p + 'px'; } });
 
-    document.getElementById('modal-colors-cancel-btn').onclick = () => openSettingsModal();
+    document.getElementById('modal-colors-cancel-btn').onclick = () => openSettingsModal(settingsState);
     
     document.getElementById('modal-colors-reset-btn').onclick = () => {
         openConfirmModal("Reset Colors", "Are you sure you want to reset all syntax colors and styles to their defaults?", (confirmed) => {
@@ -526,7 +572,7 @@ function openSyntaxColorModal() {
     };
 }
 
-function openThemeEditorModal() {
+function openThemeEditorModal(settingsState) {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
     const root = document.documentElement;
@@ -640,7 +686,7 @@ function openThemeEditorModal() {
         for (const key in originalValues) {
             root.style.setProperty(key, originalValues[key]);
         }
-        openSettingsModal();
+        openSettingsModal(settingsState);
     };
     
     document.getElementById('modal-theme-reset-btn').onclick = () => {
@@ -653,7 +699,7 @@ function openThemeEditorModal() {
                     }
                 }
                 applyUiThemeSettings(); 
-                openThemeEditorModal(); 
+                openThemeEditorModal(settingsState); 
             }
         });
     };
@@ -661,7 +707,7 @@ function openThemeEditorModal() {
     document.getElementById('modal-theme-save-btn').onclick = () => {
         container.querySelectorAll('input[data-key]').forEach(input => lsSet(`theme_${input.dataset.key}`, input.value));
         container.querySelectorAll('input[data-bold-key]').forEach(input => lsSet(`theme_bold_${input.dataset.boldKey}`, input.checked));
-        openSettingsModal();
+        openSettingsModal(settingsState);
     };
 }
 

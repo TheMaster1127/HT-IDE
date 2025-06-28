@@ -2,16 +2,17 @@
 let draggedTab = null;
 
 // --- UI Rendering Functions ---
-function renderAll() {
-    renderFileList();
-    renderTabs();
+async function renderAll() {
+    await renderFileList();
+    await renderTabs();
 }
 
-function renderFileList() {
+async function renderFileList() {
     const el = document.getElementById('file-list');
     el.innerHTML = '';
+    const allPaths = await getAllPaths();
     const tree = {};
-    getAllPaths().forEach(p => {
+    allPaths.forEach(p => {
         let l = tree;
         p.split('/').filter(Boolean).forEach((part, i, a) => {
             if (!l[part]) l[part] = { _children: {} };
@@ -31,10 +32,10 @@ function renderFileList() {
     if (currentDirectory !== '/') {
         const li = document.createElement('li');
         li.innerHTML = `<strong>..</strong>`;
-        li.onclick = () => {
+        li.onclick = async () => {
             const parts = currentDirectory.split('/').filter(Boolean);
             parts.pop();
-            setCurrentDirectory(parts.length ? `/${parts.join('/')}/` : '/');
+            await setCurrentDirectory(parts.length ? `/${parts.join('/')}/` : '/');
         };
         el.appendChild(li);
     }
@@ -64,7 +65,7 @@ function renderFileList() {
     updateActiveFileVisuals(currentOpenFile);
 }
 
-function renderTabs() {
+async function renderTabs() {
     const container = document.getElementById('tabs-container');
     container.innerHTML = '';
     openTabs.forEach(filename => {
@@ -114,26 +115,26 @@ function checkDirtyState(filename) {
     tab.classList.toggle('dirty', isDirty);
 }
 
-function setCurrentDirectory(path) {
+async function setCurrentDirectory(path) {
     currentDirectory = path;
     document.getElementById('current-path-display').textContent = path;
-    lsSet('lastCwd', path);
-    renderFileList();
+    await dbSet('lastCwd', path); // <-- CORRECTED THIS LINE
+    await renderFileList();
 }
 
 const toggleDropdown = () => {
     const el = document.getElementById('lang-dropdown');
     el.style.display = el.style.display === 'block' ? 'none' : 'block';
 };
-window.toggleDropdown = toggleDropdown; // Make it globally accessible for onclick
+window.toggleDropdown = toggleDropdown;
 
-function changeLanguage(name, img, lang) {
+async function changeLanguage(name, img, lang) {
     document.getElementById('selected-lang-name').textContent = name;
     document.getElementById('selected-lang-img').src = img;
-    lsSet('selectedLangExtension', lang);
+    await dbSet('selectedLangExtension', lang); // <-- CORRECTED THIS LINE
     toggleDropdown();
 }
-window.changeLanguage = changeLanguage; // Make it globally accessible for onclick
+window.changeLanguage = changeLanguage;
 
 function initResizer(resizerEl, containerEl, lsKey, direction) {
     resizerEl.onmousedown = e => {
@@ -152,18 +153,19 @@ function initResizer(resizerEl, containerEl, lsKey, direction) {
                 fitAddon.fit();
             }
         };
-        const stopDrag = () => {
+        const stopDrag = async () => {
             window.removeEventListener('mousemove', doDrag);
             window.removeEventListener('mouseup', stopDrag);
-            lsSet(lsKey, containerEl.style[direction === 'x' ? 'width' : 'height']);
+            await dbSet(lsKey, containerEl.style[direction === 'x' ? 'width' : 'height']);
         };
         window.addEventListener('mousemove', doDrag);
         window.addEventListener('mouseup', stopDrag);
     };
 }
 
-function printExecutionEndMessage() {
-    if (lsGet('clearTerminalOnRun') === true) {
+async function printExecutionEndMessage() {
+    const clearOnRun = await dbGet('clearTerminalOnRun');
+    if (clearOnRun === true) {
         term.writeln(`\n\x1b[1;31m=== Execution is over ===\x1b[0m`);
         term.write('$ ');
     }
@@ -220,7 +222,7 @@ function handleDragLeave(e) {
     }
 }
 
-function handleDrop(e) {
+async function handleDrop(e) {
     e.preventDefault();
     const targetTab = e.target.closest('.tab');
     if (!targetTab || targetTab === draggedTab) {
@@ -239,5 +241,5 @@ function handleDrop(e) {
     openTabs.splice(targetIndex, 0, draggedFilename);
 
     // Re-render the tabs in the new order
-    renderTabs();
+    await renderTabs();
 }

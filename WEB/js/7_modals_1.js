@@ -1,6 +1,8 @@
 // --- Modal Dialog Functions ---
 
-function openSessionModal(mode) {
+// --- DEXIE MIGRATION: Reworked all modals to be async and use IndexedDB ---
+
+async function openSessionModal(mode) {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
     overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
@@ -10,9 +12,9 @@ function openSessionModal(mode) {
     overlay.innerHTML = `<div class="modal-box"><h3 id="modal-title"></h3><div id="modal-save-content" style="display:none;"><p>Enter/overwrite session name:</p><input type="text" id="modal-input" style="width:calc(100% - 22px);padding:10px;margin-bottom:15px;background-color:#252525;border:1px solid #333;color:#e0e0e0;"></div><ul class="modal-list" id="modal-list"></ul><div class="modal-buttons"><button id="modal-cancel-btn">Cancel</button><button id="modal-confirm-btn" style="margin-left:8px;">Save</button></div></div>`;
     
     const list = document.getElementById('modal-list');
-    const populate = (cb) => {
+    const populate = async (cb) => {
         list.innerHTML = '';
-        const sessions = lsGet('session_list') || [];
+        const sessions = await dbGet('session_list') || [];
         if (!sessions.length) {
             list.innerHTML = "<li class='no-sessions'>No sessions found.</li>";
             return;
@@ -25,13 +27,13 @@ function openSessionModal(mode) {
             const delBtn = document.createElement('button');
             delBtn.textContent = '🗑️';
             delBtn.style.cssText = 'background:none;border:none;color:#aaa;';
-            delBtn.onclick = (e) => {
+            delBtn.onclick = async (e) => {
                 e.stopPropagation();
                 if (confirm(`Delete session "${name}"?`)) {
-                    let s = lsGet('session_list').filter(i => i !== name);
-                    lsSet('session_list', s);
-                    lsRemove(`session_data_${name}`);
-                    populate(cb);
+                    let s = (await dbGet('session_list') || []).filter(i => i !== name);
+                    await dbSet('session_list', s);
+                    await dbRemove(`session_data_${name}`);
+                    await populate(cb);
                 }
             };
             li.appendChild(nameSpan);
@@ -48,14 +50,14 @@ function openSessionModal(mode) {
         document.getElementById('modal-title').textContent = 'Save Session';
         document.getElementById('modal-save-content').style.display = 'block';
         document.getElementById('modal-confirm-btn').textContent = 'Save';
-        populate(name => document.getElementById('modal-input').value = name);
-        document.getElementById('modal-confirm-btn').onclick = () => {
+        await populate(name => document.getElementById('modal-input').value = name);
+        document.getElementById('modal-confirm-btn').onclick = async () => {
             const name = document.getElementById('modal-input').value.trim();
             if (!name) return alert('Name cannot be empty.');
-            let sessions = lsGet('session_list') || [];
+            let sessions = await dbGet('session_list') || [];
             if (!sessions.includes(name)) sessions.push(name);
-            lsSet('session_list', sessions);
-            lsSet(`session_data_${name}`, openTabs);
+            await dbSet('session_list', sessions);
+            await dbSet(`session_data_${name}`, openTabs);
             overlay.style.display = 'none';
             term.writeln(`\x1b[32mSession '${name}' saved.\x1b[0m`);
         };
@@ -63,13 +65,16 @@ function openSessionModal(mode) {
         document.getElementById('modal-title').textContent = 'Load Session';
         document.getElementById('modal-save-content').style.display = 'none';
         document.getElementById('modal-confirm-btn').style.display = 'none';
-        populate(name => {
-            const tabs = lsGet(`session_data_${name}`);
+        await populate(async (name) => {
+            const tabs = await dbGet(`session_data_${name}`);
             if (tabs) {
-                [...openTabs].forEach(t => closeTab(t, true));
-                tabs.forEach(t => {
-                    if (getAllPaths().includes(t)) openFileInEditor(t);
-                });
+                for (const t of [...openTabs]) {
+                   await closeTab(t, true);
+                }
+                const allPaths = await getAllPaths();
+                for (const t of tabs) {
+                    if (allPaths.includes(t)) await openFileInEditor(t);
+                }
             }
             overlay.style.display = 'none';
             term.writeln(`\x1b[32mSession '${name}' loaded.\x1b[0m`);
@@ -78,8 +83,8 @@ function openSessionModal(mode) {
     overlay.style.display = 'flex';
 }
 
-function renderHotkeyDisplayList() {
-    const customHotkeys = lsGet('customHotkeys') || {};
+async function renderHotkeyDisplayList() {
+    const customHotkeys = await dbGet('customHotkeys') || {};
     let html = '';
 
     for (const id in hotkeyConfig) {
@@ -99,7 +104,34 @@ function renderHotkeyDisplayList() {
     return `<ul style="padding-left:20px;margin:0; font-size: 0.9em; list-style-type: none;">${html}</ul>`;
 }
 
-function openSettingsModal() {
+/**
+ * Captures the current (potentially unsaved) state of the settings modal form controls.
+ * @returns {object|null} An object with the current values, or null if the modal isn't open.
+ */
+function captureSettingsState() {
+    const container = document.querySelector('.modal-box');
+    if (!container) return null;
+    try {
+        const state = {};
+        state.fontSize = container.querySelector('#font-size-input').value;
+        state.keybindingMode = container.querySelector('input[name="keybinding-mode"]:checked').value;
+        state.autoPair = container.querySelector('#auto-pair-checkbox').checked;
+        state.showPrintMargin = container.querySelector('#print-margin-checkbox').checked;
+        state.printMarginColumn = container.querySelector('#print-margin-column-input').value;
+        state.syntaxHighlightingEnabled = container.querySelector('#syntax-highlighting-master-checkbox').checked;
+        state.highlightSymbolOperators = container.querySelector('#symbol-operator-highlighting-checkbox').checked;
+        state.clearTerminalOnRun = container.querySelector('#clear-terminal-on-run-checkbox').checked;
+        state.autocompleteMaster = container.querySelector('#autocomplete-master-checkbox').checked;
+        state.autocompleteKeywords = container.querySelector('#autocomplete-keywords-checkbox').checked;
+        state.autocompleteLocal = container.querySelector('#autocomplete-local-checkbox').checked;
+        return state;
+    } catch (e) {
+        console.error("Could not capture settings state, elements might not be in DOM.", e);
+        return null;
+    }
+}
+
+async function openSettingsModal(initialState = null) {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
     overlay.innerHTML = `<div class="modal-box" style="max-width: 850px;">
@@ -145,46 +177,63 @@ function openSettingsModal() {
             </div>
             <div class="settings-column" style="flex: 1; padding-left: 20px; border-left: 1px solid #333; min-width: 220px;">
                  <h4>Hotkeys</h4>
-                 <div id="hotkey-display-list">${renderHotkeyDisplayList()}</div>
+                 <div id="hotkey-display-list">${await renderHotkeyDisplayList()}</div>
                  <button id="customize-hotkeys-btn" style="margin-top: 15px; padding: 8px; background-color: var(--btn-new-file-bg); color: var(--btn-new-file-text); font-weight: var(--btn-new-file-text-bold);">Customize Hotkeys</button>
             </div>
         </div>
         <div class="modal-buttons" style="margin-top: 20px;"><button id="modal-ok-btn" style="padding: 10px 24px; font-size: 1.1em; font-weight: bold;">OK</button></div>
     </div>`;
     
-    const initialSyntaxEnabled = lsGet('syntaxHighlightingEnabled') !== false;
-    const initialHighlightOperators = lsGet('highlightSymbolOperators') !== false;
+    const initialSyntaxEnabled = await dbGet('syntaxHighlightingEnabled') !== false;
+    const initialHighlightOperators = await dbGet('highlightSymbolOperators') !== false;
 
+    // Load initial values from DB / editor state
     document.getElementById('font-size-input').value = editor.getFontSize();
-    const currentMode = lsGet('keybindingMode') || 'normal';
+    const currentMode = await dbGet('keybindingMode') || 'normal';
     document.querySelector(`input[name="keybinding-mode"][value="${currentMode}"]`).checked = true;
     document.getElementById('auto-pair-checkbox').checked = editor.getBehavioursEnabled();
     document.getElementById('print-margin-checkbox').checked = editor.getShowPrintMargin();
     document.getElementById('print-margin-column-input').value = editor.getOption('printMargin');
     document.getElementById('syntax-highlighting-master-checkbox').checked = initialSyntaxEnabled;
     document.getElementById('symbol-operator-highlighting-checkbox').checked = initialHighlightOperators;
-    document.getElementById('clear-terminal-on-run-checkbox').checked = lsGet('clearTerminalOnRun') === true;
-    document.getElementById('autocomplete-master-checkbox').checked = lsGet('autocomplete-master') !== false;
-    document.getElementById('autocomplete-keywords-checkbox').checked = lsGet('autocomplete-keywords') !== false;
-    document.getElementById('autocomplete-local-checkbox').checked = lsGet('autocomplete-local') !== false;
+    document.getElementById('clear-terminal-on-run-checkbox').checked = await dbGet('clearTerminalOnRun') === true;
+    document.getElementById('autocomplete-master-checkbox').checked = await dbGet('autocomplete-master') !== false;
+    document.getElementById('autocomplete-keywords-checkbox').checked = await dbGet('autocomplete-keywords') !== false;
+    document.getElementById('autocomplete-local-checkbox').checked = await dbGet('autocomplete-local') !== false;
 
-    document.getElementById('customize-colors-btn').onclick = openSyntaxColorModal;
-    document.getElementById('customize-theme-btn').onclick = openThemeEditorModal;
-    document.getElementById('customize-hotkeys-btn').onclick = openHotkeyEditorModal;
+    // If a state was passed in (i.e., returning from a sub-modal), apply it.
+    if (initialState) {
+        if (initialState.fontSize !== undefined) document.getElementById('font-size-input').value = initialState.fontSize;
+        if (initialState.keybindingMode) document.querySelector(`input[name="keybinding-mode"][value="${initialState.keybindingMode}"]`).checked = true;
+        if (initialState.autoPair !== undefined) document.getElementById('auto-pair-checkbox').checked = initialState.autoPair;
+        if (initialState.showPrintMargin !== undefined) document.getElementById('print-margin-checkbox').checked = initialState.showPrintMargin;
+        if (initialState.printMarginColumn !== undefined) document.getElementById('print-margin-column-input').value = initialState.printMarginColumn;
+        if (initialState.syntaxHighlightingEnabled !== undefined) document.getElementById('syntax-highlighting-master-checkbox').checked = initialState.syntaxHighlightingEnabled;
+        if (initialState.highlightSymbolOperators !== undefined) document.getElementById('symbol-operator-highlighting-checkbox').checked = initialState.highlightSymbolOperators;
+        if (initialState.clearTerminalOnRun !== undefined) document.getElementById('clear-terminal-on-run-checkbox').checked = initialState.clearTerminalOnRun;
+        if (initialState.autocompleteMaster !== undefined) document.getElementById('autocomplete-master-checkbox').checked = initialState.autocompleteMaster;
+        if (initialState.autocompleteKeywords !== undefined) document.getElementById('autocomplete-keywords-checkbox').checked = initialState.autocompleteKeywords;
+        if (initialState.autocompleteLocal !== undefined) document.getElementById('autocomplete-local-checkbox').checked = initialState.autocompleteLocal;
+    }
+
+    // Setup sub-modal buttons to pass the current state forward
+    document.getElementById('customize-colors-btn').onclick = () => openSyntaxColorModal(captureSettingsState());
+    document.getElementById('customize-theme-btn').onclick = () => openThemeEditorModal(captureSettingsState());
+    document.getElementById('customize-hotkeys-btn').onclick = () => openHotkeyEditorModal(captureSettingsState());
 
 
-    document.getElementById('modal-ok-btn').onclick = () => {
-        editor.setFontSize(parseInt(document.getElementById('font-size-input').value, 10)); lsSet('fontSize', editor.getFontSize());
+    document.getElementById('modal-ok-btn').onclick = async () => {
+        editor.setFontSize(parseInt(document.getElementById('font-size-input').value, 10)); await dbSet('fontSize', editor.getFontSize());
         const keybinding = document.querySelector('input[name="keybinding-mode"]:checked').value;
-        lsSet('keybindingMode', keybinding);
+        await dbSet('keybindingMode', keybinding);
         editor.setKeyboardHandler(keybinding === 'normal' ? null : `ace/keyboard/${keybinding}`);
-        editor.setBehavioursEnabled(document.getElementById('auto-pair-checkbox').checked); lsSet('autoPair', editor.getBehavioursEnabled());
-        editor.setShowPrintMargin(document.getElementById('print-margin-checkbox').checked); lsSet('showPrintMargin', editor.getShowPrintMargin());
-        editor.setOption('printMargin', parseInt(document.getElementById('print-margin-column-input').value, 10) || 80); lsSet('printMarginColumn', editor.getOption('printMargin'));
-        lsSet('clearTerminalOnRun', document.getElementById('clear-terminal-on-run-checkbox').checked);
-        lsSet('autocomplete-master', document.getElementById('autocomplete-master-checkbox').checked);
-        lsSet('autocomplete-keywords', document.getElementById('autocomplete-keywords-checkbox').checked);
-        lsSet('autocomplete-local', document.getElementById('autocomplete-local-checkbox').checked);
+        editor.setBehavioursEnabled(document.getElementById('auto-pair-checkbox').checked); await dbSet('autoPair', editor.getBehavioursEnabled());
+        editor.setShowPrintMargin(document.getElementById('print-margin-checkbox').checked); await dbSet('showPrintMargin', editor.getShowPrintMargin());
+        editor.setOption('printMargin', parseInt(document.getElementById('print-margin-column-input').value, 10) || 80); await dbSet('printMarginColumn', editor.getOption('printMargin'));
+        await dbSet('clearTerminalOnRun', document.getElementById('clear-terminal-on-run-checkbox').checked);
+        await dbSet('autocomplete-master', document.getElementById('autocomplete-master-checkbox').checked);
+        await dbSet('autocomplete-keywords', document.getElementById('autocomplete-keywords-checkbox').checked);
+        await dbSet('autocomplete-local', document.getElementById('autocomplete-local-checkbox').checked);
 
         const newSyntaxEnabled = document.getElementById('syntax-highlighting-master-checkbox').checked;
         const newHighlightOperators = document.getElementById('symbol-operator-highlighting-checkbox').checked;
@@ -192,9 +241,9 @@ function openSettingsModal() {
 
         if (needsReload) {
             if (confirm("Some syntax highlighting settings have changed. A reload is required for them to take full effect. Your work will be saved.\n\nReload now?")) {
-                lsSet('syntaxHighlightingEnabled', newSyntaxEnabled);
-                lsSet('highlightSymbolOperators', newHighlightOperators);
-                window.dispatchEvent(new Event('beforeunload'));
+                await dbSet('syntaxHighlightingEnabled', newSyntaxEnabled);
+                await dbSet('highlightSymbolOperators', newHighlightOperators);
+                await window.onbeforeunload();
                 window.location.reload();
             }
         }
@@ -217,10 +266,10 @@ function formatHotkey(config) {
     return parts.join(' + ');
 }
 
-function openHotkeyEditorModal() {
+async function openHotkeyEditorModal(settingsState) {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
-    const customHotkeys = lsGet('customHotkeys') || {};
+    const customHotkeys = await dbGet('customHotkeys') || {};
 
     let itemsHtml = '';
     for (const id in hotkeyConfig) {
@@ -306,36 +355,36 @@ function openHotkeyEditorModal() {
         };
     });
 
-    document.getElementById('modal-hotkeys-cancel-btn').onclick = openSettingsModal;
+    document.getElementById('modal-hotkeys-cancel-btn').onclick = () => openSettingsModal(settingsState);
     
-    document.getElementById('modal-hotkeys-reset-all-btn').onclick = () => {
+    document.getElementById('modal-hotkeys-reset-all-btn').onclick = async () => {
         if (confirm("Are you sure you want to reset all hotkeys to their defaults?")) {
-            lsRemove('customHotkeys');
-            applyAndSetHotkeys();
-            openHotkeyEditorModal();
+            await dbRemove('customHotkeys');
+            await applyAndSetHotkeys();
+            await openHotkeyEditorModal(settingsState);
         }
     };
     
-    document.getElementById('modal-hotkeys-save-btn').onclick = () => {
+    document.getElementById('modal-hotkeys-save-btn').onclick = async () => {
         const newCustomHotkeys = {};
         container.querySelectorAll('.hotkey-input').forEach(input => {
             newCustomHotkeys[input.dataset.id] = JSON.parse(input.dataset.config);
         });
-        lsSet('customHotkeys', newCustomHotkeys);
-        applyAndSetHotkeys();
-        openSettingsModal();
+        await dbSet('customHotkeys', newCustomHotkeys);
+        await applyAndSetHotkeys();
+        await openSettingsModal(settingsState);
     };
 }
 
 
-function openSyntaxColorModal() {
+async function openSyntaxColorModal(settingsState) {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
 
     let colorItemsHtml = '';
     for (const key in syntaxColorConfig) {
         const item = syntaxColorConfig[key];
-        const savedColor = lsGet(`color_${key}`) || item.default;
+        const savedColor = await dbGet(`color_${key}`) || item.default;
         
         const controlHtml = item.isText
             ? `<label style="cursor:pointer; display:flex; align-items:center; gap: 4px; user-select: none;">
@@ -370,7 +419,7 @@ function openSyntaxColorModal() {
         const item = syntaxColorConfig[key];
         if (item.isText) {
             const boldCheckbox = document.getElementById(`bold_${key}`);
-            boldCheckbox.checked = lsGet(`boldness_${key}`) ?? item.defaultBold;
+            boldCheckbox.checked = await dbGet(`boldness_${key}`) ?? item.defaultBold;
         }
     }
 
@@ -380,7 +429,7 @@ function openSyntaxColorModal() {
     listContainer.addEventListener('mouseout', e => { if (e.target.classList.contains('info-icon')) { infoTooltip.style.display = 'none'; } });
     listContainer.addEventListener('mousemove', e => { if (infoTooltip.style.display === 'block') { const t = infoTooltip, w = window, m=15; let l = e.clientX + m, p = e.clientY + m; if (l + t.offsetWidth > w.innerWidth) l = e.clientX - t.offsetWidth - m; if (p + t.offsetHeight > w.innerHeight) p = e.clientY - t.offsetHeight - m; if(l<0)l=0; if(p<0)p=0; t.style.left = l + 'px'; t.style.top = p + 'px'; } });
 
-    document.getElementById('modal-colors-cancel-btn').onclick = () => openSettingsModal();
+    document.getElementById('modal-colors-cancel-btn').onclick = () => openSettingsModal(settingsState);
     
     document.getElementById('modal-colors-reset-btn').onclick = () => {
         if (confirm("Are you sure you want to reset all syntax colors and styles to their defaults?")) {
@@ -392,20 +441,20 @@ function openSyntaxColorModal() {
         }
     };
 
-    document.getElementById('modal-colors-save-btn').onclick = () => {
+    document.getElementById('modal-colors-save-btn').onclick = async () => {
         for (const key in syntaxColorConfig) {
-            lsSet(`color_${key}`, document.getElementById(key).value);
-            if (syntaxColorConfig[key].isText) lsSet(`boldness_${key}`, document.getElementById(`bold_${key}`).checked);
+            await dbSet(`color_${key}`, document.getElementById(key).value);
+            if (syntaxColorConfig[key].isText) await dbSet(`boldness_${key}`, document.getElementById(`bold_${key}`).checked);
         }
         overlay.style.display = 'none';
         if (confirm("Syntax colors and styles have been saved. A reload is required. Your work will be saved.\n\nReload now?")) {
-            window.dispatchEvent(new Event('beforeunload'));
+            await window.onbeforeunload();
             window.location.reload();
         }
     };
 }
 
-function openThemeEditorModal() {
+async function openThemeEditorModal(settingsState) {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
     const root = document.documentElement;
@@ -429,13 +478,15 @@ function openThemeEditorModal() {
     let tabButtonsHtml = categories.map((cat, index) => 
         `<button class="theme-tab-btn ${index === 0 ? 'active' : ''}" data-category="${cat}">${cat}</button>`
     ).join('');
-
-    let tabPanesHtml = categories.map((cat, index) => {
-        let itemsHtml = groupedItems[cat].map(([key, item]) => {
-            const savedValue = lsGet(`theme_${key}`) ?? item.default;
+    
+    let tabPanesHtml = '';
+    for (const cat of categories) {
+        let itemsHtml = '';
+        for (const [key, item] of groupedItems[cat]) {
+            const savedValue = await dbGet(`theme_${key}`) ?? item.default;
             let boldToggleHtml = '';
             if (item.hasBoldToggle) {
-                const isBold = lsGet(`theme_bold_${key}`) ?? item.defaultBold;
+                const isBold = await dbGet(`theme_bold_${key}`) ?? item.defaultBold;
                 boldToggleHtml = `<label class="color-picker-sub-label"><input type="checkbox" data-bold-key="${key}" ${isBold ? 'checked' : ''}> Bold</label>`;
             }
 
@@ -449,7 +500,7 @@ function openThemeEditorModal() {
                                </div>`;
             }
 
-            return `
+            itemsHtml += `
                 <div class="color-picker-item">
                     <label class="color-picker-main-label">
                         ${item.label}
@@ -460,10 +511,10 @@ function openThemeEditorModal() {
                         ${controlHtml}
                     </div>
                 </div>`;
-        }).join('');
-
-        return `<div class="theme-tab-pane ${index === 0 ? 'active' : ''}" data-category="${cat}">${itemsHtml}</div>`;
-    }).join('');
+        }
+        const isActive = tabPanesHtml === '';
+        tabPanesHtml += `<div class="theme-tab-pane ${isActive ? 'active' : ''}" data-category="${cat}">${itemsHtml}</div>`;
+    }
 
     overlay.innerHTML = `<div class="modal-box" style="width:90%; max-width:800px;">
         <h3>Customize UI Theme</h3>
@@ -515,34 +566,40 @@ function openThemeEditorModal() {
     container.addEventListener('mousemove', e => { if (infoTooltip.style.display === 'block') { const t = infoTooltip, w = window, m=15; let l = e.clientX + m, p = e.clientY + m; if (l + t.offsetWidth > w.innerWidth) l = e.clientX - t.offsetWidth - m; if (p + t.offsetHeight > w.innerHeight) p = e.clientY - t.offsetHeight - m; if(l<0)l=0; if(p<0)p=0; t.style.left = l + 'px'; t.style.top = p + 'px'; } });
 
 
-    document.getElementById('modal-theme-cancel-btn').onclick = () => {
+    document.getElementById('modal-theme-cancel-btn').onclick = async () => {
         for (const key in originalValues) {
             root.style.setProperty(key, originalValues[key]);
         }
-        openSettingsModal();
+        await openSettingsModal(settingsState);
     };
     
-    document.getElementById('modal-theme-reset-btn').onclick = () => {
+    document.getElementById('modal-theme-reset-btn').onclick = async () => {
         if (confirm("Are you sure you want to reset all UI theme settings to their defaults? This will apply the changes live.")) {
+            const keysToRemove = [];
             for (const key in uiThemeConfig) {
-                lsRemove(`theme_${key}`);
+                keysToRemove.push(`theme_${key}`);
                 if (uiThemeConfig[key].hasBoldToggle) {
-                    lsRemove(`theme_bold_${key}`);
+                    keysToRemove.push(`theme_bold_${key}`);
                 }
             }
-            applyUiThemeSettings(); 
-            openThemeEditorModal(); 
+            await db.settings.bulkDelete(keysToRemove);
+            await applyUiThemeSettings(); 
+            await openThemeEditorModal(settingsState); 
         }
     };
 
-    document.getElementById('modal-theme-save-btn').onclick = () => {
-        container.querySelectorAll('input[data-key]').forEach(input => lsSet(`theme_${input.dataset.key}`, input.value));
-        container.querySelectorAll('input[data-bold-key]').forEach(input => lsSet(`theme_bold_${input.dataset.boldKey}`, input.checked));
-        openSettingsModal();
+    document.getElementById('modal-theme-save-btn').onclick = async () => {
+        for (const input of container.querySelectorAll('input[data-key]')) {
+            await dbSet(`theme_${input.dataset.key}`, input.value);
+        }
+        for (const input of container.querySelectorAll('input[data-bold-key]')) {
+            await dbSet(`theme_bold_${input.dataset.boldKey}`, input.checked);
+        }
+        await openSettingsModal(settingsState);
     };
 }
 
-function openExportImportModal() {
+async function openExportImportModal() {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
     overlay.style.display = 'flex';
@@ -582,31 +639,18 @@ function openExportImportModal() {
         input.click();
     };
     
-    const getAllWorkspaceIds = () => {
-        const ids = new Set();
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            const match = key.match(/^HT-IDE-id(\d+)-/);
-            if (match) {
-                ids.add(match[1]);
-            }
-        }
-        return Array.from(ids).sort((a,b) => a - b);
+    // This is a global function now, not tied to a specific workspace
+    const getAllWorkspaceIds = async () => {
+        const dbNames = await Dexie.getDatabaseNames();
+        const ids = dbNames
+            .map(name => name.match(/^HT-IDE-DB-id(\d+)$/))
+            .filter(Boolean)
+            .map(match => match[1]);
+        return ids.sort((a, b) => a - b);
     };
-
-    const clearWorkspaceData = (id) => {
-        const prefix = `HT-IDE-id${id}-`;
-        const keysToRemove = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key.startsWith(prefix)) {
-                keysToRemove.push(key);
-            }
-        }
-        keysToRemove.forEach(key => localStorage.removeItem(key));
-    };
-
-    const workspaceOptions = getAllWorkspaceIds().map(id => `<option value="${id}">Workspace ${id}</option>`).join('');
+    
+    const allIds = await getAllWorkspaceIds();
+    const workspaceOptions = allIds.map(id => `<option value="${id}">Workspace ${id}</option>`).join('');
 
     overlay.innerHTML = `
         <div class="modal-box" style="max-width: 600px;">
@@ -652,62 +696,81 @@ function openExportImportModal() {
     document.getElementById('export-import-close-btn').onclick = () => { overlay.style.display = 'none'; };
     
     // --- Event Listeners ---
-
-    // EVERYTHING
-    document.getElementById('export-all-btn').onclick = () => {
+    document.getElementById('export-all-btn').onclick = async () => {
         let filename = prompt("Enter a filename for the full backup:", "ht-ide-backup-all.json");
         if (!filename) return;
         if (!filename.endsWith('.json')) filename += '.json';
         
-        const data = {};
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key.startsWith('HT-IDE-')) {
-                data[key] = localStorage.getItem(key);
-            }
+        const allData = {};
+        const workspaceIds = await getAllWorkspaceIds();
+        for (const id of workspaceIds) {
+            const tempDb = new Dexie(`HT-IDE-DB-id${id}`);
+            tempDb.version(1).stores({ files: '&path', instructionSets: '&id', settings: '&key' });
+            
+            allData[`workspace_${id}`] = {
+                files: await tempDb.files.toArray(),
+                instructionSets: await tempDb.instructionSets.toArray(),
+                settings: await tempDb.settings.toArray()
+            };
+            tempDb.close();
         }
-        triggerDownload(data, filename);
+        triggerDownload(allData, filename);
     };
+
     document.getElementById('import-all-btn').onclick = () => {
         if (!confirm("WARNING: This will delete ALL current workspaces and settings and replace them with the data from the file. This cannot be undone. Continue?")) return;
-        handleFileUpload(data => {
-            localStorage.clear();
-            for (const key in data) {
-                localStorage.setItem(key, data[key]);
+        handleFileUpload(async data => {
+            await Dexie.delete('HT-IDE-DB-id' + IDE_ID); // Delete current before full import
+            const dbNames = await Dexie.getDatabaseNames();
+            for(const name of dbNames) {
+                if (name.startsWith('HT-IDE-DB-id')) await Dexie.delete(name);
             }
-            alert("Import complete. The IDE will now reload.");
+
+            for (const key in data) {
+                if (key.startsWith('workspace_')) {
+                    const id = key.split('_')[1];
+                    const workspaceData = data[key];
+                    const tempDb = new Dexie(`HT-IDE-DB-id${id}`);
+                    tempDb.version(1).stores({ files: '&path', instructionSets: '&id', settings: '&key' });
+                    await tempDb.files.bulkPut(workspaceData.files);
+                    await tempDb.instructionSets.bulkPut(workspaceData.instructionSets);
+                    await tempDb.settings.bulkPut(workspaceData.settings);
+                    tempDb.close();
+                }
+            }
+            alert("Full import complete. The IDE will now reload.");
             window.location.reload();
         });
     };
 
     // THEME
-    document.getElementById('export-theme-btn').onclick = () => {
-        let filename = prompt("Enter a filename for the theme backup:", "ht-ide-theme.json");
+    document.getElementById('export-theme-btn').onclick = async () => {
+        let filename = prompt("Enter a filename for the theme backup:", `ht-ide-theme-ws${IDE_ID}.json`);
         if (!filename) return;
         if (!filename.endsWith('.json')) filename += '.json';
 
-        const data = {};
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key.startsWith(STORAGE_PREFIX) && (key.includes('-theme_') || key.includes('-color_') || key.includes('-boldness_') || key.includes('syntaxHighlighting'))) {
-                data[key.replace(STORAGE_PREFIX, '')] = localStorage.getItem(key);
+        const themeData = {};
+        const allSettings = await db.settings.toArray();
+        allSettings.forEach(setting => {
+            if (setting.key.includes('theme_') || setting.key.includes('color_') || setting.key.includes('boldness_') || setting.key.includes('syntaxHighlighting')) {
+                themeData[setting.key] = setting.value;
             }
-        }
-        triggerDownload(data, filename);
+        });
+        triggerDownload(themeData, filename);
     };
+
     document.getElementById('import-theme-btn').onclick = () => {
         if (!confirm("This will overwrite your current theme settings for this workspace. Continue?")) return;
-        handleFileUpload(data => {
-            for (const key in data) {
-                 localStorage.setItem(STORAGE_PREFIX + key, data[key]);
-            }
+        handleFileUpload(async data => {
+            const settingsToPut = Object.entries(data).map(([key, value]) => ({ key, value }));
+            await db.settings.bulkPut(settingsToPut);
             alert("Theme import complete. The IDE will now reload to apply changes.");
             window.location.reload();
         });
     };
     
     // WORKSPACE
-    document.getElementById('export-workspace-btn').onclick = () => {
+    document.getElementById('export-workspace-btn').onclick = async () => {
         const id = document.getElementById('workspace-select').value;
         if (!id) return alert("Please select a workspace to export.");
         
@@ -715,52 +778,61 @@ function openExportImportModal() {
         if (!filename) return;
         if (!filename.endsWith('.json')) filename += '.json';
 
-        const prefix = `HT-IDE-id${id}-`;
-        const data = {};
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key.startsWith(prefix)) {
-                data[key.replace(prefix, '')] = localStorage.getItem(key);
-            }
-        }
-        triggerDownload(data, filename);
+        const tempDb = new Dexie(`HT-IDE-DB-id${id}`);
+        tempDb.version(1).stores({ files: '&path', instructionSets: '&id', settings: '&key' });
+        const workspaceData = {
+            files: await tempDb.files.toArray(),
+            instructionSets: await tempDb.instructionSets.toArray(),
+            settings: await tempDb.settings.toArray()
+        };
+        tempDb.close();
+        triggerDownload(workspaceData, filename);
     };
 
-    document.getElementById('import-workspace-btn').onclick = () => {
-        const allIds = getAllWorkspaceIds().map(Number);
+    document.getElementById('import-workspace-btn').onclick = async () => {
+        const allIds = (await getAllWorkspaceIds()).map(Number);
         const newId = allIds.length > 0 ? Math.max(...allIds) + 1 : 0;
         if (!confirm(`This will import the workspace from the file into a new workspace with ID ${newId}. Continue?`)) return;
         
-        handleFileUpload(data => {
-            const newPrefix = `HT-IDE-id${newId}-`;
-            for (const key in data) {
-                localStorage.setItem(newPrefix + key, data[key]);
-            }
+        handleFileUpload(async (data) => {
+            const tempDb = new Dexie(`HT-IDE-DB-id${newId}`);
+            tempDb.version(1).stores({ files: '&path', instructionSets: '&id', settings: '&key' });
+            await tempDb.files.bulkPut(data.files);
+            await tempDb.instructionSets.bulkPut(data.instructionSets);
+            await tempDb.settings.bulkPut(data.settings);
+            tempDb.close();
             alert(`Workspace imported successfully to ID ${newId}. You will now be redirected to the new workspace.`);
             window.location.href = window.location.pathname + `?id=${newId}`;
         });
     };
 
-    document.getElementById('import-overwrite-workspace-btn').onclick = () => {
+    document.getElementById('import-overwrite-workspace-btn').onclick = async () => {
         const idToOverwrite = document.getElementById('workspace-select').value;
         if (!idToOverwrite) return alert("Please select a workspace to overwrite.");
 
         if (!confirm(`EXTREME WARNING:\n\nYou are about to permanently delete all data in Workspace ${idToOverwrite} and replace it with data from a file.\n\nTHIS CANNOT BE UNDONE.\n\nAre you absolutely sure you want to proceed?`)) return;
 
-        handleFileUpload(data => {
-            clearWorkspaceData(idToOverwrite);
-            const prefix = `HT-IDE-id${idToOverwrite}-`;
-             for (const key in data) {
-                localStorage.setItem(prefix + key, data[key]);
-            }
+        handleFileUpload(async (data) => {
+            const dbToOverwrite = new Dexie(`HT-IDE-DB-id${idToOverwrite}`);
+            await dbToOverwrite.delete(); // Delete the old DB completely
+            
+            // Recreate and populate it
+            const newDb = new Dexie(`HT-IDE-DB-id${idToOverwrite}`);
+            newDb.version(1).stores({ files: '&path', instructionSets: '&id', settings: '&key' });
+            await newDb.files.bulkPut(data.files);
+            await newDb.instructionSets.bulkPut(data.instructionSets);
+            await newDb.settings.bulkPut(data.settings);
+            newDb.close();
+
             alert(`Workspace ${idToOverwrite} has been overwritten. The IDE will now reload.`);
             window.location.href = window.location.pathname + `?id=${idToOverwrite}`;
         });
     };
 }
 
-function updateHotkeyTitles() {
-    const customHotkeys = lsGet('customHotkeys') || {};
+
+async function updateHotkeyTitles() {
+    const customHotkeys = await dbGet('customHotkeys') || {};
     const activeHotkeys = {};
     for (const id in hotkeyConfig) {
         activeHotkeys[id] = customHotkeys[id] || hotkeyConfig[id].default;
@@ -787,4 +859,4 @@ function updateHotkeyTitles() {
         const toggleHotkeyStr = formatHotkey(activeHotkeys.toggleSidebar);
         toggleSidebarBtn.title = `Toggle File Explorer (${toggleHotkeyStr})`;
     }
-}	
+}

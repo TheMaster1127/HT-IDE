@@ -1,12 +1,14 @@
+// --- DEXIE MIGRATION: Reworked the entire main file to be async first. ---
+
 let hotkeyListener = null; // Keep a reference to the listener to remove it later
 
-function applyAndSetHotkeys() {
+async function applyAndSetHotkeys() {
     // Remove the old listener to prevent duplicates
     if (hotkeyListener) {
         document.removeEventListener('keydown', hotkeyListener);
     }
 
-    const customHotkeys = lsGet('customHotkeys') || {};
+    const customHotkeys = await dbGet('customHotkeys') || {};
     
     // Merge custom hotkeys with defaults
     const activeHotkeys = {};
@@ -14,28 +16,27 @@ function applyAndSetHotkeys() {
         activeHotkeys[id] = customHotkeys[id] || hotkeyConfig[id].default;
     }
 
-    hotkeyListener = (e) => {
+    hotkeyListener = async (e) => {
         // F5 is a special, non-customizable secondary key for Run
         if (e.key === 'F5') {
             e.preventDefault();
-            handleRun(e);
+            await handleRun(e);
             return;
         }
 
         const checkMatch = (config) => {
+            if (!config) return false;
             const key = e.key.toLowerCase();
             const targetKey = config.key.toLowerCase();
-             // Special case for 'Enter' which is sometimes just 'Enter'
             if (key !== targetKey && e.key !== config.key) return false;
-
             const ctrl = e.ctrlKey || e.metaKey;
             return ctrl === config.ctrl && e.shiftKey === config.shift && e.altKey === config.alt;
         };
 
         if (checkMatch(activeHotkeys.runFile)) {
-            e.preventDefault(); handleRun(e);
+            e.preventDefault(); await handleRun(e);
         } else if (checkMatch(activeHotkeys.saveFile)) {
-            e.preventDefault(); saveFileContent(currentOpenFile, editor.getValue());
+            e.preventDefault(); await saveFileContent(currentOpenFile, editor.getValue());
         } else if (checkMatch(activeHotkeys.formatFile)) {
             e.preventDefault();
             if (!currentOpenFile || !currentOpenFile.endsWith('.htvm')) {
@@ -43,32 +44,35 @@ function applyAndSetHotkeys() {
                 return;
             }
             try {
-                editor.session.setValue(formatHtvmCode(editor.getValue()));
+                const formatted = await formatHtvmCode(editor.getValue());
+                editor.session.setValue(formatted);
             } catch (err) {
                 term.writeln(`\x1b[31mAn error occurred during formatting: ${err.message}\x1b[0m`);
             }
         } else if (checkMatch(activeHotkeys.closeTab)) {
-            e.preventDefault(); handleCloseTabRequest(currentOpenFile);
+            e.preventDefault(); await handleCloseTabRequest(currentOpenFile);
         } else if (checkMatch(activeHotkeys.reopenTab)) {
-            e.preventDefault(); handleReopenTab();
+            e.preventDefault(); await handleReopenTab();
         } else if (checkMatch(activeHotkeys.toggleSidebar)) {
             e.preventDefault(); document.getElementById('main-toggle-sidebar-btn').click();
         }
     };
 
     document.addEventListener('keydown', hotkeyListener);
-    updateHotkeyTitles();
+    await updateHotkeyTitles();
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
     // --- Initialization ---
     IDE_ID = getIdeId();
-    STORAGE_PREFIX = `HT-IDE-id${IDE_ID}-`;
     langTools = ace.require("ace/ext/language_tools");
+    
+    // --- DEXIE MIGRATION: Database setup is the very first step ---
+    setupDatabase(IDE_ID);
 
     // Apply custom themes and colors before editor initialization
-    applyEditorColorSettings();
-    applyUiThemeSettings();
+    await applyEditorColorSettings();
+    await applyUiThemeSettings();
 
     // Initialize core components
     editor = ace.edit("editor");
@@ -78,35 +82,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     term.open(document.getElementById('terminal'));
     fitAddon.fit();
 
-    // Populate language completions into localStorage
+    // Populate language completions into localStorage (this is fine, as it's not workspace-specific data)
     Object.keys(draftCompletions).forEach(lang => {
-        lsSet(`lang_completions_${lang}`, draftCompletions[lang]);
+        localStorage.setItem(`lang_completions_${lang}`, JSON.stringify(draftCompletions[lang]));
     });
 
     // Load HTVM definitions and instruction sets
-    initializeInstructionSetManagement();
+    await initializeInstructionSetManagement();
     
     // Check for instruction set and start onboarding if necessary
-    if (!lsGet(instructionSetKeys.activeId)) {
-        promptForInitialInstructionSet();
+    const activeInstructionSet = await dbGet(instructionSetKeys.activeId);
+    if (!activeInstructionSet) {
+        await promptForInitialInstructionSet();
     } else {
         await loadDefinitions();
     }
 
-
-    // Configure Ace Editor
+    // Configure Ace Editor based on settings from DB
     editor.setTheme("ace/theme/monokai");
     editor.setOptions({
         enableBasicAutocompletion: true,
         enableLiveAutocompletion: true,
-        behavioursEnabled: lsGet('autoPair') !== false,
+        behavioursEnabled: await dbGet('autoPair') !== false,
         wrap: true,
-        printMargin: lsGet('printMarginColumn') || 80
+        printMargin: await dbGet('printMarginColumn') || 80
     });
-    editor.setShowPrintMargin(lsGet('showPrintMargin') ?? true);
-    editor.setFontSize(parseInt(lsGet('fontSize') || 14, 10));
+    editor.setShowPrintMargin(await dbGet('showPrintMargin') ?? true);
+    editor.setFontSize(parseInt(await dbGet('fontSize') || 14, 10));
 
-    const keybindingMode = lsGet('keybindingMode') || 'normal';
+    const keybindingMode = await dbGet('keybindingMode') || 'normal';
     if (keybindingMode !== 'normal') {
         editor.setKeyboardHandler(`ace/keyboard/${keybindingMode}`);
     }
@@ -132,10 +136,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const backdrop = document.getElementById('sidebar-backdrop');
     const closeBtn = document.getElementById('sidebar-close-btn');
 
-    function toggleSidebar() {
+    async function toggleSidebar() {
         const isCollapsed = sidebar.classList.contains('collapsed');
         sidebar.classList.toggle('collapsed');
-        lsSet('sidebarCollapsed', !isCollapsed);
+        await dbSet('sidebarCollapsed', !isCollapsed);
 
         const isMobileView = getComputedStyle(sidebar).position === 'absolute';
         if (isMobileView) {
@@ -154,20 +158,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         const item = e.target.closest('.dropdown-item');
         if (item) changeLanguage(item.dataset.name, item.dataset.img, item.dataset.lang);
     });
-    document.getElementById('run-js-after-htvm').checked = lsGet('runJsAfterHtvm') !== false;
-    document.getElementById('run-js-after-htvm').onchange = e => lsSet('runJsAfterHtvm', e.target.checked);
-    document.getElementById('full-html-checkbox').checked = lsGet('fullHtml') === true;
-    document.getElementById('full-html-checkbox').onchange = e => lsSet('fullHtml', e.target.checked);
+    document.getElementById('run-js-after-htvm').checked = await dbGet('runJsAfterHtvm') !== false;
+    document.getElementById('run-js-after-htvm').onchange = e => dbSet('runJsAfterHtvm', e.target.checked);
+    document.getElementById('full-html-checkbox').checked = await dbGet('fullHtml') === true;
+    document.getElementById('full-html-checkbox').onchange = e => dbSet('fullHtml', e.target.checked);
 
     // Run and Output Panel listeners
     document.getElementById('run-btn').onclick = handleRun;
-    document.getElementById('format-btn').onclick = () => {
+    document.getElementById('format-btn').onclick = async () => {
         if (!currentOpenFile || !currentOpenFile.endsWith('.htvm')) {
             alert("The formatter only works with .htvm files.");
             return;
         }
         try {
-            editor.session.setValue(formatHtvmCode(editor.getValue()));
+            const formatted = await formatHtvmCode(editor.getValue());
+            editor.session.setValue(formatted);
         } catch (err) {
             term.writeln(`\x1b[31mAn error occurred during formatting: ${err.message}\x1b[0m`);
         }
@@ -176,7 +181,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('download-html-btn').onclick = handleDownloadHtml;
 
     // Apply custom hotkeys on startup
-    applyAndSetHotkeys();
+    await applyAndSetHotkeys();
     
     // Resizers
     initResizer(document.getElementById('sidebar-resizer'), document.querySelector('.sidebar'), 'sidebarWidth', 'x');
@@ -187,26 +192,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     term.writeln(`\x1b[1;32mWelcome to HT-IDE! (Workspace ID: ${IDE_ID})\x1b[0m`);
     term.write('$ ');
 
-    // --- LOAD BREAKPOINTS ---
-    const savedBreakpoints = lsGet('fileBreakpoints');
+    const savedBreakpoints = await dbGet('fileBreakpoints');
     if (savedBreakpoints) {
         for (const file in savedBreakpoints) {
             fileBreakpoints.set(file, new Set(savedBreakpoints[file]));
         }
     }
 
-    // Restore UI state from localStorage
-    const sidebarWidth = lsGet('sidebarWidth'); if (sidebarWidth) document.querySelector('.sidebar').style.width = sidebarWidth;
-    const terminalHeight = lsGet('terminalHeight'); if (terminalHeight) document.getElementById('terminal-container').style.height = terminalHeight;
-    const outputWidth = lsGet('outputPanelWidth'); if (outputWidth) document.getElementById('output-panel').style.width = outputWidth;
+    // Restore UI state from DB
+    const sidebarWidth = await dbGet('sidebarWidth'); if (sidebarWidth) document.querySelector('.sidebar').style.width = sidebarWidth;
+    const terminalHeight = await dbGet('terminalHeight'); if (terminalHeight) document.getElementById('terminal-container').style.height = terminalHeight;
+    const outputWidth = await dbGet('outputPanelWidth'); if (outputWidth) document.getElementById('output-panel').style.width = outputWidth;
     
-    if (lsGet('sidebarCollapsed') !== false) {
+    if (await dbGet('sidebarCollapsed') === true) {
         document.querySelector('.sidebar').classList.add('collapsed');
     } else {
         document.querySelector('.sidebar').classList.remove('collapsed');
     }
 
-    const savedLang = lsGet('selectedLangExtension');
+    const savedLang = await dbGet('selectedLangExtension');
     if (savedLang) {
         const item = document.querySelector(`.dropdown-item[data-lang="${savedLang}"]`);
         if (item) {
@@ -216,16 +220,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Restore file state
-    const lastCwd = lsGet('lastCwd') || '/';
-    setCurrentDirectory(lastCwd);
-    const savedOpenTabs = lsGet('openTabs') || [];
-    openTabs = savedOpenTabs.filter(f => getAllPaths().includes(f));
-    const lastFile = lsGet('lastOpenFile');
+    const allKnownPaths = await getAllPaths();
+    const lastCwd = await dbGet('lastCwd') || '/';
+    await setCurrentDirectory(lastCwd);
+    const savedOpenTabs = await dbGet('openTabs') || [];
+    openTabs = savedOpenTabs.filter(f => allKnownPaths.includes(f));
+    const lastFile = await dbGet('lastOpenFile');
 
-    if (lastFile && getAllPaths().includes(lastFile)) {
-        openFileInEditor(lastFile);
+    if (lastFile && allKnownPaths.includes(lastFile)) {
+        await openFileInEditor(lastFile);
     } else if (openTabs.length > 0) {
-        openFileInEditor(openTabs[0]);
+        await openFileInEditor(openTabs[0]);
     } else {
         editor.setSession(ace.createEditSession("// No file open."));
         editor.setReadOnly(true);
@@ -237,35 +242,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         editor.resize();
         fitAddon.fit();
 
-        // --- FIX FOR RESIZE BUG ---
-        // Check if we are in desktop view by inspecting the sidebar's CSS position.
         const sidebar = document.querySelector('.sidebar');
         const backdrop = document.getElementById('sidebar-backdrop');
         const isDesktopView = getComputedStyle(sidebar).position !== 'absolute';
-
-        // If we've resized back to desktop view, ensure the mobile-only backdrop is hidden.
         if (isDesktopView) {
             backdrop.style.display = 'none';
         }
     }, 200));
 
-    window.addEventListener('beforeunload', () => {
+    window.onbeforeunload = async () => {
         if (currentOpenFile) {
-            saveFileContent(currentOpenFile, editor.getValue(), true);
-            lsSet('state_' + currentOpenFile, { scrollTop: editor.session.getScrollTop(), cursor: editor.getCursorPosition() });
+            await saveFileContent(currentOpenFile, editor.getValue(), true);
+            await dbSet('state_' + currentOpenFile, { scrollTop: editor.session.getScrollTop(), cursor: editor.getCursorPosition() });
         }
-        lsSet('openTabs', openTabs);
-        lsSet('lastOpenFile', currentOpenFile);
-        lsSet('lastCwd', currentDirectory);
+        await dbSet('openTabs', openTabs);
+        await dbSet('lastOpenFile', currentOpenFile);
+        await dbSet('lastCwd', currentDirectory);
 
         const serializableBreakpoints = {};
         for (const [file, bpSet] of fileBreakpoints.entries()) {
             serializableBreakpoints[file] = Array.from(bpSet);
         }
-        lsSet('fileBreakpoints', serializableBreakpoints);
-    });
+        await dbSet('fileBreakpoints', serializableBreakpoints);
+    };
 
-    // --- DEBUGGER VALUE HOVER ---
     editor.on('mousemove', function (e) {
         const tooltip = document.getElementById('value-tooltip');
         if (!tooltip || !debuggerState.isPaused) {
@@ -301,51 +301,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // Final UI adjustments
     setTimeout(() => {
         document.body.classList.remove('preload');
         fitAddon.fit();
     }, 50);
 });
 
-function applyEditorColorSettings() {
-    // Master toggle for syntax highlighting
-    if (lsGet('syntaxHighlightingEnabled') === false) {
+async function applyEditorColorSettings() {
+    if (await dbGet('syntaxHighlightingEnabled') === false) {
         document.body.classList.add('syntax-highlighting-disabled');
     } else {
         document.body.classList.remove('syntax-highlighting-disabled');
     }
 
-    // Apply custom colors and boldness by setting CSS variables on the root element
     const root = document.documentElement;
     for (const key in syntaxColorConfig) {
         const item = syntaxColorConfig[key];
-        
-        // Apply color
-        const savedColor = lsGet(`color_${key}`) || item.default;
+        const savedColor = await dbGet(`color_${key}`) || item.default;
         root.style.setProperty(`--${key}`, savedColor);
-
-        // Apply boldness for text items
         if (item.isText) {
-            const isBold = lsGet(`boldness_${key}`) ?? item.defaultBold;
+            const isBold = await dbGet(`boldness_${key}`) ?? item.defaultBold;
             root.style.setProperty(`--${key}-font-weight`, isBold ? 'bold' : 'normal');
         }
     }
 }
 
-function applyUiThemeSettings() {
+async function applyUiThemeSettings() {
     const root = document.documentElement;
     for (const key in uiThemeConfig) {
         const item = uiThemeConfig[key];
-        
-        // Apply color or range value
-        const savedValue = lsGet(`theme_${key}`) ?? item.default;
+        const savedValue = await dbGet(`theme_${key}`) ?? item.default;
         const unit = item.unit || '';
         root.style.setProperty(key, savedValue + unit);
-        
-        // Apply boldness for text items
         if (item.hasBoldToggle) {
-            const isBold = lsGet(`theme_bold_${key}`) ?? item.defaultBold;
+            const isBold = await dbGet(`theme_bold_${key}`) ?? item.defaultBold;
             root.style.setProperty(key + '-bold', isBold ? 'bold' : 'normal');
         }
     }

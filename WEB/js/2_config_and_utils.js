@@ -1,15 +1,47 @@
 // --- Storage Helpers ---
 const getIdeId = () => new URLSearchParams(window.location.search).get('id') ?? '0';
-const lsGet = key => { try { const i = localStorage.getItem(STORAGE_PREFIX + key); return i ? JSON.parse(i) : null; } catch { return null; } };
-const lsSet = (key, value) => { try { localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value)); } catch (e) { console.error(e); } };
-const lsRemove = key => localStorage.removeItem(STORAGE_PREFIX + key);
+
+// --- DEXIE MIGRATION: Replaced localStorage helpers with async Dexie functions ---
+
+// Old localStorage functions (for reference, no longer used for workspace data)
+// const lsGet = key => { try { const i = localStorage.getItem(STORAGE_PREFIX + key); return i ? JSON.parse(i) : null; } catch { return null; } };
+// const lsSet = (key, value) => { try { localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value)); } catch (e) { console.error(e); } };
+// const lsRemove = key => localStorage.removeItem(STORAGE_PREFIX + key);
+
+async function dbGet(key) {
+    try {
+        const item = await db.settings.get(key);
+        return item ? item.value : null;
+    } catch (error) {
+        console.error(`Failed to get key "${key}" from IndexedDB`, error);
+        return null;
+    }
+}
+
+async function dbSet(key, value) {
+    try {
+        await db.settings.put({ key, value });
+    } catch (error)
+    {
+        console.error(`Failed to set key "${key}" in IndexedDB`, error);
+    }
+}
+
+async function dbRemove(key) {
+    try {
+        await db.settings.delete(key);
+    } catch (error) {
+        console.error(`Failed to remove key "${key}" from IndexedDB`, error);
+    }
+}
+
 
 // --- Configuration ---
+// Note: instructionSetKeys are now used as keys in the 'settings' and 'instructionSets' tables
 const instructionSetKeys = {
     list: 'instruction_sets_list',
-    contentPrefix: 'instruction_set_content_',
     activeId: 'active_instruction_set_id',
-    legacyKey: `htvm_lang_${getIdeId()}`
+    legacyKey: `htvm_lang_${getIdeId()}` // Kept for one-time migration logic
 };
 
 const hotkeyConfig = {

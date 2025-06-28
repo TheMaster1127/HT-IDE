@@ -22,18 +22,20 @@ function setupGutterEvents() {
     });
 }
 
-function openFileInEditor(filename) {
+// --- DEXIE MIGRATION: Made function async to load from DB ---
+async function openFileInEditor(filename) {
     if (!filename || currentOpenFile === filename) return;
     if (currentOpenFile) {
-        saveFileContent(currentOpenFile, editor.getValue(), true);
-        lsSet('state_' + currentOpenFile, {
+        await saveFileContent(currentOpenFile, editor.getValue(), true);
+        await dbSet('state_' + currentOpenFile, {
             scrollTop: editor.session.getScrollTop(),
             cursor: editor.getCursorPosition()
         });
     }
 
     if (!fileSessions.has(filename)) {
-        const content = lsGet('file_' + filename) ?? "";
+        const fileRecord = await db.files.get(filename);
+        const content = fileRecord ? fileRecord.content : "";
         const mode = ace.require("ace/ext/modelist").getModeForPath(filename).mode;
         const session = ace.createEditSession(content, filename.endsWith('.htvm') ? 'ace/mode/htvm' : mode);
         session.on('change', () => checkDirtyState(filename));
@@ -49,7 +51,7 @@ function openFileInEditor(filename) {
         editor.session.setBreakpoint(row, "ace_breakpoint");
     });
 
-    const state = lsGet('state_' + filename);
+    const state = await dbGet('state_' + filename);
     if (state) {
         setTimeout(() => {
             editor.gotoLine(state.cursor.row + 1, state.cursor.column, false);
@@ -62,11 +64,12 @@ function openFileInEditor(filename) {
     currentOpenFile = filename;
     if (!openTabs.includes(filename)) openTabs.push(filename);
 
-    renderAll();
-    updateEditorModeForHtvm();
+    await renderAll();
+    await updateEditorModeForHtvm();
 }
 
-function closeTab(filenameToClose, force = false) {
+
+async function closeTab(filenameToClose, force = false) {
     if (!force && fileSessions.has(filenameToClose) && !fileSessions.get(filenameToClose).getUndoManager().isClean()) {
         if (!confirm("You have unsaved changes. Close anyway?")) return;
     }
@@ -80,41 +83,57 @@ function closeTab(filenameToClose, force = false) {
     if (currentOpenFile === filenameToClose) {
         currentOpenFile = null;
         if (openTabs.length > 0) {
-            openFileInEditor(openTabs[Math.max(0, index - 1)]);
+            await openFileInEditor(openTabs[Math.max(0, index - 1)]);
         } else {
             editor.setSession(ace.createEditSession("// No file open."));
             editor.setReadOnly(true);
             document.getElementById('htvm-controls').style.display = 'none';
         }
     }
-    renderAll();
+    await renderAll();
 }
 
-function handleCloseTabRequest(filename) {
+async function handleCloseTabRequest(filename) {
     if (!filename) return;
     if (fileSessions.has(filename)) {
         if (!fileSessions.get(filename).getUndoManager().isClean()) {
-            saveFileContent(filename, editor.getValue(), true);
+            await saveFileContent(filename, editor.getValue(), true);
         }
     }
-    closeTab(filename);
+    await closeTab(filename);
 }
 
-const handleReopenTab = () => {
+const handleReopenTab = async () => {
     const f = recentlyClosedTabs.pop();
-    if (f && getAllPaths().includes(f)) {
-        openFileInEditor(f);
+    const allPaths = await getAllPaths();
+    if (f && allPaths.includes(f)) {
+        await openFileInEditor(f);
     }
 };
 
-function updateEditorModeForHtvm() {
+async function getActiveInstructionSetContent() {
+    const activeId = await dbGet(instructionSetKeys.activeId);
+    if (activeId) {
+        const instructionSet = await db.instructionSets.get(activeId);
+        return instructionSet ? instructionSet.content : "";
+    }
+    return "";
+}
+
+
+async function updateEditorModeForHtvm() {
     const htvmControls = document.getElementById('htvm-controls');
     if (!currentOpenFile || !currentOpenFile.endsWith('.htvm')) {
         htvmControls.style.display = 'none';
         return;
     }
     htvmControls.style.display = 'flex';
-    const keywords = JSON.parse(localStorage.getItem(instructionSetKeys.legacyKey) || '[]');
+    
+    // --- DEXIE MIGRATION: Load instructions from DB ---
+    const activeContent = await getActiveInstructionSetContent();
+    if (!activeContent) return;
+    const keywords = activeContent.split('\n');
+    
     if (!keywords || keywords.length < 42) return;
 
     const currentLine = editor.getSelectionRange().start.row;

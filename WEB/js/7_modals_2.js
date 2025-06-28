@@ -1,4 +1,6 @@
-function promptForInitialInstructionSet() {
+// --- DEXIE MIGRATION: Reworked instruction set modals to be async and use IndexedDB ---
+
+async function promptForInitialInstructionSet() {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
     overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
@@ -31,17 +33,17 @@ function promptForInitialInstructionSet() {
             let newName = file.name.replace(/\.[^/.]+$/, "");
             
             const reader = new FileReader();
-            reader.onload = r => {
+            reader.onload = async r => {
                 const content = r.target.result;
                 const newId = 'initial_setup_' + Date.now();
                 const newSet = { name: newName, id: newId };
 
-                lsSet(instructionSetKeys.list, [newSet]);
-                localStorage.setItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + newId, content);
-                lsSet(instructionSetKeys.activeId, newId);
+                await db.instructionSets.put({ id: newId, name: newName, content: content });
+                await dbSet(instructionSetKeys.list, [newSet]);
+                await dbSet(instructionSetKeys.activeId, newId);
 
                 alert(`Instruction set "${newName}" has been added and activated. The IDE will now reload to apply the changes.`);
-                window.dispatchEvent(new Event('beforeunload'));
+                await window.onbeforeunload();
                 window.location.reload();
             };
             reader.readAsText(file);
@@ -55,7 +57,7 @@ function promptForInitialInstructionSet() {
 }
 
 
-function openInstructionManagerModal() {
+async function openInstructionManagerModal() {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
     overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
@@ -71,10 +73,10 @@ function openInstructionManagerModal() {
     </div>`;
 
     const listEl = document.getElementById('instruction-sets-list');
-    const populateList = () => {
+    const populateList = async () => {
         listEl.innerHTML = '';
-        let sets = lsGet(instructionSetKeys.list) || [];
-        const activeId = lsGet(instructionSetKeys.activeId);
+        let sets = await dbGet(instructionSetKeys.list) || [];
+        const activeId = await dbGet(instructionSetKeys.activeId);
 
         if (!sets.length) {
             listEl.innerHTML = "<li class='no-sessions' style='text-align:center; padding: 20px;'>No instruction sets found. Click 'Add New' to begin.</li>";
@@ -94,10 +96,10 @@ function openInstructionManagerModal() {
                 const applyBtn = document.createElement('button');
                 applyBtn.textContent = 'Apply';
                 applyBtn.style.backgroundColor = '#0e639c';
-                applyBtn.onclick = () => {
+                applyBtn.onclick = async () => {
                     if (confirm(`This will apply the "${set.name}" instruction set and reload the IDE.\n\nYour current work will be saved, but undo/redo history will be lost.\n\nContinue?`)) {
-                        lsSet(instructionSetKeys.activeId, set.id);
-                        window.dispatchEvent(new Event('beforeunload'));
+                        await dbSet(instructionSetKeys.activeId, set.id);
+                        await window.onbeforeunload();
                         window.location.reload();
                     }
                 };
@@ -108,7 +110,7 @@ function openInstructionManagerModal() {
             renameBtn.textContent = '✏️';
             renameBtn.title = 'Rename';
             renameBtn.style.marginLeft = '8px';
-            renameBtn.onclick = (e) => {
+            renameBtn.onclick = async (e) => {
                 e.stopPropagation();
                 let newName = prompt(`Rename instruction set "${set.name}":`, set.name);
                 if (newName && newName.trim() && newName !== set.name) {
@@ -118,8 +120,13 @@ function openInstructionManagerModal() {
                         return;
                     }
                     set.name = newName;
-                    lsSet(instructionSetKeys.list, sets);
-                    populateList();
+                    await dbSet(instructionSetKeys.list, sets);
+                    const instructionSet = await db.instructionSets.get(set.id);
+                    if (instructionSet) {
+                        instructionSet.name = newName;
+                        await db.instructionSets.put(instructionSet);
+                    }
+                    await populateList();
                 }
             };
             btnGroup.appendChild(renameBtn);
@@ -142,13 +149,13 @@ function openInstructionManagerModal() {
                 deleteBtn.disabled = true;
                 deleteBtn.title = "Cannot delete the active set.";
             }
-            deleteBtn.onclick = (e) => {
+            deleteBtn.onclick = async (e) => {
                 e.stopPropagation();
                 if (confirm(`Are you sure you want to delete the instruction set "${set.name}"? This cannot be undone.`)) {
                     const newSets = sets.filter(s => s.id !== set.id);
-                    lsSet(instructionSetKeys.list, newSets);
-                    localStorage.removeItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + set.id);
-                    populateList();
+                    await dbSet(instructionSetKeys.list, newSets);
+                    await db.instructionSets.delete(set.id);
+                    await populateList();
                 }
             };
             btnGroup.appendChild(deleteBtn);
@@ -161,33 +168,35 @@ function openInstructionManagerModal() {
 
     document.getElementById('instr-add-new-btn').onclick = () => {
         const fileInput = document.getElementById('instruction-file-input');
-        fileInput.onchange = e => {
+        fileInput.onchange = async e => {
             const file = e.target.files[0];
             if (!file) return;
-            let sets = lsGet(instructionSetKeys.list) || [];
+            let sets = await dbGet(instructionSetKeys.list) || [];
             let newName = prompt("Enter a name for this new instruction set:", file.name.replace(/\.[^/.]+$/, ""));
             if (!newName || !newName.trim()) return;
             newName = newName.trim();
             if (sets.some(s => s.name === newName)) return alert("An instruction set with that name already exists.");
 
             const reader = new FileReader();
-            reader.onload = r => {
+            reader.onload = async r => {
                 const content = r.target.result;
                 const newId = 'custom_' + Date.now();
-                sets.push({ name: newName, id: newId });
-                lsSet(instructionSetKeys.list, sets);
-                localStorage.setItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + newId, content);
+                const newSetData = { name: newName, id: newId };
+                sets.push(newSetData);
+
+                await db.instructionSets.put({ ...newSetData, content: content });
+                await dbSet(instructionSetKeys.list, sets);
 
                 if (sets.length === 1) {
-                    lsSet(instructionSetKeys.activeId, newId);
+                    await dbSet(instructionSetKeys.activeId, newId);
                     if (confirm("First instruction set has been added and activated. The IDE needs to reload to apply the changes. Reload now?")) {
-                        window.dispatchEvent(new Event('beforeunload'));
+                        await window.onbeforeunload();
                         window.location.reload();
                     } else {
-                        populateList();
+                        await populateList();
                     }
                 } else {
-                    populateList();
+                    await populateList();
                 }
             };
             reader.readAsText(file);
@@ -200,11 +209,11 @@ function openInstructionManagerModal() {
         overlay.style.display = 'none';
     };
 
-    populateList();
+    await populateList();
     overlay.style.display = 'flex';
 }
 
-function openInstructionEditorModal(setId, setName) {
+async function openInstructionEditorModal(setId, setName) {
     const langOptions = "cpp,py,js,go,lua,cs,java,kt,rb,nim,ahk,swift,dart,ts,groovy".split(',');
     const langToAceModeMap = {'js':'javascript','py':'python','cpp':'c_cpp','go':'golang','lua':'lua','cs':'csharp','java':'java','kt':'kotlin','rb':'ruby','nim':'nim','ahk':'autohotkey','swift':'swift','dart':'dart','ts':'typescript','groovy':'groovy'};
     const overlay = document.getElementById('modal-overlay');
@@ -247,7 +256,9 @@ function openInstructionEditorModal(setId, setName) {
         </div>
     </div>`;
     
-    const fullContent = localStorage.getItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + setId) || "";
+    const instructionSet = await db.instructionSets.get(setId);
+    const fullContent = instructionSet ? instructionSet.content : "";
+
     const funcMarker = 'func======================func==============';
     const endMarker = 'funcEND======================funcEND==============';
     let bodyEditor;
@@ -428,7 +439,7 @@ function openInstructionEditorModal(setId, setName) {
         if(nextLi) nextLi.click();
     };
 
-    document.getElementById('instr-editor-save-btn').onclick = () => {
+    document.getElementById('instr-editor-save-btn').onclick = async () => {
         saveCurrentFunc();
         
         const reconstruct = () => {
@@ -444,11 +455,12 @@ function openInstructionEditorModal(setId, setName) {
 
         const newFunctionsText = reconstruct();
         const newContent = (fileHeader ? fileHeader + '\n\n' : '') + newFunctionsText;
+        
+        await db.instructionSets.update(setId, { content: newContent });
 
-        localStorage.setItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + setId, newContent);
         overlay.style.display = 'none';
         if(confirm("Instruction set saved. Reload the IDE now for changes to take effect? Your work is saved.")) {
-            window.dispatchEvent(new Event('beforeunload'));
+            await window.onbeforeunload();
             window.location.reload();
         }
     };
@@ -465,7 +477,7 @@ function openInstructionEditorModal(setId, setName) {
     overlay.style.display = 'flex';
 }
 
-function openHtvmToHtvmModal() {
+async function openHtvmToHtvmModal() {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
     overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
@@ -481,8 +493,8 @@ function openHtvmToHtvmModal() {
     </div>`;
 
     const listEl = document.getElementById('htvm-converter-list');
-    const sets = lsGet(instructionSetKeys.list) || [];
-    const activeId = lsGet(instructionSetKeys.activeId);
+    const sets = await dbGet(instructionSetKeys.list) || [];
+    const activeId = await dbGet(instructionSetKeys.activeId);
     const activeSet = sets.find(s => s.id === activeId);
 
     if (!activeSet) {
@@ -492,90 +504,95 @@ function openHtvmToHtvmModal() {
         return;
     }
 
-    const handleSourceSelection = (sourceId) => {
-        const sourceInstructionSetContent = localStorage.getItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + sourceId);
-        const targetInstructionSetContent = localStorage.getItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + activeId);
+    const handleSourceSelection = async (sourceId) => {
+        const sourceInstructionSet = await db.instructionSets.get(sourceId);
+        const targetInstructionSet = await db.instructionSets.get(activeId);
+        
+        if (!sourceInstructionSet || !targetInstructionSet) {
+            alert("Error: Could not load instruction sets.");
+            return;
+        }
+
+        const sourceInstructionSetContent = sourceInstructionSet.content;
+        const targetInstructionSetContent = targetInstructionSet.content;
 
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.multiple = true;
         fileInput.accept = '.htvm';
-        fileInput.onchange = e => {
+        fileInput.onchange = async e => {
             const files = e.target.files;
             if (!files || files.length === 0) return;
 
             overlay.style.display = 'none';
             term.writeln(`\x1b[36mStarting HTVM to HTVM conversion for ${files.length} file(s)...\x1b[0m`);
 
-            Array.from(files).forEach(file => {
-                const reader = new FileReader();
-                reader.onload = r => {
-                    const codeSnippet = r.target.result;
-                    
-                    resetGlobalVarsOfHTVMjs();
+            for (const file of Array.from(files)) {
+                await new Promise(resolve => {
+                    const reader = new FileReader();
+                    reader.onload = async r => {
+                        const codeSnippet = r.target.result;
+                        
+                        resetGlobalVarsOfHTVMjs();
 
-                    let instrFile = targetInstructionSetContent;
-                    const instr0 = sourceInstructionSetContent;
+                        let instrFile = targetInstructionSetContent;
+                        const instr0 = sourceInstructionSetContent;
 
-                    let fixInstrFile = "";
-                    const items2 = LoopParseFunc(instrFile, "\n", "\r");
-                    for (let index = 0; index < items2.length; index++) {
-                        const LoopField2 = items2[index];
-                        if (index === 1) { // Second line
-                            fixInstrFile += "htvm" + '\n';
-                        } else {
-                            fixInstrFile += LoopField2.trim() + '\n';
+                        let fixInstrFile = "";
+                        const items2 = LoopParseFunc(instrFile, "\n", "\r");
+                        for (let index = 0; index < items2.length; index++) {
+                            const LoopField2 = items2[index];
+                            if (index === 1) { // Second line
+                                fixInstrFile += "htvm" + '\n';
+                            } else {
+                                fixInstrFile += LoopField2.trim() + '\n';
+                            }
                         }
-                    }
-                    instrFile = fixInstrFile.trimEnd();
+                        instrFile = fixInstrFile.trimEnd();
 
-                    const instr1 = codeSnippet.trim();
-                    const instr2 = instr0.trim();
-                    const instr3 = "htvm";
-                    const instr4 = instrFile.trim();
+                        const instr1 = codeSnippet.trim();
+                        const instr2 = instr0.trim();
+                        const instr3 = "htvm";
+                        const instr4 = instrFile.trim();
 
-                    argHTVMinstrMORE.length = 0; // Clear before using
-                    argHTVMinstrMORE.push(instr4);
+                        argHTVMinstrMORE.length = 0; // Clear before using
+                        argHTVMinstrMORE.push(instr4);
 
-                    const convertedCode = compiler(instr1, instr2, "full", instr3);
+                        const convertedCode = compiler(instr1, instr2, "full", instr3);
 
-                    const originalFilename = file.name;
-                    // --- FIX FOR FILENAME COLLISION AND UI REFRESH ---
-                    // 1. Determine base name for the new file
-                    let baseNewFilename = originalFilename.replace(/(\.htvm)$/i, '.converted.htvm');
-                    if (baseNewFilename === originalFilename) {
-                        baseNewFilename = `${originalFilename}.converted`;
-                    }
+                        const originalFilename = file.name;
+                        let baseNewFilename = originalFilename.replace(/(\.htvm)$/i, '.converted.htvm');
+                        if (baseNewFilename === originalFilename) {
+                            baseNewFilename = `${originalFilename}.converted`;
+                        }
 
-                    // 2. Ensure the filename is unique
-                    let finalFilename = baseNewFilename;
-                    let counter = 1;
-                    const allKnownPaths = getAllPaths();
-                    const nameMatch = baseNewFilename.match(/(.*)(\.htvm)$/);
-                    const namePart = nameMatch ? nameMatch[1] : baseNewFilename;
-                    const extPart = nameMatch ? nameMatch[2] : '';
+                        let finalFilename = baseNewFilename;
+                        let counter = 1;
+                        const allKnownPaths = await getAllPaths();
+                        const nameMatch = baseNewFilename.match(/(.*)(\.htvm)$/);
+                        const namePart = nameMatch ? nameMatch[1] : baseNewFilename;
+                        const extPart = nameMatch ? nameMatch[2] : '';
 
-                    let pathPrefix = currentDirectory === '/' ? '' : currentDirectory;
-                    while (allKnownPaths.includes(pathPrefix + finalFilename)) {
-                        finalFilename = `${namePart}(${counter})${extPart}`;
-                        counter++;
-                    }
+                        let pathPrefix = currentDirectory === '/' ? '' : currentDirectory;
+                        while (allKnownPaths.includes(pathPrefix + finalFilename)) {
+                            finalFilename = `${namePart}(${counter})${extPart}`;
+                            counter++;
+                        }
 
-                    const finalPath = pathPrefix + finalFilename;
-                    
-                    // 3. Save the new file
-                    saveFileContent(finalPath, convertedCode, false);
-                    term.writeln(`\x1b[32mConverted ${originalFilename} -> ${finalFilename}\x1b[0m`);
-                    
-                    // 4. Refresh the file list to show the new file
-                    renderFileList();
-                };
-                reader.readAsText(file);
-            });
-            setTimeout(() => {
-                term.writeln(`\x1b[32m\nConversion process finished. Check the file list for new '.converted.htvm' files.\x1b[0m`);
-                term.write('$ ');
-            }, 1000);
+                        const finalPath = pathPrefix + finalFilename;
+                        
+                        await saveFileContent(finalPath, convertedCode, false);
+                        term.writeln(`\x1b[32mConverted ${originalFilename} -> ${finalFilename}\x1b[0m`);
+                        
+                        resolve();
+                    };
+                    reader.readAsText(file);
+                });
+            }
+            
+            await renderFileList();
+            term.writeln(`\x1b[32m\nConversion process finished. Check the file list for new '.converted.htvm' files.\x1b[0m`);
+            term.write('$ ');
         };
         fileInput.click();
     };

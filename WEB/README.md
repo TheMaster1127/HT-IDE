@@ -37,7 +37,7 @@ These are the foundational features you'll use every day.
 
 ### **File & Project Management**
 
-A complete virtual file system that lives in your browser.
+A complete virtual file system that lives in your browser, powered by **IndexedDB** for large-scale storage.
 
 *   **Sidebar File Explorer:** A familiar, tree-like view of your project.
 *   **File & Folder Operations:** Easily create new files and folders within your current directory.
@@ -114,4 +114,4 @@ Small details that make a big difference.
 *   **Responsive Design:** The UI intelligently adapts for use on smaller screens and mobile devices.
 *   **Resizable Panels:** Drag the borders between the file explorer, editor, terminal, and HTML output panel to create your perfect layout.
 *   **Informative Tooltips:** Hover over help icons (`ℹ️`) in settings modals to get detailed explanations of what each option does.
-*   **Workspace Isolation:** Each workspace (identified by the `?id=` in the URL) is completely sandboxed, with its own files, settings, and instruction sets, preventing data leaks.
+*   **Workspace Isolation:** Each workspace (identified by the `?id=` in the URL) is completely sandboxed in its own database, with its own files, settings, and instruction sets, preventing data leaks.

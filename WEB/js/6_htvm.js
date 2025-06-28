@@ -1,8 +1,12 @@
 // --- HTVM and Code Execution ---
 
-function initializeInstructionSetManagement() {
+// --- DEXIE MIGRATION: Reworked instruction set management to use IndexedDB. ---
+async function initializeInstructionSetManagement() {
+    // This function handles the one-time migration from localStorage to IndexedDB.
     const legacyDataRaw = localStorage.getItem(instructionSetKeys.legacyKey);
-    if (legacyDataRaw && !lsGet(instructionSetKeys.list)) {
+    const instructionList = await dbGet(instructionSetKeys.list);
+
+    if (legacyDataRaw && !instructionList) {
         const newId = 'default_migrated_' + Date.now();
         const newList = [{ name: 'Default', id: newId }];
         let legacyContentAsString = '';
@@ -12,34 +16,26 @@ function initializeInstructionSetManagement() {
         } catch {
             legacyContentAsString = legacyDataRaw;
         }
-        lsSet(instructionSetKeys.list, newList);
-        localStorage.setItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + newId, legacyContentAsString);
-        lsSet(instructionSetKeys.activeId, newId);
+
+        await db.instructionSets.put({ id: newId, name: 'Default', content: legacyContentAsString });
+        await dbSet(instructionSetKeys.list, newList);
+        await dbSet(instructionSetKeys.activeId, newId);
+        
         localStorage.removeItem(instructionSetKeys.legacyKey);
-        console.log("Migrated legacy instruction set to new management system.");
+        console.log("Migrated legacy instruction set to new IndexedDB system.");
     }
-
-    const activeId = lsGet(instructionSetKeys.activeId);
-    let activeContent = "";
-    if (activeId) {
-        activeContent = localStorage.getItem(STORAGE_PREFIX + instructionSetKeys.contentPrefix + activeId) || "";
-    }
-    
-    // --- BUG FIX FOR CROSS-WORKSPACE DATA LEAK ---
-    // The reported issue of instruction sets carrying over between workspaces was traced to
-    // subtle data corruption caused by inconsistent line endings (e.g., Windows-style \r\n)
-    // in uploaded instruction files. When localStorage data from one workspace was read, these
-    // invisible characters could cause parsing errors in the next, making it seem like data
-    // was leaking. Normalizing all line endings to a standard '\n' before processing ensures
-    // data integrity and isolates each workspace correctly. This is the critical fix.
-    const sanitizedContent = activeContent.replace(/\r\n?/g, '\n');
-
-    localStorage.setItem(instructionSetKeys.legacyKey, JSON.stringify(sanitizedContent.split('\n')));
 }
 
-async function loadDefinitions(instructionContent = null) {
+// --- FIX: This function now reads from DB and passes content to its children ---
+async function loadDefinitions() {
+    // This is now the single source of truth for the active instruction set content.
+    const instructionContent = await getActiveInstructionSetContent();
+    
+    // Pass the content directly to the mode and completer initializers.
     await window.initializeHtvmMode(IDE_ID, instructionContent);
-    await window.initializeCompleters(IDE_ID, editor);
+    await window.initializeCompleters(IDE_ID, editor, instructionContent);
+    
+    // Refresh the editor if an htvm file is open
     if (editor && currentOpenFile && currentOpenFile.endsWith('.htvm')) {
         editor.session.setMode("ace/mode/text");
         editor.session.setMode("ace/mode/htvm");
@@ -141,7 +137,7 @@ async function runJsCode(code) {
     } finally {
         window.console.log = originalLog;
         if (debuggerState.isActive) {
-            printExecutionEndMessage();
+            await printExecutionEndMessage();
         }
         debuggerState.isActive = false;
         debuggerState.isPaused = false;
@@ -149,23 +145,25 @@ async function runJsCode(code) {
     }
 }
 
-function formatHtvmCode(code) {
-    let instructionSet = JSON.parse(localStorage.getItem(instructionSetKeys.legacyKey) || '[]');
+async function formatHtvmCode(code) {
+    let instructionSetContent = await getActiveInstructionSetContent();
+    let instructionSet = instructionSetContent.split('\n');
     
     term.writeln(`\x1b[32mFormatting HTVM file...\x1b[0m`);
-    resetGlobalVarsOfHTVMjs(); // It's important to reset state before each compilation
+    resetGlobalVarsOfHTVMjs();
     argHTVMinstrMORE.push(instructionSet.join('\n'));
     const formattedCode = compiler(code, instructionSet.join('\n'), "full", "htvm");
-    resetGlobalVarsOfHTVMjs(); // And after, to be safe
+    resetGlobalVarsOfHTVMjs();
     
     term.writeln(`\x1b[32mFormatting complete.\x1b[0m`);
     return formattedCode;
 }
 
 async function runHtvmCode(code) {
-    resetGlobalVarsOfHTVMjs(); // <-- FIX: Ensure a clean state before every transpilation.
-    const lang = lsGet('selectedLangExtension') || 'js';
-    let instructionSet = JSON.parse(localStorage.getItem(instructionSetKeys.legacyKey) || '[]');
+    resetGlobalVarsOfHTVMjs();
+    const lang = await dbGet('selectedLangExtension') || 'js';
+    let instructionSetContent = await getActiveInstructionSetContent();
+    let instructionSet = instructionSetContent.split('\n');
     const isFullHtml = lang === 'js' && document.getElementById('full-html-checkbox').checked;
 
     if (isFullHtml && Array.isArray(instructionSet) && instructionSet.length > 158) {
@@ -181,31 +179,27 @@ async function runHtvmCode(code) {
 
     const wasAlreadyOpen = openTabs.includes(newFile);
 
-    // If a session for the output file already exists, remove it from our in-memory cache.
-    // This is crucial to ensure that when it's viewed again, it loads the fresh content.
     if (fileSessions.has(newFile)) {
         fileSessions.delete(newFile);
     }
 
-    saveFileContent(newFile, compiled, false);
+    await saveFileContent(newFile, compiled, false);
 
-    // Only switch focus to the new file if its tab wasn't already open.
-    // If it was open, the content is updated, but focus remains on the current HTVM file.
     if (!wasAlreadyOpen) {
-        openFileInEditor(newFile);
+        await openFileInEditor(newFile);
     }
     
-    const shouldRunAfter = document.getElementById('run-js-after-htvm').checked;
+    const shouldRunAfter = (await dbGet('runJsAfterHtvm')) !== false;
     if (shouldRunAfter) {
         if (isFullHtml) {
             runHtmlCode(compiled);
         } else if (lang === 'js') {
             await runJsCode(compiled);
         } else {
-            printExecutionEndMessage();
+            await printExecutionEndMessage();
         }
     } else {
-        printExecutionEndMessage();
+        await printExecutionEndMessage();
     }
 }
 
@@ -220,11 +214,12 @@ async function handleRun(e) {
         return;
     }
     
-    if (lsGet('clearTerminalOnRun') === true) {
+    const clearOnRun = await dbGet('clearTerminalOnRun');
+    if (clearOnRun === true) {
         term.clear();
     }
 
-    saveFileContent(currentOpenFile, editor.getValue());
+    await saveFileContent(currentOpenFile, editor.getValue());
     term.writeln(`\x1b[36m> Running ${currentOpenFile}...\x1b[0m`);
     const ext = currentOpenFile.split('.').pop();
     
@@ -233,6 +228,6 @@ async function handleRun(e) {
     else if (ext === 'html') runHtmlCode(editor.getValue());
     else {
         term.writeln(`\x1b[31mError: Cannot execute ".${ext}" files.\x1b[0m`);
-        printExecutionEndMessage();
+        await printExecutionEndMessage();
     }
 }
