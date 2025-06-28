@@ -14,6 +14,7 @@
 - [Core Features](#core-features)
   - [1. File & Project Management](#1-file--project-management)
     - [File Explorer](#file-explorer)
+    - [New Project Creation](#new-project-creation)
     - [Session Management](#session-management)
     - [Workspaces](#workspaces)
     - [Export & Import](#export--import)
@@ -79,6 +80,16 @@ The IDE features a robust file explorer in the left-hand sidebar.
 -   **Create Files & Folders:** Use the **New File** and **New Folder** buttons to create items in the currently viewed directory.
 -   **Delete Items:** Hover over any file or folder to reveal a `🗑️` icon to permanently delete it.
 -   **Drag and Drop:** You can drag files and folders from your operating system directly into the file explorer to copy them into your project.
+
+#### New Project Creation
+Create entire project structures from predefined templates.
+- **IMPORTANT PROCEDURE:** To create a new project, you must first open the Settings menu.
+    1. Click the **Settings** button in the sidebar footer.
+    2. While the Settings modal is open, press the **`Ctrl + N`** hotkey.
+    3. The "Create New Project" modal will appear.
+- **Templates:** Choose from a list of project structures (e.g., "Empty Project", "New Web Project"). You can create, edit, and manage these templates yourself via **Settings** > **Manage Project Structures**.
+- **Project Location:** New projects are created inside the directory specified in **Settings** > **Projects** > **Default Project Directory**.
+- **Open Project:** After creation, the IDE will ask if you want to close your current tabs and open the new project immediately.
 
 #### Session Management
 -   **Save Session:** Click **Save Session** to save the currently open set of tabs under a specific name. This is perfect for quickly restoring your work context.
@@ -185,6 +196,7 @@ Nearly every aspect of the IDE's appearance and behavior can be changed. Access 
 #### General Settings
 -   **Editor:** Change font size, keybinding mode (Vim, Emacs, VSCode, etc.), and other editor behaviors.
 -   **Web Server:** Configure the default port and the default file to serve (e.g., `index.html`).
+-   **Projects:** Set the default directory for new projects and manage project templates.
 -   **Terminal & Autocomplete:** Toggle various helper features.
 
 #### UI Theme Editor
@@ -211,6 +223,7 @@ HT-IDE features Discord Rich Presence, which automatically shows your current st
 
 | Action | Default Hotkey | Notes |
 | :--- | :--- | :--- |
+| **New Project** | **`Ctrl + N`** | **Must be pressed while the Settings menu is open.** |
 | Run File | `Ctrl + Enter` / `F5` | `F5` is a secondary, non-customizable hotkey. |
 | Compile File | `Ctrl + F7` | Requires a `.htpc` property file. |
 | Save File | `Ctrl + S` | |
