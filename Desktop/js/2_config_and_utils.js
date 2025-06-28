@@ -20,6 +20,7 @@ const hotkeyConfig = {
     closeTab:     { label: 'Close Tab', default: { key: 'w', ctrl: true, shift: false, alt: false } },
     reopenTab:    { label: 'Re-open Last Closed Tab', default: { key: 't', ctrl: true, shift: true, alt: false } },
     toggleSidebar:{ label: 'Toggle Sidebar', default: { key: 'b', ctrl: true, shift: false, alt: false } },
+    newProject:   { label: 'New Project', default: { key: 'n', ctrl: true, shift: false, alt: false } },
 };
 
 const syntaxColorConfig = {

@@ -216,12 +216,6 @@ function createWindow() {
         }
     });
 
-    // --- MODIFICATION START ---
-    // The following logic ensures that developer shortcuts (like Ctrl+Shift+I)
-    // are only active when the application window is focused. They are
-    // unregistered when the window loses focus, fixing the issue where they
-    // would override shortcuts in other applications.
-
     const registerDevShortcuts = () => {
         globalShortcut.register('CommandOrControl+Shift+I', () => {
             mainWindow.webContents.toggleDevTools();
@@ -239,18 +233,12 @@ function createWindow() {
         globalShortcut.unregisterAll();
     });
 
-    // --- MODIFICATION END ---
-
-
     mainWindow.setMenu(null);
     mainWindow.loadFile('HT-IDE.html');
 }
 
 app.whenReady().then(async () => {
-    // --- MODIFICATION START ---
-    // Load the persistent storage file into memory before creating the window.
     loadStorage();
-    // --- MODIFICATION END ---
 
     createWindow();
     app.on('activate', () => {
@@ -269,13 +257,9 @@ app.whenReady().then(async () => {
     } catch (error) {
         console.error('Failed to initialize Discord RPC:', error);
     }
-
-    // MODIFIED: Global shortcuts removed from here and moved into the `createWindow`
-    // function to be context-aware (only active when the app is focused).
 });
 
 app.on('will-quit', () => {
-    // This is a good failsafe to ensure all shortcuts are cleared when the app closes.
     globalShortcut.unregisterAll();
     fileWatchers.forEach(watcher => watcher.close());
     fileWatchers.clear();
@@ -314,7 +298,6 @@ app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
 });
 
-// --- MODIFICATION START: IPC Handlers for File-based Storage ---
 ipcMain.handle('storage:get-all', () => {
     return storageCache;
 });
@@ -330,7 +313,6 @@ ipcMain.handle('storage:clear', () => {
     storageCache = {};
     saveStorage();
 });
-// --- MODIFICATION END ---
 
 
 ipcMain.on('app:set-zoom-level', (event, level) => {
@@ -542,7 +524,18 @@ ipcMain.handle('run-command', async (event, { terminalId, command, cwd }) => {
 
 ipcMain.handle('fs:getAllPaths', (event, dirPath) => { try { const p = dirPath === '/' ? userHomeDir : dirPath; const i = fs.readdirSync(p, { withFileTypes: true }); return i.map(t => ({ name: t.name, path: path.join(p, t.name), isFile: t.isFile() })); } catch (e) { if (e.code === 'ENOENT') return []; console.error(`Error reading directory ${dirPath}:`, e); return []; } });
 ipcMain.handle('fs:getFileContent', (event, filePath) => { try { if (fs.existsSync(filePath)) return fs.readFileSync(filePath, 'utf-8'); return null; } catch (e) { console.error(e); return null; } });
-ipcMain.handle('fs:saveFileContent', async (event, { filePath, content }) => { try { fs.writeFileSync(filePath, content); return { success: true }; } catch (e) { return { success: false, error: e.message }; } });
+ipcMain.handle('fs:saveFileContent', async (event, { filePath, content }) => {
+    try {
+        const dir = path.dirname(filePath);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        fs.writeFileSync(filePath, content);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+});
 ipcMain.on('fs:saveFileContentSync', (event, { filePath, content }) => { fs.writeFileSync(filePath, content); });
 ipcMain.handle('fs:deleteItem', async (event, { itemPath, isFile }) => { try { if (isFile) fs.unlinkSync(itemPath); else fs.rmSync(itemPath, { recursive: true, force: true }); return { success: true }; } catch (e) { return { success: false, error: e.message }; } });
 ipcMain.handle('fs:createItem', async (event, { itemPath, isFile }) => { try { if (isFile) fs.writeFileSync(itemPath, ''); else fs.mkdirSync(itemPath, { recursive: true }); return { success: true }; } catch (e) { return { success: false, error: e.message }; } });

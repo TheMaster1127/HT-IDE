@@ -190,7 +190,13 @@ body.preload * { transition: none !important; }
 #file-list li:hover { background-color: var(--sidebar-file-hover-bg); }
 #file-list li button { margin-left: auto; visibility: hidden; }
 #file-list li:hover button { visibility: visible; }
-#file-list li.active-file-list-item { background-color: var(--sidebar-file-active-bg); color: var(--sidebar-file-active-text); font-weight: var(--sidebar-file-active-text-bold); }
+/* MODIFIED: Combined selectors to apply active style to modal lists as well */
+#file-list li.active-file-list-item,
+.modal-list li.active-file-list-item {
+    background-color: var(--sidebar-file-active-bg);
+    color: var(--sidebar-file-active-text);
+    font-weight: var(--sidebar-file-active-text-bold);
+}
 .file-item-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sidebar-footer { padding: 10px; border-top: 1px solid var(--resizer-bg); display: grid; gap: 5px; grid-template-columns: 1fr 1fr; flex-shrink: 0; }
 .sidebar-footer button { border: none; padding: 8px; cursor: pointer; border-radius: 3px; font-size: 0.85em; width: 100%; }

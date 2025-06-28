@@ -8,7 +8,7 @@ const tabCycleState = {
     isCycling: false,
 };
 window.addEventListener('keyup', (e) => {
-    if (e.key === 'Control' || e.key === 'Meta') {
+    if (e.key === 'Control' || e.metaKey) {
         tabCycleState.isCycling = false;
     }
 });
@@ -296,6 +296,8 @@ function applyAndSetHotkeys() {
         }
         else if (checkMatch(activeHotkeys.reopenTab)) { e.preventDefault(); await handleReopenTab(); }
         else if (checkMatch(activeHotkeys.toggleSidebar)) { e.preventDefault(); document.getElementById('main-toggle-sidebar-btn').click(); }
+        // --- FIX: This line restores the "New Project" hotkey functionality ---
+        else if (checkMatch(activeHotkeys.newProject)) { e.preventDefault(); await openNewProjectModal(); }
     };
 
     document.addEventListener('keydown', hotkeyListener);

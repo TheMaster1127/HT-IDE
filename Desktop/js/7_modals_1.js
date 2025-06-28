@@ -1,6 +1,5 @@
 //---Modal Dialog Functions---
 
-// NEW: A consistent, non-blocking confirmation modal to replace all native `confirm()` calls.
 function openConfirmModal(title, message, callback) {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
@@ -92,40 +91,34 @@ function openSessionModal(mode) {
             lsSet('session_list', sessions);
             lsSet(`session_data_${name}`, openTabs);
             overlay.style.display = 'none';
-            term.writeln(`\x1b[32mSession '${name}' saved.\x1b[0m`);
+            getActiveTerminalSession()?.xterm.writeln(`\x1b[32mSession '${name}' saved.\x1b[0m`);
         };
     } else { // 'load' mode
         document.getElementById('modal-title').textContent = 'Load Session';
         document.getElementById('modal-save-content').style.display = 'none';
         document.getElementById('modal-confirm-btn').style.display = 'none';
         
-        // MODIFIED: This is the definitive fix for the session loading bug.
-        // It now completely clears the old state and rebuilds it from the saved session data,
-        // making it independent of the current directory.
         populate(async (name) => {
             const tabsToLoad = lsGet(`session_data_${name}`);
             if (tabsToLoad && Array.isArray(tabsToLoad)) {
                 
-                // 1. Completely clear the current session state.
                 currentOpenFile = null;
-                openTabs.forEach(tab => window.electronAPI.unwatchFile(tab)); // Stop watching old files
+                openTabs.forEach(tab => window.electronAPI.unwatchFile(tab));
                 openTabs = [];
                 fileSessions.clear();
 
-                // 2. Open each file from the saved session by its absolute path.
                 for (const tabPath of tabsToLoad) {
                     await openFileInEditor(tabPath);
                 }
 
-                // 3. If no files from the session exist anymore, reset the editor to a clean state.
                 if (openTabs.length === 0) {
                     editor.setSession(ace.createEditSession("// No file open."));
                     editor.setReadOnly(true);
-                    await renderAll(); // Render the empty state
+                    await renderAll();
                 }
             }
             overlay.style.display = 'none';
-            term.writeln(`\x1b[32mSession '${name}' loaded.\x1b[0m`);
+            getActiveTerminalSession()?.xterm.writeln(`\x1b[32mSession '${name}' loaded.\x1b[0m`);
         });
     }
     overlay.style.display = 'flex';
@@ -152,28 +145,29 @@ function openInputModal(title, label, defaultValue, callback) {
     const confirmBtn = document.getElementById('input-modal-confirm-btn');
     const cancelBtn = document.getElementById('input-modal-cancel-btn');
 
-    const closeModal = () => {
+    const closeModal = (value) => {
         overlay.style.display = 'none';
         overlay.innerHTML = '';
+        if (callback) callback(value);
     };
 
     const confirmAction = () => {
-        if (callback) callback(inputField.value);
-        closeModal();
+        closeModal(inputField.value);
     };
 
+    cancelBtn.onclick = () => closeModal(null);
     confirmBtn.onclick = confirmAction;
-    cancelBtn.onclick = closeModal;
+
     inputField.onkeydown = (e) => {
         if (e.key === 'Enter') confirmAction();
-        if (e.key === 'Escape') closeModal();
+        if (e.key === 'Escape') cancelBtn.onclick();
     };
     
     overlay.style.display = 'flex';
     setTimeout(() => {
         inputField.focus();
         inputField.select();
-    }, 10);
+    }, 50);
 }
 
 
@@ -196,10 +190,6 @@ function renderHotkeyDisplayList() {
     return `<ul style="padding-left:20px;margin:0; font-size: 0.9em; list-style-type: none;">${html}</ul>`;
 }
 
-/**
- * FIX: Captures the current (potentially unsaved) state of the settings modal form controls.
- * @returns {object|null} An object with the current values, or null if the modal isn't open.
- */
 function captureSettingsState() {
     const container = document.querySelector('.modal-box');
     if (!container) return null;
@@ -218,6 +208,9 @@ function captureSettingsState() {
         state.autocompleteLocal = container.querySelector('#autocomplete-local-checkbox').checked;
         state.serverPort = container.querySelector('#server-port-input').value;
         state.serverDefaultFile = container.querySelector('#server-file-input').value;
+        if(container.querySelector('#project-dir-input')) {
+            state.projectDirectory = container.querySelector('#project-dir-input').value;
+        }
         return state;
     } catch (e) {
         console.error("Could not capture settings state, elements might not be in DOM.", e);
@@ -225,12 +218,12 @@ function captureSettingsState() {
     }
 }
 
-function openSettingsModal(initialState = null) {
+async function openSettingsModal(initialState = null) {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
     overlay.innerHTML = `<div class="modal-box" style="max-width: 850px;">
         <h3>Settings + Help</h3>
-        <div id="settings-columns-container" style="display: flex; gap: 20px; border-top: 1px solid #333; padding-top: 15px; overflow-x: auto; padding-bottom: 15px;">
+        <div id="settings-columns-container" style="display: flex; flex-wrap: wrap; gap: 20px; border-top: 1px solid #333; padding-top: 15px; padding-bottom: 15px;">
             <div class="settings-column" style="flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 240px;">
                 <h4>Editor</h4>
                 <div><label for="font-size-input">Font Size: </label><input type="number" id="font-size-input" style="width:60px;background:#252525;color:#e0e0e0;border:1px solid #333;"></div>
@@ -248,6 +241,7 @@ function openSettingsModal(initialState = null) {
                         <label><input type="radio" name="keybinding-mode" value="sublime"> Sublime</label>
                     </div>
                 </div>
+
                 <div style="margin-top: 10px;">
                     <h4>Web Server</h4>
                     <div style="padding-left: 10px;">
@@ -281,6 +275,20 @@ function openSettingsModal(initialState = null) {
                  <h4>Hotkeys</h4>
                  <div id="hotkey-display-list">${renderHotkeyDisplayList()}</div>
                  <button id="customize-hotkeys-btn" style="margin-top: 15px; padding: 8px; background-color: var(--btn-new-file-bg); color: var(--btn-new-file-text); font-weight: var(--btn-new-file-text-bold);">Customize Hotkeys</button>
+                 
+                 <div style="margin-top: 15px; border-top: 1px solid #333; padding-top: 15px;">
+                    <h4>Projects</h4>
+                    <div style="padding-left: 10px;">
+                        <div style="margin-bottom: 10px;">
+                            <label for="project-dir-input" style="display: block; margin-bottom: 5px;">Default Project Directory:</label>
+                            <div style="display:flex; gap: 5px;">
+                                <input type="text" id="project-dir-input" readonly style="flex-grow:1; background:#202020; color:#ccc; border:1px solid #333; padding: 5px;">
+                                <button id="select-project-dir-btn" style="padding: 4px 8px;">Select</button>
+                            </div>
+                        </div>
+                        <button id="manage-project-templates-btn" style="padding: 8px; background-color: var(--btn-new-file-bg); color: var(--btn-new-file-text); font-weight: var(--btn-new-file-text-bold);">Manage Project Structures</button>
+                    </div>
+                </div>
             </div>
         </div>
         <div class="modal-buttons" style="margin-top: 20px;"><button id="modal-ok-btn" style="padding: 10px 24px; font-size: 1.1em; font-weight: bold;">OK</button></div>
@@ -289,7 +297,6 @@ function openSettingsModal(initialState = null) {
     const initialSyntaxEnabled = lsGet('syntaxHighlightingEnabled') !== false;
     const initialHighlightOperators = lsGet('highlightSymbolOperators') !== false;
 
-    // Load initial values from DB / editor state
     document.getElementById('font-size-input').value = editor.getFontSize();
     const currentMode = lsGet('keybindingMode') || 'normal';
     document.querySelector(`input[name="keybinding-mode"][value="${currentMode}"]`).checked = true;
@@ -304,8 +311,12 @@ function openSettingsModal(initialState = null) {
     document.getElementById('autocomplete-local-checkbox').checked = lsGet('autocomplete-local') !== false;
     document.getElementById('server-port-input').value = lsGet('serverPort') || 8080;
     document.getElementById('server-file-input').value = lsGet('serverDefaultFile') || 'index.html';
+    
+    const appPath = await window.electronAPI.getAppPath();
+    const separator = appPath.includes('\\') ? '\\' : '/';
+    const defaultProjectsPath = `${appPath}${separator}projects`;
+    document.getElementById('project-dir-input').value = lsGet('projectDirectory') || defaultProjectsPath;
 
-    // FIX: If a state was passed in (i.e., returning from a sub-modal), apply it.
     if (initialState) {
         if (initialState.fontSize !== undefined) document.getElementById('font-size-input').value = initialState.fontSize;
         if (initialState.keybindingMode) document.querySelector(`input[name="keybinding-mode"][value="${initialState.keybindingMode}"]`).checked = true;
@@ -320,9 +331,20 @@ function openSettingsModal(initialState = null) {
         if (initialState.autocompleteLocal !== undefined) document.getElementById('autocomplete-local-checkbox').checked = initialState.autocompleteLocal;
         if (initialState.serverPort !== undefined) document.getElementById('server-port-input').value = initialState.serverPort;
         if (initialState.serverDefaultFile !== undefined) document.getElementById('server-file-input').value = initialState.serverDefaultFile;
+        if (initialState.projectDirectory !== undefined) document.getElementById('project-dir-input').value = initialState.projectDirectory;
     }
+    
+    document.getElementById('select-project-dir-btn').onclick = async () => {
+        const result = await window.electronAPI.openDirectory();
+        if (result && result.length > 0) {
+            document.getElementById('project-dir-input').value = result[0];
+        }
+    };
+    document.getElementById('manage-project-templates-btn').onclick = () => {
+        const currentState = captureSettingsState();
+        openProjectManagerModal(currentState);
+    };
 
-    // FIX: Setup sub-modal buttons to pass the current state forward
     document.getElementById('customize-colors-btn').onclick = () => openSyntaxColorModal(captureSettingsState());
     document.getElementById('customize-theme-btn').onclick = () => openThemeEditorModal(captureSettingsState());
     document.getElementById('customize-hotkeys-btn').onclick = () => openHotkeyEditorModal(captureSettingsState());
@@ -341,7 +363,7 @@ function openSettingsModal(initialState = null) {
         lsSet('autocomplete-local', document.getElementById('autocomplete-local-checkbox').checked);
         lsSet('serverPort', parseInt(document.getElementById('server-port-input').value, 10) || 8080);
         lsSet('serverDefaultFile', document.getElementById('server-file-input').value.trim() || 'index.html');
-
+        lsSet('projectDirectory', document.getElementById('project-dir-input').value);
 
         const newSyntaxEnabled = document.getElementById('syntax-highlighting-master-checkbox').checked;
         const newHighlightOperators = document.getElementById('symbol-operator-highlighting-checkbox').checked;
@@ -412,13 +434,12 @@ function openHotkeyEditorModal(settingsState) {
     const container = document.getElementById('hotkey-picker-list');
     
     container.querySelectorAll('.hotkey-input').forEach(input => {
-        // Store the initial config
         const id = input.dataset.id;
         input.dataset.config = JSON.stringify(customHotkeys[id] || hotkeyConfig[id].default);
 
         input.onkeydown = e => {
             e.preventDefault();
-            e.stopPropagation(); // Stop the event from triggering global listeners
+            e.stopPropagation();
             
             const newConfig = {
                 key: e.key,
@@ -430,10 +451,9 @@ function openHotkeyEditorModal(settingsState) {
             const currentId = e.target.dataset.id;
             const allInputs = container.querySelectorAll('.hotkey-input');
             
-            // Check for duplicates
             for (const otherInput of allInputs) {
                 const otherId = otherInput.dataset.id;
-                if (currentId === otherId) continue; // Skip self-comparison
+                if (currentId === otherId) continue;
 
                 const otherConfig = JSON.parse(otherInput.dataset.config);
                 const isDuplicate = (
@@ -446,11 +466,10 @@ function openHotkeyEditorModal(settingsState) {
                 if (isDuplicate) {
                     const conflictLabel = hotkeyConfig[otherId].label;
                     alert(`Hotkey '${formatHotkey(newConfig)}' is already in use by '${conflictLabel}'. Please choose a different combination.`);
-                    return; // Revert by not applying the change
+                    return;
                 }
             }
             
-            // If no duplicates, apply the new hotkey
             input.value = formatHotkey(newConfig);
             input.dataset.config = JSON.stringify(newConfig);
         };
@@ -648,7 +667,6 @@ function openThemeEditorModal(settingsState) {
 
     const container = document.getElementById('theme-picker-list');
 
-    // Tab switching logic
     overlay.querySelector('.theme-tabs').addEventListener('click', e => {
         if (e.target.tagName === 'BUTTON') {
             const category = e.target.dataset.category;
@@ -751,7 +769,6 @@ function openExportImportModal() {
         input.click();
     };
     
-    // This helper is now also used by the Workspace Manager
     window.getAllWorkspaceIds = () => {
         const ids = new Set();
         for (let i = 0; i < localStorage.length; i++) {
@@ -827,10 +844,8 @@ function openExportImportModal() {
 
     document.getElementById('export-import-close-btn').onclick = () => { overlay.style.display = 'none'; };
     
-    // --- Event Listeners ---
     document.getElementById('manage-workspaces-btn').onclick = openWorkspaceManagerModal;
 
-    // EVERYTHING
     document.getElementById('export-all-btn').onclick = () => {
         openInputModal('Export All Data', 'Enter a filename for the full backup:', 'ht-ide-backup-all.json', (filename) => {
             if (!filename) return;
@@ -862,7 +877,6 @@ function openExportImportModal() {
         });
     };
 
-    // THEME
     document.getElementById('export-theme-btn').onclick = () => {
         openInputModal('Export Theme', 'Enter a filename for the theme backup:', 'ht-ide-theme.json', (filename) => {
             if (!filename) return;
@@ -892,7 +906,6 @@ function openExportImportModal() {
         });
     };
     
-    // WORKSPACE
     document.getElementById('export-workspace-btn').onclick = () => {
         const id = document.getElementById('workspace-select').value;
         if (!id) return alert("Please select a workspace to export.");
@@ -951,7 +964,6 @@ function openExportImportModal() {
     };
 }
 
-// NEW: A dedicated modal for managing workspaces in the Electron environment.
 function openWorkspaceManagerModal() {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
@@ -966,7 +978,7 @@ function openWorkspaceManagerModal() {
         const currentId = getIdeId();
 
         if (allIds.length === 0) {
-            allIds.push('0'); // Ensure default workspace is shown
+            allIds.push('0');
         }
 
         allIds.forEach(id => {
@@ -1065,4 +1077,298 @@ function updateHotkeyTitles() {
         const toggleHotkeyStr = formatHotkey(activeHotkeys.toggleSidebar);
         toggleSidebarBtn.title = `Toggle File Explorer (${toggleHotkeyStr})`;
     }
+}
+
+async function openNewProjectModal() {
+    const overlay = document.getElementById('modal-overlay');
+    overlay.style.pointerEvents = 'auto';
+    overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    
+    // MODIFIED: Ensure a default "Empty Project" template exists if none are found.
+    // This unblocks the user and makes the Ctrl+N hotkey always functional.
+    let templates = lsGet('projectTemplates') || [];
+    if (templates.length === 0) {
+        templates = [{ id: 'template_default_empty', name: 'Empty Project', files: [] }];
+        lsSet('projectTemplates', templates);
+    }
+    
+    const templateOptions = templates.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+
+    overlay.innerHTML = `<div class="modal-box">
+        <h3>Create New Project</h3>
+        <label for="new-project-name-input" style="display: block; margin: 15px 0 5px 0;">Project Name:</label>
+        <input type="text" id="new-project-name-input" placeholder="my-awesome-project" style="width:calc(100% - 22px);padding:10px;margin-bottom:15px;background-color:#252525;border:1px solid #333;color:#e0e0e0;">
+        
+        <label for="project-template-select" style="display: block; margin: 15px 0 5px 0;">Select Structure:</label>
+        <select id="project-template-select" style="width:100%; padding: 10px; background-color: #252525; border: 1px solid #333; color: #e0e0e0; margin-bottom: 15px;">
+            ${templateOptions}
+        </select>
+
+        <div class="modal-buttons">
+            <button id="new-project-cancel-btn" class="modal-btn-cancel">Cancel</button>
+            <button id="new-project-create-btn" class="modal-btn-confirm">Create Project</button>
+        </div>
+    </div>`;
+
+    document.getElementById('new-project-cancel-btn').onclick = () => overlay.style.display = 'none';
+
+    document.getElementById('new-project-create-btn').onclick = async () => {
+        const projectName = document.getElementById('new-project-name-input').value.trim();
+        if (!projectName.match(/^[a-zA-Z0-9._-]+$/)) {
+            return alert("Project name can only contain letters, numbers, dots, hyphens, and underscores.");
+        }
+        
+        const templateId = document.getElementById('project-template-select').value;
+        const template = (lsGet('projectTemplates') || []).find(t => t.id === templateId);
+        if (!template) return alert("Selected structure not found.");
+        
+        const appPath = await window.electronAPI.getAppPath();
+        const separator = appPath.includes('\\') ? '\\' : '/';
+        const defaultProjectsPath = `${appPath}${separator}projects`;
+        const projectBaseDir = lsGet('projectDirectory') || defaultProjectsPath;
+        
+        await window.electronAPI.createItem(projectBaseDir, false);
+
+        const newProjectPath = `${projectBaseDir}${separator}${projectName}`;
+        const itemsInBaseDir = await window.electronAPI.getAllPaths(projectBaseDir);
+        if (itemsInBaseDir.some(item => item.path === newProjectPath)) {
+            return alert(`A project named "${projectName}" already exists in the target directory.`);
+        }
+
+        let result = await window.electronAPI.createItem(newProjectPath, false);
+        if (!result.success) return alert(`Error creating project directory: ${result.error}`);
+        
+        const filesToOpen = [];
+        for (const file of template.files) {
+            if (!file.path) continue;
+            const filePath = `${newProjectPath}${separator}${file.path.replace(/[\/\\]/g, separator)}`;
+            await window.electronAPI.saveFileContent(filePath, file.content || '');
+            filesToOpen.push(filePath);
+        }
+        
+        overlay.style.display = 'none';
+
+        openConfirmModal("Project Created", `Project "${projectName}" was created successfully.\n\nDo you want to open it now? All current tabs will be closed.`, async (confirmed) => {
+            if (confirmed) {
+                window.dispatchEvent(new Event('beforeunload'));
+
+                openTabs.forEach(tab => window.electronAPI.unwatchFile(tab));
+                openTabs = [];
+                fileSessions.clear();
+                recentlyClosedTabs = [];
+                currentOpenFile = null;
+                
+                await setCurrentDirectory(newProjectPath);
+
+                for (const fileToOpen of filesToOpen) {
+                    await openFileInEditor(fileToOpen);
+                }
+                
+                if (filesToOpen.length === 0) {
+                    editor.setSession(ace.createEditSession("// New empty project."));
+                    editor.setReadOnly(true);
+                } else {
+                    await openFileInEditor(filesToOpen[0]);
+                }
+                renderAll();
+            }
+        });
+    };
+    
+    setTimeout(() => {
+        document.getElementById('new-project-name-input')?.focus();
+    }, 50);
+}
+
+// --- COMPLETELY REWRITTEN FUNCTION TO FIX ALL BUGS ---
+function openProjectManagerModal(settingsState) {
+    const overlay = document.getElementById('modal-overlay');
+    overlay.style.pointerEvents = 'auto';
+
+    // MODIFIED: This function now uses a stable, non-recursive rendering pattern.
+    let memory = {
+        templates: lsGet('projectTemplates') || [],
+        activeTemplate: null,
+        activeFile: null
+    };
+    
+    // MODIFIED: Ensure a default "Empty Project" template always exists.
+    if (memory.templates.length === 0) {
+        memory.templates.push({ id: 'template_default_empty', name: 'Empty Project', files: [] });
+    }
+
+    let templateEditor;
+
+    const saveActiveFileContent = () => {
+        if (!memory.activeTemplate || !memory.activeFile || !templateEditor) return;
+        memory.activeFile.content = templateEditor.getValue();
+    };
+
+    const renderUI = () => {
+        const modalHtml = `<div class="modal-box" style="width:90%; max-width:1000px; height: 80vh; display: flex; flex-direction: column;">
+            <h3>Manage Project Structures</h3>
+            <div style="display: flex; flex-grow: 1; gap: 15px; overflow: hidden; border-top: 1px solid #333; padding-top: 15px;">
+                <div style="width: 250px; display: flex; flex-direction: column; border-right: 1px solid #333; padding-right: 15px;">
+                    <h4>Structures</h4>
+                    <ul id="structure-manager-list" class="modal-list" style="flex-grow: 1;"></ul>
+                    <div style="display:flex; gap: 5px; margin-top: 5px;">
+                        <button id="structure-add-btn" style="flex:1;">Add</button>
+                        <button id="structure-rename-btn" style="flex:1;">Rename</button>
+                        <button id="structure-delete-btn" style="flex:1;">Delete</button>
+                    </div>
+                </div>
+                <div style="width: 250px; display: flex; flex-direction: column; border-right: 1px solid #333; padding-right: 15px;">
+                    <h4>Files in Structure</h4>
+                    <ul id="structure-file-list" class="modal-list" style="flex-grow: 1;"></ul>
+                    <div style="display:flex; gap: 5px; margin-top: 5px;">
+                        <button id="structure-file-add-btn" style="flex:1;">Add</button>
+                        <button id="structure-file-delete-btn" style="flex:1;">Delete</button>
+                    </div>
+                </div>
+                <div style="flex-grow: 1; display: flex; flex-direction: column;">
+                    <h4>File Content</h4>
+                    <div id="structure-file-editor" style="flex-grow: 1; border: 1px solid #444;"></div>
+                </div>
+            </div>
+            <div class="modal-buttons" style="margin-top: 15px;">
+                <button id="structure-manager-cancel-btn" class="modal-btn-cancel">Cancel</button>
+                <button id="structure-manager-save-btn" class="modal-btn-confirm">Save & Close</button>
+            </div>
+        </div>`;
+
+        // Only update innerHTML if it doesn't exist, to preserve the Ace editor instance
+        if (!document.getElementById('structure-manager-list')) {
+            overlay.innerHTML = modalHtml;
+        }
+
+        const templateListEl = document.getElementById('structure-manager-list');
+        templateListEl.innerHTML = '';
+        memory.templates.forEach(t => {
+            const li = document.createElement('li');
+            li.textContent = t.name;
+            li.className = (memory.activeTemplate && t.id === memory.activeTemplate.id) ? 'active-file-list-item' : '';
+            li.onclick = () => {
+                saveActiveFileContent();
+                memory.activeTemplate = t;
+                memory.activeFile = null;
+                renderUI();
+            };
+            templateListEl.appendChild(li);
+        });
+        
+        const fileListEl = document.getElementById('structure-file-list');
+        fileListEl.innerHTML = '';
+        if (!memory.activeTemplate) {
+            fileListEl.innerHTML = '<li class="no-sessions" style="text-align:center; padding: 10px;">Select a structure</li>';
+        } else {
+            memory.activeTemplate.files.sort((a,b) => a.path.localeCompare(b.path)).forEach(file => {
+                const li = document.createElement('li');
+                li.textContent = file.path;
+                li.title = file.path;
+                li.className = (memory.activeFile && file.path === memory.activeFile.path) ? 'active-file-list-item' : '';
+                li.onclick = () => {
+                    saveActiveFileContent();
+                    memory.activeFile = file;
+                    renderUI();
+                };
+                fileListEl.appendChild(li);
+            });
+        }
+
+        if (!templateEditor) {
+            templateEditor = ace.edit("structure-file-editor");
+            templateEditor.setTheme("ace/theme/monokai");
+            templateEditor.setOptions({ wrap: true });
+        }
+        
+        if (memory.activeFile) {
+            templateEditor.setValue(memory.activeFile.content || '', -1);
+            templateEditor.setReadOnly(false);
+            const mode = ace.require("ace/ext/modelist").getModeForPath(memory.activeFile.path).mode;
+            templateEditor.session.setMode(mode);
+            setTimeout(() => templateEditor.focus(), 0);
+        } else {
+            templateEditor.setValue('// Select a file to edit its content.', -1);
+            templateEditor.setReadOnly(true);
+            templateEditor.session.setMode("ace/mode/text");
+        }
+        
+        setupButtonHandlers();
+    };
+
+    const setupButtonHandlers = () => {
+        document.getElementById('structure-add-btn').onclick = () => {
+            openInputModal('New Structure', 'Enter name for new structure:', 'New Web Project', (name) => {
+                if (name && name.trim() && !memory.templates.some(t => t.name === name.trim())) {
+                    memory.templates.push({ id: `template_${Date.now()}`, name: name.trim(), files: [] });
+                    renderUI();
+                }
+            });
+        };
+
+        document.getElementById('structure-rename-btn').onclick = () => {
+            if (!memory.activeTemplate) return;
+            openInputModal('Rename Structure', 'Enter new name:', memory.activeTemplate.name, (name) => {
+                if (name && name.trim() && !memory.templates.some(t => t.name === name.trim() && t.id !== memory.activeTemplate.id)) {
+                    memory.activeTemplate.name = name.trim();
+                    renderUI();
+                }
+            });
+        };
+
+        document.getElementById('structure-delete-btn').onclick = () => {
+            if (!memory.activeTemplate) return;
+            // Prevent deletion of the last default template
+            if (memory.templates.length === 1 && memory.activeTemplate.id === 'template_default_empty') {
+                alert("Cannot delete the last default 'Empty Project' structure.");
+                return;
+            }
+            openConfirmModal('Delete Structure', `Delete "${memory.activeTemplate.name}"?`, (confirmed) => {
+                if (confirmed) {
+                    memory.templates = memory.templates.filter(t => t.id !== memory.activeTemplate.id);
+                    memory.activeTemplate = null;
+                    memory.activeFile = null;
+                    renderUI();
+                }
+            });
+        };
+
+        document.getElementById('structure-file-add-btn').onclick = () => {
+            if (!memory.activeTemplate) return;
+            openInputModal('Add File', 'Enter file path (e.g., "js/main.js" or "index.html"):', '', (path) => {
+                if (path && path.trim() && !memory.activeTemplate.files.some(f => f.path === path.trim())) {
+                    const newFile = { path: path.trim(), content: '' };
+                    memory.activeTemplate.files.push(newFile);
+                    memory.activeFile = newFile;
+                    renderUI();
+                }
+            });
+        };
+
+        document.getElementById('structure-file-delete-btn').onclick = () => {
+            if (!memory.activeFile || !memory.activeTemplate) return;
+            openConfirmModal('Delete File', `Delete "${memory.activeFile.path}"?`, (confirmed) => {
+                if (confirmed) {
+                    memory.activeTemplate.files = memory.activeTemplate.files.filter(f => f.path !== memory.activeFile.path);
+                    memory.activeFile = null;
+                    renderUI();
+                }
+            });
+        };
+
+        document.getElementById('structure-manager-save-btn').onclick = () => {
+            saveActiveFileContent();
+            lsSet('projectTemplates', memory.templates);
+            openSettingsModal(settingsState);
+        };
+
+        document.getElementById('structure-manager-cancel-btn').onclick = () => {
+            openSettingsModal(settingsState);
+        };
+    };
+    
+    renderUI();
+    overlay.style.display = 'flex';
 }
