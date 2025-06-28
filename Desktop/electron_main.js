@@ -11,6 +11,34 @@ const contextMenu = require('electron-context-menu');
 
 const userHomeDir = os.homedir();
 
+// --- MODIFICATION START: File-based Storage ---
+const storageFilePath = path.join(app.getPath('userData'), 'app-storage.json');
+let storageCache = {};
+
+function loadStorage() {
+    try {
+        if (fs.existsSync(storageFilePath)) {
+            storageCache = JSON.parse(fs.readFileSync(storageFilePath, 'utf-8'));
+        } else {
+            storageCache = {};
+        }
+    } catch (e) {
+        console.error("Failed to load storage file, starting fresh.", e);
+        storageCache = {};
+    }
+}
+
+function saveStorage() {
+    try {
+        // Use writeFileSync for atomicity and to prevent data loss on quit.
+        fs.writeFileSync(storageFilePath, JSON.stringify(storageCache, null, 2));
+    } catch (e) {
+        console.error("Failed to save storage file.", e);
+    }
+}
+// --- MODIFICATION END ---
+
+
 // --- Discord Rich Presence Setup ---
 const clientId = '1326134917658185769';
 const rpc = new DiscordRPC.Client({ transport: 'ipc' });
@@ -219,6 +247,11 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+    // --- MODIFICATION START ---
+    // Load the persistent storage file into memory before creating the window.
+    loadStorage();
+    // --- MODIFICATION END ---
+
     createWindow();
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -280,6 +313,25 @@ app.on('will-quit', () => {
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
 });
+
+// --- MODIFICATION START: IPC Handlers for File-based Storage ---
+ipcMain.handle('storage:get-all', () => {
+    return storageCache;
+});
+ipcMain.handle('storage:set-item', (event, { key, value }) => {
+    storageCache[key] = value;
+    saveStorage();
+});
+ipcMain.handle('storage:remove-item', (event, key) => {
+    delete storageCache[key];
+    saveStorage();
+});
+ipcMain.handle('storage:clear', () => {
+    storageCache = {};
+    saveStorage();
+});
+// --- MODIFICATION END ---
+
 
 ipcMain.on('app:set-zoom-level', (event, level) => {
     const win = BrowserWindow.fromWebContents(event.sender);

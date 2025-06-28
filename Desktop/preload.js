@@ -3,6 +3,13 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
+    // --- MODIFICATION START: File-based storage functions ---
+    storageGetAll: () => ipcRenderer.invoke('storage:get-all'),
+    storageSetItem: (key, value) => ipcRenderer.invoke('storage:set-item', { key, value }),
+    storageRemoveItem: (key) => ipcRenderer.invoke('storage:remove-item', key),
+    storageClear: () => ipcRenderer.invoke('storage:clear'),
+    // --- MODIFICATION END ---
+
     // --- File System Functions ---
     getAllPaths: (dirPath) => ipcRenderer.invoke('fs:getAllPaths', dirPath),
     getFileContent: (filePath) => ipcRenderer.invoke('fs:getFileContent', filePath),

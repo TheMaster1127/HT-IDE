@@ -259,7 +259,7 @@ HT-IDE features Discord Rich Presence, which automatically shows your current st
 │   ├── 📜 2_config_and_utils.js   // Shared "toolbox" and configuration data.
 │   ├── 📜 2_config_and_utils_reset_htvm.js   // The function to reset the HTVM vars.
 │   ├── 📜 3_ui.js                 // Renders and updates the UI (file list, tabs).
-│   ├── 📜 4_filesystem.js         // Manages file system calls via the preload bridge (No longer uses localStorage!).
+│   ├── 📜 4_filesystem.js         // Manages file system calls via the preload bridge.
 │   ├── 📜 5_editor.js             // Controls the Ace Editor and file sessions (the "Brain").
 │   ├── 📜 6_htvm.js               // Integrates your HTVM engine with the IDE.
 │   ├── 📜 7_modals_1.js           // Logic for Core modals (Session, Settings).
