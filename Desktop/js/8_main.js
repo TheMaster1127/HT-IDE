@@ -280,6 +280,8 @@ function applyAndSetHotkeys() {
 
 
         if (e.key === 'F5') { e.preventDefault(); await handleRun(e); return; }
+        
+        // MODIFIED: The if/else if chain is critical for correct hotkey logic.
         if (checkMatch(activeHotkeys.runFile)) { e.preventDefault(); await handleRun(e); }
         else if (checkMatch(activeHotkeys.compileFile)) { e.preventDefault(); await runPropertyCommand('compile'); }
         else if (checkMatch(activeHotkeys.saveFile)) { e.preventDefault(); await saveFileContent(currentOpenFile, editor.getValue()); }
@@ -296,7 +298,7 @@ function applyAndSetHotkeys() {
         }
         else if (checkMatch(activeHotkeys.reopenTab)) { e.preventDefault(); await handleReopenTab(); }
         else if (checkMatch(activeHotkeys.toggleSidebar)) { e.preventDefault(); document.getElementById('main-toggle-sidebar-btn').click(); }
-        // --- FIX: This line restores the "New Project" hotkey functionality ---
+        // --- THIS IS THE CRITICAL FIX ---
         else if (checkMatch(activeHotkeys.newProject)) { e.preventDefault(); await openNewProjectModal(); }
     };
 

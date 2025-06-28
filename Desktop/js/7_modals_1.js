@@ -1086,8 +1086,8 @@ async function openNewProjectModal() {
     overlay.style.alignItems = 'center';
     overlay.style.justifyContent = 'center';
     
-    // MODIFIED: Ensure a default "Empty Project" template exists if none are found.
-    // This unblocks the user and makes the Ctrl+N hotkey always functional.
+    // --- THIS IS THE PERMANENT FIX ---
+    // This logic now ensures a default template always exists, unblocking the user.
     let templates = lsGet('projectTemplates') || [];
     if (templates.length === 0) {
         templates = [{ id: 'template_default_empty', name: 'Empty Project', files: [] }];
@@ -1182,19 +1182,17 @@ async function openNewProjectModal() {
     }, 50);
 }
 
-// --- COMPLETELY REWRITTEN FUNCTION TO FIX ALL BUGS ---
+// --- COMPLETELY REWRITTEN AND STABILIZED FUNCTION ---
 function openProjectManagerModal(settingsState) {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
 
-    // MODIFIED: This function now uses a stable, non-recursive rendering pattern.
     let memory = {
         templates: lsGet('projectTemplates') || [],
-        activeTemplate: null,
-        activeFile: null
+        activeTemplateId: null,
+        activeFilePath: null,
     };
     
-    // MODIFIED: Ensure a default "Empty Project" template always exists.
     if (memory.templates.length === 0) {
         memory.templates.push({ id: 'template_default_empty', name: 'Empty Project', files: [] });
     }
@@ -1202,11 +1200,16 @@ function openProjectManagerModal(settingsState) {
     let templateEditor;
 
     const saveActiveFileContent = () => {
-        if (!memory.activeTemplate || !memory.activeFile || !templateEditor) return;
-        memory.activeFile.content = templateEditor.getValue();
+        if (!memory.activeTemplateId || !memory.activeFilePath || !templateEditor) return;
+        const tpl = memory.templates.find(t => t.id === memory.activeTemplateId);
+        if (!tpl) return;
+        const file = tpl.files.find(f => f.path === memory.activeFilePath);
+        if (file) {
+            file.content = templateEditor.getValue();
+        }
     };
 
-    const renderUI = () => {
+    const render = () => {
         const modalHtml = `<div class="modal-box" style="width:90%; max-width:1000px; height: 80vh; display: flex; flex-direction: column;">
             <h3>Manage Project Structures</h3>
             <div style="display: flex; flex-grow: 1; gap: 15px; overflow: hidden; border-top: 1px solid #333; padding-top: 15px;">
@@ -1237,123 +1240,129 @@ function openProjectManagerModal(settingsState) {
                 <button id="structure-manager-save-btn" class="modal-btn-confirm">Save & Close</button>
             </div>
         </div>`;
-
-        // Only update innerHTML if it doesn't exist, to preserve the Ace editor instance
+        
         if (!document.getElementById('structure-manager-list')) {
             overlay.innerHTML = modalHtml;
+            templateEditor = ace.edit("structure-file-editor");
+            templateEditor.setTheme("ace/theme/monokai");
+            templateEditor.setOptions({ wrap: true });
+            attachButtonHandlers();
         }
-
+        
         const templateListEl = document.getElementById('structure-manager-list');
         templateListEl.innerHTML = '';
         memory.templates.forEach(t => {
             const li = document.createElement('li');
             li.textContent = t.name;
-            li.className = (memory.activeTemplate && t.id === memory.activeTemplate.id) ? 'active-file-list-item' : '';
-            li.onclick = () => {
-                saveActiveFileContent();
-                memory.activeTemplate = t;
-                memory.activeFile = null;
-                renderUI();
-            };
+            li.dataset.id = t.id;
+            li.className = (t.id === memory.activeTemplateId) ? 'active-file-list-item' : '';
             templateListEl.appendChild(li);
         });
-        
+
         const fileListEl = document.getElementById('structure-file-list');
         fileListEl.innerHTML = '';
-        if (!memory.activeTemplate) {
-            fileListEl.innerHTML = '<li class="no-sessions" style="text-align:center; padding: 10px;">Select a structure</li>';
-        } else {
-            memory.activeTemplate.files.sort((a,b) => a.path.localeCompare(b.path)).forEach(file => {
+        const activeTemplate = memory.templates.find(t => t.id === memory.activeTemplateId);
+
+        if (activeTemplate) {
+            activeTemplate.files.sort((a,b) => a.path.localeCompare(b.path)).forEach(file => {
                 const li = document.createElement('li');
                 li.textContent = file.path;
                 li.title = file.path;
-                li.className = (memory.activeFile && file.path === memory.activeFile.path) ? 'active-file-list-item' : '';
-                li.onclick = () => {
-                    saveActiveFileContent();
-                    memory.activeFile = file;
-                    renderUI();
-                };
+                li.dataset.path = file.path;
+                li.className = (file.path === memory.activeFilePath) ? 'active-file-list-item' : '';
                 fileListEl.appendChild(li);
             });
+        } else {
+            fileListEl.innerHTML = '<li class="no-sessions" style="text-align:center; padding: 10px;">Select a structure</li>';
         }
 
-        if (!templateEditor) {
-            templateEditor = ace.edit("structure-file-editor");
-            templateEditor.setTheme("ace/theme/monokai");
-            templateEditor.setOptions({ wrap: true });
-        }
-        
-        if (memory.activeFile) {
-            templateEditor.setValue(memory.activeFile.content || '', -1);
+        const activeFile = activeTemplate?.files.find(f => f.path === memory.activeFilePath);
+        if (activeFile) {
+            templateEditor.setValue(activeFile.content || '', -1);
             templateEditor.setReadOnly(false);
-            const mode = ace.require("ace/ext/modelist").getModeForPath(memory.activeFile.path).mode;
+            const mode = ace.require("ace/ext/modelist").getModeForPath(activeFile.path).mode;
             templateEditor.session.setMode(mode);
-            setTimeout(() => templateEditor.focus(), 0);
         } else {
             templateEditor.setValue('// Select a file to edit its content.', -1);
             templateEditor.setReadOnly(true);
             templateEditor.session.setMode("ace/mode/text");
         }
-        
-        setupButtonHandlers();
     };
 
-    const setupButtonHandlers = () => {
+    const attachButtonHandlers = () => {
+        document.getElementById('structure-manager-list').onclick = (e) => {
+            if (e.target.tagName === 'LI') {
+                saveActiveFileContent();
+                memory.activeTemplateId = e.target.dataset.id;
+                memory.activeFilePath = null;
+                render();
+            }
+        };
+
+        document.getElementById('structure-file-list').onclick = (e) => {
+            if (e.target.tagName === 'LI') {
+                saveActiveFileContent();
+                memory.activeFilePath = e.target.dataset.path;
+                render();
+            }
+        };
+
         document.getElementById('structure-add-btn').onclick = () => {
             openInputModal('New Structure', 'Enter name for new structure:', 'New Web Project', (name) => {
                 if (name && name.trim() && !memory.templates.some(t => t.name === name.trim())) {
                     memory.templates.push({ id: `template_${Date.now()}`, name: name.trim(), files: [] });
-                    renderUI();
+                    render();
                 }
             });
         };
-
+        
         document.getElementById('structure-rename-btn').onclick = () => {
-            if (!memory.activeTemplate) return;
-            openInputModal('Rename Structure', 'Enter new name:', memory.activeTemplate.name, (name) => {
-                if (name && name.trim() && !memory.templates.some(t => t.name === name.trim() && t.id !== memory.activeTemplate.id)) {
-                    memory.activeTemplate.name = name.trim();
-                    renderUI();
+            if (!memory.activeTemplateId) return;
+            const tpl = memory.templates.find(t => t.id === memory.activeTemplateId);
+            openInputModal('Rename Structure', 'Enter new name:', tpl.name, (name) => {
+                if (name && name.trim() && !memory.templates.some(t => t.name === name.trim() && t.id !== tpl.id)) {
+                    tpl.name = name.trim();
+                    render();
                 }
             });
         };
 
         document.getElementById('structure-delete-btn').onclick = () => {
-            if (!memory.activeTemplate) return;
-            // Prevent deletion of the last default template
-            if (memory.templates.length === 1 && memory.activeTemplate.id === 'template_default_empty') {
-                alert("Cannot delete the last default 'Empty Project' structure.");
-                return;
+            if (!memory.activeTemplateId) return;
+            if (memory.templates.length === 1 && memory.activeTemplateId === 'template_default_empty') {
+                return alert("Cannot delete the last default 'Empty Project' structure.");
             }
-            openConfirmModal('Delete Structure', `Delete "${memory.activeTemplate.name}"?`, (confirmed) => {
+            const tpl = memory.templates.find(t => t.id === memory.activeTemplateId);
+            openConfirmModal('Delete Structure', `Delete "${tpl.name}"?`, (confirmed) => {
                 if (confirmed) {
-                    memory.templates = memory.templates.filter(t => t.id !== memory.activeTemplate.id);
-                    memory.activeTemplate = null;
-                    memory.activeFile = null;
-                    renderUI();
+                    memory.templates = memory.templates.filter(t => t.id !== memory.activeTemplateId);
+                    memory.activeTemplateId = null;
+                    memory.activeFilePath = null;
+                    render();
                 }
             });
         };
 
         document.getElementById('structure-file-add-btn').onclick = () => {
-            if (!memory.activeTemplate) return;
-            openInputModal('Add File', 'Enter file path (e.g., "js/main.js" or "index.html"):', '', (path) => {
-                if (path && path.trim() && !memory.activeTemplate.files.some(f => f.path === path.trim())) {
-                    const newFile = { path: path.trim(), content: '' };
-                    memory.activeTemplate.files.push(newFile);
-                    memory.activeFile = newFile;
-                    renderUI();
+            const tpl = memory.templates.find(t => t.id === memory.activeTemplateId);
+            if (!tpl) return;
+            openInputModal('Add File', 'Enter file path (e.g., "js/main.js"):', '', (path) => {
+                if (path && path.trim() && !tpl.files.some(f => f.path === path.trim())) {
+                    tpl.files.push({ path: path.trim(), content: '' });
+                    memory.activeFilePath = path.trim();
+                    render();
                 }
             });
         };
 
         document.getElementById('structure-file-delete-btn').onclick = () => {
-            if (!memory.activeFile || !memory.activeTemplate) return;
-            openConfirmModal('Delete File', `Delete "${memory.activeFile.path}"?`, (confirmed) => {
+            const tpl = memory.templates.find(t => t.id === memory.activeTemplateId);
+            if (!tpl || !memory.activeFilePath) return;
+            openConfirmModal('Delete File', `Delete "${memory.activeFilePath}"?`, (confirmed) => {
                 if (confirmed) {
-                    memory.activeTemplate.files = memory.activeTemplate.files.filter(f => f.path !== memory.activeFile.path);
-                    memory.activeFile = null;
-                    renderUI();
+                    tpl.files = tpl.files.filter(f => f.path !== memory.activeFilePath);
+                    memory.activeFilePath = null;
+                    render();
                 }
             });
         };
@@ -1369,6 +1378,6 @@ function openProjectManagerModal(settingsState) {
         };
     };
     
-    renderUI();
+    render();
     overlay.style.display = 'flex';
 }
