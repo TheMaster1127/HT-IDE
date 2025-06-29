@@ -399,13 +399,16 @@ ipcMain.handle('dialog:showExitConfirm', async (event) => {
 
 ipcMain.on('watch-file', (event, filePath) => {
     if (fileWatchers.has(filePath)) return;
-
-    const watcher = fs.watch(filePath, (eventType) => {
-        if (eventType === 'change') {
-            event.sender.send('file-changed', filePath);
-        }
-    });
-    fileWatchers.set(filePath, watcher);
+    try {
+        const watcher = fs.watch(filePath, (eventType) => {
+            if (eventType === 'change') {
+                event.sender.send('file-changed', filePath);
+            }
+        });
+        fileWatchers.set(filePath, watcher);
+    } catch (error) {
+        console.error(`Failed to watch ${filePath}:`, error.message);
+    }
 });
 
 ipcMain.on('unwatch-file', (event, filePath) => {

@@ -55,6 +55,15 @@ async function deleteItem(pathToDelete, isFile) {
     openConfirmModal("Confirm Deletion", message, async (confirmed) => {
         if (!confirmed) return;
 
+        // --- FIX: Stop watching all files inside a folder before deleting it ---
+        if (!isFile) {
+            openTabs.forEach(tabPath => {
+                if (tabPath.startsWith(pathToDelete + (pathToDelete.includes('\\') ? '\\' : '/'))) {
+                    window.electronAPI.unwatchFile(tabPath);
+                }
+            });
+        }
+
         const { success, error } = await window.electronAPI.deleteItem(pathToDelete, isFile);
         if (!success) {
             return alert(`Error deleting item: ${error}`);
@@ -74,6 +83,8 @@ async function deleteItem(pathToDelete, isFile) {
             fileSessions.delete(tabPath);
             lsRemove('state_' + tabPath);
             if (isFile) recentlyClosedTabs.push(tabPath);
+            // Redundant unwatch call, but safe to keep.
+            window.electronAPI.unwatchFile(tabPath);
         }
 
         if (isActiveFileDeleted) {
