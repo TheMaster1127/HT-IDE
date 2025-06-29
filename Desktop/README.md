@@ -87,7 +87,7 @@ Create entire project structures from predefined templates.
 1. Press the **`Ctrl + N`** hotkey.
 2. The "Create New Project" modal will appear.
 3. Choose from a list of project structures:
-   - You can create, edit, and manage these templates via **Settings** > **Manage Project Structures**.
+   - You can create, edit, and manage these templates via **Settings** > **Projects** > **Manage Project Structures**.
 4. New projects are created in the directory defined under **Settings** > **Projects** > **Default Project Directory**.
 5. After creation, the IDE will ask if you want to close current tabs and open the new project immediately.
 
