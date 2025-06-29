@@ -83,11 +83,13 @@ The IDE features a robust file explorer in the left-hand sidebar.
 
 #### New Project Creation
 Create entire project structures from predefined templates.
-    1. Press the **`Ctrl + N`** hotkey.
-    2. The "Create New Project" modal will appear.
-- **Templates:** Choose from a list of project structures (e.g., "Empty Project", "New HTVM Project"). You can create, edit, and manage these templates yourself via **Settings** > **Manage Project Structures**.
-- **Project Location:** New projects are created inside the directory specified in **Settings** > **Projects** > **Default Project Directory**.
-- **Open Project:** After creation, the IDE will ask if you want to close your current tabs and open the new project immediately.
+
+1. Press the **`Ctrl + N`** hotkey.
+2. The "Create New Project" modal will appear.
+3. Choose from a list of project structures:
+   - You can create, edit, and manage these templates via **Settings** > **Manage Project Structures**.
+4. New projects are created in the directory defined under **Settings** > **Projects** > **Default Project Directory**.
+5. After creation, the IDE will ask if you want to close current tabs and open the new project immediately.
 
 #### Session Management
 -   **Save Session:** Click **Save Session** to save the currently open set of tabs under a specific name. This is perfect for quickly restoring your work context.
