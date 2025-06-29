@@ -38,21 +38,61 @@ async function createTerminalInstanceForSession(session) {
     session.xterm.open(session.pane);
     session.fitAddon.fit();
 
-    // --- FULLY RESTORED onKey HANDLER ---
+    // --- MODIFIED onKey HANDLER WITH COPY/PASTE SUPPORT ---
     session.xterm.onKey(async ({ key, domEvent }) => {
         const term = session.xterm;
         const printable = !domEvent.altKey && !domEvent.ctrlKey && !domEvent.metaKey;
 
-        if (domEvent.ctrlKey && domEvent.key.toLowerCase() === 'c') {
-            if (session.isExecuting) {
-                window.electronAPI.terminalKillProcess(session.id);
-            } else {
-                term.write('^C');
-                writePrompt(session);
-            }
-            return;
-        }
+        // --- Redraw line function, defined once at the top for universal access ---
+        const redrawLine = () => {
+            const shortCwd = session.cwd.length > 30 ? `...${session.cwd.slice(-27)}` : session.cwd;
+            const promptText = `\x1b[1;32m${shortCwd}\x1b[0m $ `;
+            const promptVisibleLength = shortCwd.length + 3;
+            term.write('\r\x1b[K');
+            term.write(promptText + session.currentLine);
+            term.write('\r\x1b[' + (promptVisibleLength + session.cursorPos) + 'C');
+        };
 
+        // --- NEW: Copy/Paste/Interrupt logic ---
+        if (domEvent.ctrlKey) {
+            // --- COPY / INTERRUPT (Ctrl+C) ---
+            if (domEvent.key.toLowerCase() === 'c') {
+                if (term.hasSelection()) {
+                    domEvent.preventDefault();
+                    navigator.clipboard.writeText(term.getSelection());
+                } else {
+                    if (session.isExecuting) {
+                        window.electronAPI.terminalKillProcess(session.id);
+                    } else {
+                        term.write('^C');
+                        writePrompt(session);
+                    }
+                }
+                return;
+            }
+            // --- PASTE (Ctrl+V) ---
+            if (domEvent.key.toLowerCase() === 'v') {
+                domEvent.preventDefault();
+                const textToPaste = await navigator.clipboard.readText();
+                if (textToPaste) {
+                    if (session.isExecuting) {
+                        // This handles pasting into a running process that is waiting for input
+                        session.processInputLine += textToPaste;
+                        term.write(textToPaste);
+                    } else {
+                        // This handles pasting into the normal command prompt
+                        session.currentLine = session.currentLine.substring(0, session.cursorPos) + textToPaste + session.currentLine.substring(session.cursorPos);
+                        session.cursorPos += textToPaste.length;
+                        redrawLine();
+                    }
+                }
+                return;
+            }
+        }
+        // --- END: New logic ---
+
+
+        // This block handles input for a process that is already running (e.g., waiting for a password)
         if (session.isExecuting) {
             if (domEvent.key === 'Enter') {
                 window.electronAPI.terminalWriteToStdin(session.id, session.processInputLine + '\n');
@@ -70,16 +110,7 @@ async function createTerminalInstanceForSession(session) {
             return;
         }
 
-        const shortCwd = session.cwd.length > 30 ? `...${session.cwd.slice(-27)}` : session.cwd;
-        const promptText = `\x1b[1;32m${shortCwd}\x1b[0m $ `;
-        const promptVisibleLength = shortCwd.length + 3;
-
-        const redrawLine = () => {
-            term.write('\r\x1b[K');
-            term.write(promptText + session.currentLine);
-            term.write('\r\x1b[' + (promptVisibleLength + session.cursorPos) + 'C');
-        };
-
+        // This block handles the interactive command prompt when no process is running
         switch (domEvent.key) {
             case 'Enter':
                 if (session.currentLine.trim()) {
