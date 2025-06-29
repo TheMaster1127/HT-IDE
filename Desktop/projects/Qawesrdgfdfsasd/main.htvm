@@ -1,7 +1,0 @@
-
-Button0:
-MsgBox, hi
-subout
-
-main
-gui button x50% y50%

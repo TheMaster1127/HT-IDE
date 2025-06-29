@@ -87,7 +87,7 @@ Create entire project structures from predefined templates.
     1. Click the **Settings** button in the sidebar footer.
     2. While the Settings modal is open, press the **`Ctrl + N`** hotkey.
     3. The "Create New Project" modal will appear.
-- **Templates:** Choose from a list of project structures (e.g., "Empty Project", "New Web Project"). You can create, edit, and manage these templates yourself via **Settings** > **Manage Project Structures**.
+- **Templates:** Choose from a list of project structures (e.g., "Empty Project", "New HTVM Project"). You can create, edit, and manage these templates yourself via **Settings** > **Manage Project Structures**.
 - **Project Location:** New projects are created inside the directory specified in **Settings** > **Projects** > **Default Project Directory**.
 - **Open Project:** After creation, the IDE will ask if you want to close your current tabs and open the new project immediately.
 
