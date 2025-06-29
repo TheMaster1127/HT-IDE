@@ -38,22 +38,40 @@ async function createTerminalInstanceForSession(session) {
     session.xterm.open(session.pane);
     session.fitAddon.fit();
 
-    // --- MODIFIED onKey HANDLER WITH COPY/PASTE SUPPORT ---
+    // --- NEW: Shared redraw function for the command prompt ---
+    const redrawLine = () => {
+        const shortCwd = session.cwd.length > 30 ? `...${session.cwd.slice(-27)}` : session.cwd;
+        const promptText = `\x1b[1;32m${shortCwd}\x1b[0m $ `;
+        const promptVisibleLength = shortCwd.length + 3;
+        session.xterm.write('\r\x1b[K'); // Clear the current line
+        session.xterm.write(promptText + session.currentLine); // Redraw prompt and input
+        session.xterm.write('\r\x1b[' + (promptVisibleLength + session.cursorPos) + 'C'); // Move cursor to correct position
+    };
+    
+    // --- NEW: Context Menu (Right-Click) Handler for Pasting ---
+    session.pane.addEventListener('contextmenu', async (e) => {
+        e.preventDefault(); // Prevent the default browser right-click menu
+        const textToPaste = await navigator.clipboard.readText();
+        if (textToPaste) {
+            if (session.isExecuting) {
+                // Paste into a running process that is waiting for input
+                session.processInputLine += textToPaste;
+                session.xterm.write(textToPaste);
+            } else {
+                // Paste into the normal command prompt
+                session.currentLine = session.currentLine.substring(0, session.cursorPos) + textToPaste + session.currentLine.substring(session.cursorPos);
+                session.cursorPos += textToPaste.length;
+                redrawLine();
+            }
+        }
+    });
+
+    // --- onKey HANDLER WITH COPY/PASTE SUPPORT ---
     session.xterm.onKey(async ({ key, domEvent }) => {
         const term = session.xterm;
         const printable = !domEvent.altKey && !domEvent.ctrlKey && !domEvent.metaKey;
 
-        // --- Redraw line function, defined once at the top for universal access ---
-        const redrawLine = () => {
-            const shortCwd = session.cwd.length > 30 ? `...${session.cwd.slice(-27)}` : session.cwd;
-            const promptText = `\x1b[1;32m${shortCwd}\x1b[0m $ `;
-            const promptVisibleLength = shortCwd.length + 3;
-            term.write('\r\x1b[K');
-            term.write(promptText + session.currentLine);
-            term.write('\r\x1b[' + (promptVisibleLength + session.cursorPos) + 'C');
-        };
-
-        // --- NEW: Copy/Paste/Interrupt logic ---
+        // --- Copy/Paste/Interrupt logic ---
         if (domEvent.ctrlKey) {
             // --- COPY / INTERRUPT (Ctrl+C) ---
             if (domEvent.key.toLowerCase() === 'c') {
@@ -89,7 +107,7 @@ async function createTerminalInstanceForSession(session) {
                 return;
             }
         }
-        // --- END: New logic ---
+        // --- END: Copy/Paste logic ---
 
 
         // This block handles input for a process that is already running (e.g., waiting for a password)

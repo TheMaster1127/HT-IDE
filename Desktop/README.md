@@ -140,11 +140,14 @@ The editor is powered by the mature and performant **Ace Editor**.
 -   **Real-time CWD Sync:** When you navigate through folders in the sidebar, the terminal's prompt automatically updates to reflect your new location.
 -   **Command History:** Use the `Up` and `Down` arrow keys to cycle through previous commands.
 -   **Path Autocompletion:** Press `Tab` to autocomplete file and directory paths, just like a native shell.
--   **Process Management:** Press `Ctrl+C` to terminate a running command.
+-   **Copy & Paste:**
+    - `Ctrl+C`: Copies the selected text in the terminal. If no text is selected, it sends an interrupt signal to the running command.
+    - `Ctrl+V` or `Right-Click`: Pastes the content of your clipboard into the terminal.
+-   **Process Management:** Press `Ctrl+C` (with no text selected) to terminate a running command.
 
 ### 4. HTVM Transpiler Integration
 
-HT-IDE is built around its unique **HTVM (High-level Transpiled Virtual Machine)** language.
+HT-IDE is built around its unique **HTVM** engine.
 
 #### On-the-fly Transpilation
 -   When you run a `.htvm` file, the IDE uses the core `HTVM.js` engine to transpile it to your selected target language.
@@ -186,7 +189,6 @@ The behavior of the **▶ Run** button (`Ctrl+Enter` or `F5`) is context-aware:
 -   Instantly launch a local HTTP server by clicking the **▶ Start Server** button in the sidebar.
 -   The server uses the current project directory as its root.
 -   All requests (`GET`, `POST`, etc.) are automatically logged to the terminal that was active when the server was started, showing status codes and response times.
--   The IDE automatically finds an available port, starting from the one specified in Settings (default: 8080).
 -   Click the **⏹ Stop Server** button to terminate it.
 
 ### 7. Extensive Customization
