@@ -1,33 +1,43 @@
 //---Modal Dialog Functions---
 
+// MODIFIED: This function is now non-destructive and supports modal stacking.
 function openConfirmModal(title, message, callback) {
     const overlay = document.getElementById('modal-overlay');
-    overlay.style.pointerEvents = 'auto';
-    overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
-    overlay.style.alignItems = 'center';
-    overlay.style.justifyContent = 'center';
     
-    overlay.innerHTML = `<div class="modal-box">
+    // Create a new element for this specific modal instance
+    const modalInstance = document.createElement('div');
+    modalInstance.className = 'modal-box';
+    modalInstance.innerHTML = `
         <h3>${title}</h3>
         <p style="margin: 5px 0 15px 0; white-space: pre-wrap;">${message}</p>
         <div class="modal-buttons">
-            <button id="confirm-modal-cancel-btn" class="modal-btn-cancel">Cancel</button>
-            <button id="confirm-modal-confirm-btn" class="modal-btn-confirm">OK</button>
+            <button class="modal-btn-cancel">Cancel</button>
+            <button class="modal-btn-confirm">OK</button>
         </div>
-    </div>`;
+    `;
 
-    const confirmBtn = document.getElementById('confirm-modal-confirm-btn');
-    const cancelBtn = document.getElementById('confirm-modal-cancel-btn');
+    const confirmBtn = modalInstance.querySelector('.modal-btn-confirm');
+    const cancelBtn = modalInstance.querySelector('.modal-btn-cancel');
 
     const closeModal = (result) => {
-        overlay.style.display = 'none';
-        overlay.innerHTML = '';
+        // Remove only this modal's element from the overlay
+        if (overlay.contains(modalInstance)) {
+            overlay.removeChild(modalInstance);
+        }
+        
+        // If no other modals are open, hide the overlay completely
+        if (overlay.childElementCount === 0) {
+            overlay.style.display = 'none';
+        }
+
         if (callback) callback(result);
     };
 
     confirmBtn.onclick = () => closeModal(true);
     cancelBtn.onclick = () => closeModal(false);
     
+    // Append the new modal and show the overlay
+    overlay.appendChild(modalInstance);
     overlay.style.display = 'flex';
 }
 
@@ -76,6 +86,7 @@ function openSessionModal(mode) {
 
     document.getElementById('modal-cancel-btn').onclick = () => {
         overlay.style.display = 'none';
+        overlay.innerHTML = ''; // Clear the content
     };
 
     if (mode === 'save') {
@@ -91,6 +102,7 @@ function openSessionModal(mode) {
             lsSet('session_list', sessions);
             lsSet(`session_data_${name}`, openTabs);
             overlay.style.display = 'none';
+            overlay.innerHTML = '';
             getActiveTerminalSession()?.xterm.writeln(`\x1b[32mSession '${name}' saved.\x1b[0m`);
         };
     } else { // 'load' mode
@@ -118,36 +130,40 @@ function openSessionModal(mode) {
                 }
             }
             overlay.style.display = 'none';
+            overlay.innerHTML = '';
             getActiveTerminalSession()?.xterm.writeln(`\x1b[32mSession '${name}' loaded.\x1b[0m`);
         });
     }
     overlay.style.display = 'flex';
 }
 
+// MODIFIED: This function is now non-destructive and supports modal stacking.
 function openInputModal(title, label, defaultValue, callback) {
     const overlay = document.getElementById('modal-overlay');
-    overlay.style.pointerEvents = 'auto';
-    overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
-    overlay.style.alignItems = 'center';
-    overlay.style.justifyContent = 'center';
-    
-    overlay.innerHTML = `<div class="modal-box">
+
+    const modalInstance = document.createElement('div');
+    modalInstance.className = 'modal-box';
+    modalInstance.innerHTML = `
         <h3>${title}</h3>
         <p style="margin: 5px 0 10px 0;">${label}</p>
-        <input type="text" id="input-modal-field" value="${defaultValue}" style="width:calc(100% - 22px);padding:10px;margin-bottom:15px;background-color:#252525;border:1px solid #333;color:#e0e0e0;">
+        <input type="text" class="input-modal-field" value="${defaultValue}" style="width:calc(100% - 22px);padding:10px;margin-bottom:15px;background-color:#252525;border:1px solid #333;color:#e0e0e0;">
         <div class="modal-buttons">
-            <button id="input-modal-cancel-btn" class="modal-btn-cancel">Cancel</button>
-            <button id="input-modal-confirm-btn" class="modal-btn-confirm">OK</button>
+            <button class="modal-btn-cancel">Cancel</button>
+            <button class="modal-btn-confirm">OK</button>
         </div>
-    </div>`;
+    `;
 
-    const inputField = document.getElementById('input-modal-field');
-    const confirmBtn = document.getElementById('input-modal-confirm-btn');
-    const cancelBtn = document.getElementById('input-modal-cancel-btn');
+    const inputField = modalInstance.querySelector('.input-modal-field');
+    const confirmBtn = modalInstance.querySelector('.modal-btn-confirm');
+    const cancelBtn = modalInstance.querySelector('.modal-btn-cancel');
 
     const closeModal = (value) => {
-        overlay.style.display = 'none';
-        overlay.innerHTML = '';
+        if(overlay.contains(modalInstance)) {
+             overlay.removeChild(modalInstance);
+        }
+        if (overlay.childElementCount === 0) {
+            overlay.style.display = 'none';
+        }
         if (callback) callback(value);
     };
 
@@ -163,6 +179,7 @@ function openInputModal(title, label, defaultValue, callback) {
         if (e.key === 'Escape') cancelBtn.onclick();
     };
     
+    overlay.appendChild(modalInstance);
     overlay.style.display = 'flex';
     setTimeout(() => {
         inputField.focus();
@@ -218,10 +235,18 @@ function captureSettingsState() {
     }
 }
 
+// MODIFIED: This function now manages its own DOM element and cleans up properly.
 async function openSettingsModal(initialState = null) {
     const overlay = document.getElementById('modal-overlay');
     overlay.style.pointerEvents = 'auto';
-    overlay.innerHTML = `<div class="modal-box" style="max-width: 850px;">
+
+    // Create a self-contained modal element
+    const modalInstance = document.createElement('div');
+    modalInstance.className = 'modal-box';
+    modalInstance.style.maxWidth = '850px';
+
+    // Populate the self-contained element
+    modalInstance.innerHTML = `
         <h3>Settings + Help</h3>
         <div id="settings-columns-container" style="display: flex; flex-wrap: wrap; gap: 20px; border-top: 1px solid #333; padding-top: 15px; padding-bottom: 15px;">
             <div class="settings-column" style="flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 240px;">
@@ -292,86 +317,97 @@ async function openSettingsModal(initialState = null) {
             </div>
         </div>
         <div class="modal-buttons" style="margin-top: 20px;"><button id="modal-ok-btn" style="padding: 10px 24px; font-size: 1.1em; font-weight: bold;">OK</button></div>
-    </div>`;
+    `;
     
+    // Define how to close *this specific* modal
+    const closeModal = () => {
+        if (overlay.contains(modalInstance)) {
+            overlay.removeChild(modalInstance);
+        }
+        if (overlay.childElementCount === 0) {
+            overlay.style.display = 'none';
+        }
+    };
+
     const initialSyntaxEnabled = lsGet('syntaxHighlightingEnabled') !== false;
     const initialHighlightOperators = lsGet('highlightSymbolOperators') !== false;
 
-    document.getElementById('font-size-input').value = editor.getFontSize();
+    modalInstance.querySelector('#font-size-input').value = editor.getFontSize();
     const currentMode = lsGet('keybindingMode') || 'normal';
-    document.querySelector(`input[name="keybinding-mode"][value="${currentMode}"]`).checked = true;
-    document.getElementById('auto-pair-checkbox').checked = editor.getBehavioursEnabled();
-    document.getElementById('print-margin-checkbox').checked = editor.getShowPrintMargin();
-    document.getElementById('print-margin-column-input').value = editor.getOption('printMargin');
-    document.getElementById('syntax-highlighting-master-checkbox').checked = initialSyntaxEnabled;
-    document.getElementById('symbol-operator-highlighting-checkbox').checked = initialHighlightOperators;
-    document.getElementById('clear-terminal-on-run-checkbox').checked = lsGet('clearTerminalOnRun') === true;
-    document.getElementById('autocomplete-master-checkbox').checked = lsGet('autocomplete-master') !== false;
-    document.getElementById('autocomplete-keywords-checkbox').checked = lsGet('autocomplete-keywords') !== false;
-    document.getElementById('autocomplete-local-checkbox').checked = lsGet('autocomplete-local') !== false;
-    document.getElementById('server-port-input').value = lsGet('serverPort') || 8080;
-    document.getElementById('server-file-input').value = lsGet('serverDefaultFile') || 'index.html';
+    modalInstance.querySelector(`input[name="keybinding-mode"][value="${currentMode}"]`).checked = true;
+    modalInstance.querySelector('#auto-pair-checkbox').checked = editor.getBehavioursEnabled();
+    modalInstance.querySelector('#print-margin-checkbox').checked = editor.getShowPrintMargin();
+    modalInstance.querySelector('#print-margin-column-input').value = editor.getOption('printMargin');
+    modalInstance.querySelector('#syntax-highlighting-master-checkbox').checked = initialSyntaxEnabled;
+    modalInstance.querySelector('#symbol-operator-highlighting-checkbox').checked = initialHighlightOperators;
+    modalInstance.querySelector('#clear-terminal-on-run-checkbox').checked = lsGet('clearTerminalOnRun') === true;
+    modalInstance.querySelector('#autocomplete-master-checkbox').checked = lsGet('autocomplete-master') !== false;
+    modalInstance.querySelector('#autocomplete-keywords-checkbox').checked = lsGet('autocomplete-keywords') !== false;
+    modalInstance.querySelector('#autocomplete-local-checkbox').checked = lsGet('autocomplete-local') !== false;
+    modalInstance.querySelector('#server-port-input').value = lsGet('serverPort') || 8080;
+    modalInstance.querySelector('#server-file-input').value = lsGet('serverDefaultFile') || 'index.html';
     
     const appPath = await window.electronAPI.getAppPath();
     const separator = appPath.includes('\\') ? '\\' : '/';
     const defaultProjectsPath = `${appPath}${separator}projects`;
-    document.getElementById('project-dir-input').value = lsGet('projectDirectory') || defaultProjectsPath;
+    modalInstance.querySelector('#project-dir-input').value = lsGet('projectDirectory') || defaultProjectsPath;
 
     if (initialState) {
-        if (initialState.fontSize !== undefined) document.getElementById('font-size-input').value = initialState.fontSize;
-        if (initialState.keybindingMode) document.querySelector(`input[name="keybinding-mode"][value="${initialState.keybindingMode}"]`).checked = true;
-        if (initialState.autoPair !== undefined) document.getElementById('auto-pair-checkbox').checked = initialState.autoPair;
-        if (initialState.showPrintMargin !== undefined) document.getElementById('print-margin-checkbox').checked = initialState.showPrintMargin;
-        if (initialState.printMarginColumn !== undefined) document.getElementById('print-margin-column-input').value = initialState.printMarginColumn;
-        if (initialState.syntaxHighlightingEnabled !== undefined) document.getElementById('syntax-highlighting-master-checkbox').checked = initialState.syntaxHighlightingEnabled;
-        if (initialState.highlightSymbolOperators !== undefined) document.getElementById('symbol-operator-highlighting-checkbox').checked = initialState.highlightSymbolOperators;
-        if (initialState.clearTerminalOnRun !== undefined) document.getElementById('clear-terminal-on-run-checkbox').checked = initialState.clearTerminalOnRun;
-        if (initialState.autocompleteMaster !== undefined) document.getElementById('autocomplete-master-checkbox').checked = initialState.autocompleteMaster;
-        if (initialState.autocompleteKeywords !== undefined) document.getElementById('autocomplete-keywords-checkbox').checked = initialState.autocompleteKeywords;
-        if (initialState.autocompleteLocal !== undefined) document.getElementById('autocomplete-local-checkbox').checked = initialState.autocompleteLocal;
-        if (initialState.serverPort !== undefined) document.getElementById('server-port-input').value = initialState.serverPort;
-        if (initialState.serverDefaultFile !== undefined) document.getElementById('server-file-input').value = initialState.serverDefaultFile;
-        if (initialState.projectDirectory !== undefined) document.getElementById('project-dir-input').value = initialState.projectDirectory;
+        if (initialState.fontSize !== undefined) modalInstance.querySelector('#font-size-input').value = initialState.fontSize;
+        if (initialState.keybindingMode) modalInstance.querySelector(`input[name="keybinding-mode"][value="${initialState.keybindingMode}"]`).checked = true;
+        if (initialState.autoPair !== undefined) modalInstance.querySelector('#auto-pair-checkbox').checked = initialState.autoPair;
+        if (initialState.showPrintMargin !== undefined) modalInstance.querySelector('#print-margin-checkbox').checked = initialState.showPrintMargin;
+        if (initialState.printMarginColumn !== undefined) modalInstance.querySelector('#print-margin-column-input').value = initialState.printMarginColumn;
+        if (initialState.syntaxHighlightingEnabled !== undefined) modalInstance.querySelector('#syntax-highlighting-master-checkbox').checked = initialState.syntaxHighlightingEnabled;
+        if (initialState.highlightSymbolOperators !== undefined) modalInstance.querySelector('#symbol-operator-highlighting-checkbox').checked = initialState.highlightSymbolOperators;
+        if (initialState.clearTerminalOnRun !== undefined) modalInstance.querySelector('#clear-terminal-on-run-checkbox').checked = initialState.clearTerminalOnRun;
+        if (initialState.autocompleteMaster !== undefined) modalInstance.querySelector('#autocomplete-master-checkbox').checked = initialState.autocompleteMaster;
+        if (initialState.autocompleteKeywords !== undefined) modalInstance.querySelector('#autocomplete-keywords-checkbox').checked = initialState.autocompleteKeywords;
+        if (initialState.autocompleteLocal !== undefined) modalInstance.querySelector('#autocomplete-local-checkbox').checked = initialState.autocompleteLocal;
+        if (initialState.serverPort !== undefined) modalInstance.querySelector('#server-port-input').value = initialState.serverPort;
+        if (initialState.serverDefaultFile !== undefined) modalInstance.querySelector('#server-file-input').value = initialState.serverDefaultFile;
+        if (initialState.projectDirectory !== undefined) modalInstance.querySelector('#project-dir-input').value = initialState.projectDirectory;
     }
     
-    document.getElementById('select-project-dir-btn').onclick = async () => {
+    modalInstance.querySelector('#select-project-dir-btn').onclick = async () => {
         const result = await window.electronAPI.openDirectory();
         if (result && result.length > 0) {
-            document.getElementById('project-dir-input').value = result[0];
+            modalInstance.querySelector('#project-dir-input').value = result[0];
         }
     };
-    document.getElementById('manage-project-templates-btn').onclick = () => {
+    modalInstance.querySelector('#manage-project-templates-btn').onclick = () => {
         const currentState = captureSettingsState();
+        closeModal();
         openProjectManagerModal(currentState);
     };
 
-    document.getElementById('customize-colors-btn').onclick = () => openSyntaxColorModal(captureSettingsState());
-    document.getElementById('customize-theme-btn').onclick = () => openThemeEditorModal(captureSettingsState());
-    document.getElementById('customize-hotkeys-btn').onclick = () => openHotkeyEditorModal(captureSettingsState());
+    modalInstance.querySelector('#customize-colors-btn').onclick = () => { closeModal(); openSyntaxColorModal(captureSettingsState()); };
+    modalInstance.querySelector('#customize-theme-btn').onclick = () => { closeModal(); openThemeEditorModal(captureSettingsState()); };
+    modalInstance.querySelector('#customize-hotkeys-btn').onclick = () => { closeModal(); openHotkeyEditorModal(captureSettingsState()); };
 
-    document.getElementById('modal-ok-btn').onclick = () => {
-        editor.setFontSize(parseInt(document.getElementById('font-size-input').value, 10)); lsSet('fontSize', editor.getFontSize());
-        const keybinding = document.querySelector('input[name="keybinding-mode"]:checked').value;
+    modalInstance.querySelector('#modal-ok-btn').onclick = () => {
+        editor.setFontSize(parseInt(modalInstance.querySelector('#font-size-input').value, 10)); lsSet('fontSize', editor.getFontSize());
+        const keybinding = modalInstance.querySelector('input[name="keybinding-mode"]:checked').value;
         lsSet('keybindingMode', keybinding);
         editor.setKeyboardHandler(keybinding === 'normal' ? null : `ace/keyboard/${keybinding}`);
-        editor.setBehavioursEnabled(document.getElementById('auto-pair-checkbox').checked); lsSet('autoPair', editor.getBehavioursEnabled());
-        editor.setShowPrintMargin(document.getElementById('print-margin-checkbox').checked); lsSet('showPrintMargin', editor.getShowPrintMargin());
-        editor.setOption('printMargin', parseInt(document.getElementById('print-margin-column-input').value, 10) || 80); lsSet('printMarginColumn', editor.getOption('printMargin'));
-        lsSet('clearTerminalOnRun', document.getElementById('clear-terminal-on-run-checkbox').checked);
-        lsSet('autocomplete-master', document.getElementById('autocomplete-master-checkbox').checked);
-        lsSet('autocomplete-keywords', document.getElementById('autocomplete-keywords-checkbox').checked);
-        lsSet('autocomplete-local', document.getElementById('autocomplete-local-checkbox').checked);
-        lsSet('serverPort', parseInt(document.getElementById('server-port-input').value, 10) || 8080);
-        lsSet('serverDefaultFile', document.getElementById('server-file-input').value.trim() || 'index.html');
-        lsSet('projectDirectory', document.getElementById('project-dir-input').value);
+        editor.setBehavioursEnabled(modalInstance.querySelector('#auto-pair-checkbox').checked); lsSet('autoPair', editor.getBehavioursEnabled());
+        editor.setShowPrintMargin(modalInstance.querySelector('#print-margin-checkbox').checked); lsSet('showPrintMargin', editor.getShowPrintMargin());
+        editor.setOption('printMargin', parseInt(modalInstance.querySelector('#print-margin-column-input').value, 10) || 80); lsSet('printMarginColumn', editor.getOption('printMargin'));
+        lsSet('clearTerminalOnRun', modalInstance.querySelector('#clear-terminal-on-run-checkbox').checked);
+        lsSet('autocomplete-master', modalInstance.querySelector('#autocomplete-master-checkbox').checked);
+        lsSet('autocomplete-keywords', modalInstance.querySelector('#autocomplete-keywords-checkbox').checked);
+        lsSet('autocomplete-local', modalInstance.querySelector('#autocomplete-local-checkbox').checked);
+        lsSet('serverPort', parseInt(modalInstance.querySelector('#server-port-input').value, 10) || 8080);
+        lsSet('serverDefaultFile', modalInstance.querySelector('#server-file-input').value.trim() || 'index.html');
+        lsSet('projectDirectory', modalInstance.querySelector('#project-dir-input').value);
 
-        const newSyntaxEnabled = document.getElementById('syntax-highlighting-master-checkbox').checked;
-        const newHighlightOperators = document.getElementById('symbol-operator-highlighting-checkbox').checked;
+        const newSyntaxEnabled = modalInstance.querySelector('#syntax-highlighting-master-checkbox').checked;
+        const newHighlightOperators = modalInstance.querySelector('#symbol-operator-highlighting-checkbox').checked;
         const needsReload = (initialSyntaxEnabled !== newSyntaxEnabled) || (initialHighlightOperators !== newHighlightOperators);
 
         if (needsReload) {
             const msg = "Some syntax highlighting settings have changed. A reload is required for them to take full effect. Your work will be saved.\n\nReload now?";
-            openConfirmModal("Reload Required", msg, (confirmed) => {
+            openConfirmModal("Reload Required", (confirmed) => {
                 if(confirmed) {
                     lsSet('syntaxHighlightingEnabled', newSyntaxEnabled);
                     lsSet('highlightSymbolOperators', newHighlightOperators);
@@ -380,8 +416,11 @@ async function openSettingsModal(initialState = null) {
                 }
             });
         }
-        overlay.style.display = 'none';
+        closeModal();
     };
+    
+    // Add the new instance to the DOM and show it
+    overlay.appendChild(modalInstance);
     overlay.style.display = 'flex';
 }
 
@@ -485,13 +524,14 @@ function openHotkeyEditorModal(settingsState) {
         };
     });
 
-    document.getElementById('modal-hotkeys-cancel-btn').onclick = () => openSettingsModal(settingsState);
+    document.getElementById('modal-hotkeys-cancel-btn').onclick = () => { overlay.innerHTML = ''; openSettingsModal(settingsState); };
     
     document.getElementById('modal-hotkeys-reset-all-btn').onclick = () => {
         openConfirmModal("Reset All Hotkeys", "Are you sure you want to reset all hotkeys to their defaults?", (confirmed) => {
             if (confirmed) {
                 lsRemove('customHotkeys');
                 applyAndSetHotkeys();
+                overlay.innerHTML = '';
                 openHotkeyEditorModal(settingsState);
             }
         });
@@ -504,6 +544,7 @@ function openHotkeyEditorModal(settingsState) {
         });
         lsSet('customHotkeys', newCustomHotkeys);
         applyAndSetHotkeys();
+        overlay.innerHTML = '';
         openSettingsModal(settingsState);
     };
 }
@@ -561,7 +602,7 @@ function openSyntaxColorModal(settingsState) {
     listContainer.addEventListener('mouseout', e => { if (e.target.classList.contains('info-icon')) { infoTooltip.style.display = 'none'; } });
     listContainer.addEventListener('mousemove', e => { if (infoTooltip.style.display === 'block') { const t = infoTooltip, w = window, m=15; let l = e.clientX + m, p = e.clientY + m; if (l + t.offsetWidth > w.innerWidth) l = e.clientX - t.offsetWidth - m; if(l<0)l=0; if(p<0)p=0; t.style.left = l + 'px'; t.style.top = p + 'px'; } });
 
-    document.getElementById('modal-colors-cancel-btn').onclick = () => openSettingsModal(settingsState);
+    document.getElementById('modal-colors-cancel-btn').onclick = () => { overlay.innerHTML = ''; openSettingsModal(settingsState); };
     
     document.getElementById('modal-colors-reset-btn').onclick = () => {
         openConfirmModal("Reset Colors", "Are you sure you want to reset all syntax colors and styles to their defaults?", (confirmed) => {
@@ -580,7 +621,7 @@ function openSyntaxColorModal(settingsState) {
             lsSet(`color_${key}`, document.getElementById(key).value);
             if (syntaxColorConfig[key].isText) lsSet(`boldness_${key}`, document.getElementById(`bold_${key}`).checked);
         }
-        overlay.style.display = 'none';
+        overlay.innerHTML = '';
         
         openConfirmModal("Reload Required", "Syntax colors and styles have been saved. A reload is required. Your work will be saved.\n\nReload now?", (confirmed) => {
              if (confirmed) {
@@ -704,6 +745,7 @@ function openThemeEditorModal(settingsState) {
         for (const key in originalValues) {
             root.style.setProperty(key, originalValues[key]);
         }
+        overlay.innerHTML = '';
         openSettingsModal(settingsState);
     };
     
@@ -716,7 +758,8 @@ function openThemeEditorModal(settingsState) {
                         lsRemove(`theme_bold_${key}`);
                     }
                 }
-                applyUiThemeSettings(); 
+                applyUiThemeSettings();
+                overlay.innerHTML = '';
                 openThemeEditorModal(settingsState); 
             }
         });
@@ -725,6 +768,7 @@ function openThemeEditorModal(settingsState) {
     document.getElementById('modal-theme-save-btn').onclick = () => {
         container.querySelectorAll('input[data-key]').forEach(input => lsSet(`theme_${input.dataset.key}`, input.value));
         container.querySelectorAll('input[data-bold-key]').forEach(input => lsSet(`theme_bold_${input.dataset.boldKey}`, input.checked));
+        overlay.innerHTML = '';
         openSettingsModal(settingsState);
     };
 }
@@ -844,7 +888,7 @@ function openExportImportModal() {
 
     document.getElementById('export-import-close-btn').onclick = () => { overlay.style.display = 'none'; };
     
-    document.getElementById('manage-workspaces-btn').onclick = openWorkspaceManagerModal;
+    document.getElementById('manage-workspaces-btn').onclick = () => { overlay.innerHTML = ''; openWorkspaceManagerModal(); };
 
     document.getElementById('export-all-btn').onclick = () => {
         openInputModal('Export All Data', 'Enter a filename for the full backup:', 'ht-ide-backup-all.json', (filename) => {
@@ -1035,7 +1079,7 @@ function openWorkspaceManagerModal() {
             </div>
         </div>`;
 
-    document.getElementById('workspace-manager-back-btn').onclick = openExportImportModal;
+    document.getElementById('workspace-manager-back-btn').onclick = () => { overlay.innerHTML = ''; openExportImportModal(); };
     document.getElementById('workspace-add-new-btn').onclick = () => {
         const allIds = getAllWorkspaceIds().map(Number);
         const newId = allIds.length > 0 ? Math.max(...allIds) + 1 : 0;
@@ -1079,24 +1123,23 @@ function updateHotkeyTitles() {
     }
 }
 
+// MODIFIED: This function is now non-destructive and properly cleans up its UI.
 async function openNewProjectModal() {
     const overlay = document.getElementById('modal-overlay');
-    overlay.style.pointerEvents = 'auto';
-    overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
-    overlay.style.alignItems = 'center';
-    overlay.style.justifyContent = 'center';
     
-    // --- THIS IS THE PERMANENT FIX ---
-    // This logic now ensures a default template always exists, unblocking the user.
+    // --- Create a self-contained modal element ---
+    const modalInstance = document.createElement('div');
+    modalInstance.className = 'modal-box';
+    
     let templates = lsGet('projectTemplates') || [];
     if (templates.length === 0) {
         templates = [{ id: 'template_default_empty', name: 'Empty Project', files: [] }];
         lsSet('projectTemplates', templates);
     }
-    
     const templateOptions = templates.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
 
-    overlay.innerHTML = `<div class="modal-box">
+    // --- Populate the self-contained element ---
+    modalInstance.innerHTML = `
         <h3>Create New Project</h3>
         <label for="new-project-name-input" style="display: block; margin: 15px 0 5px 0;">Project Name:</label>
         <input type="text" id="new-project-name-input" placeholder="my-awesome-project" style="width:calc(100% - 22px);padding:10px;margin-bottom:15px;background-color:#252525;border:1px solid #333;color:#e0e0e0;">
@@ -1107,20 +1150,32 @@ async function openNewProjectModal() {
         </select>
 
         <div class="modal-buttons">
-            <button id="new-project-cancel-btn" class="modal-btn-cancel">Cancel</button>
-            <button id="new-project-create-btn" class="modal-btn-confirm">Create Project</button>
+            <button class="modal-btn-cancel">Cancel</button>
+            <button class="modal-btn-confirm">Create Project</button>
         </div>
-    </div>`;
+    `;
 
-    document.getElementById('new-project-cancel-btn').onclick = () => overlay.style.display = 'none';
+    // --- Define how to close *this specific* modal ---
+    const closeModal = () => {
+        if(overlay.contains(modalInstance)) {
+            overlay.removeChild(modalInstance);
+        }
+        // Only hide the overlay if it becomes empty
+        if(overlay.childElementCount === 0) {
+            overlay.style.display = 'none';
+        }
+    };
 
-    document.getElementById('new-project-create-btn').onclick = async () => {
-        const projectName = document.getElementById('new-project-name-input').value.trim();
+    // --- Attach event listeners to the buttons inside our instance ---
+    modalInstance.querySelector('.modal-btn-cancel').onclick = closeModal;
+
+    modalInstance.querySelector('.modal-btn-confirm').onclick = async () => {
+        const projectName = modalInstance.querySelector('#new-project-name-input').value.trim();
         if (!projectName.match(/^[a-zA-Z0-9._-]+$/)) {
             return alert("Project name can only contain letters, numbers, dots, hyphens, and underscores.");
         }
         
-        const templateId = document.getElementById('project-template-select').value;
+        const templateId = modalInstance.querySelector('#project-template-select').value;
         const template = (lsGet('projectTemplates') || []).find(t => t.id === templateId);
         if (!template) return alert("Selected structure not found.");
         
@@ -1148,7 +1203,8 @@ async function openNewProjectModal() {
             filesToOpen.push(filePath);
         }
         
-        overlay.style.display = 'none';
+        // --- This is the key change: close THIS modal before opening the next one ---
+        closeModal();
 
         openConfirmModal("Project Created", `Project "${projectName}" was created successfully.\n\nDo you want to open it now? All current tabs will be closed.`, async (confirmed) => {
             if (confirmed) {
@@ -1176,9 +1232,12 @@ async function openNewProjectModal() {
             }
         });
     };
-    
+
+    // --- Show the modal ---
+    overlay.appendChild(modalInstance);
+    overlay.style.display = 'flex';
     setTimeout(() => {
-        document.getElementById('new-project-name-input')?.focus();
+        modalInstance.querySelector('#new-project-name-input')?.focus();
     }, 50);
 }
 
@@ -1241,7 +1300,7 @@ function openProjectManagerModal(settingsState) {
             </div>
         </div>`;
         
-        if (!document.getElementById('structure-manager-list')) {
+        if (!overlay.querySelector('#structure-manager-list')) {
             overlay.innerHTML = modalHtml;
             templateEditor = ace.edit("structure-file-editor");
             templateEditor.setTheme("ace/theme/monokai");
@@ -1329,8 +1388,9 @@ function openProjectManagerModal(settingsState) {
 
         document.getElementById('structure-delete-btn').onclick = () => {
             if (!memory.activeTemplateId) return;
-            if (memory.templates.length === 1 && memory.activeTemplateId === 'template_default_empty') {
-                return alert("Cannot delete the last default 'Empty Project' structure.");
+            // CORRECTED LOGIC: Prevent deleting the last structure.
+            if (memory.templates.length <= 1) {
+                return alert("Cannot delete the last remaining project structure.");
             }
             const tpl = memory.templates.find(t => t.id === memory.activeTemplateId);
             openConfirmModal('Delete Structure', `Delete "${tpl.name}"?`, (confirmed) => {
@@ -1370,10 +1430,12 @@ function openProjectManagerModal(settingsState) {
         document.getElementById('structure-manager-save-btn').onclick = () => {
             saveActiveFileContent();
             lsSet('projectTemplates', memory.templates);
+            overlay.innerHTML = ''; // Clear the project manager
             openSettingsModal(settingsState);
         };
-
+        
         document.getElementById('structure-manager-cancel-btn').onclick = () => {
+            overlay.innerHTML = ''; // Clear the project manager
             openSettingsModal(settingsState);
         };
     };
