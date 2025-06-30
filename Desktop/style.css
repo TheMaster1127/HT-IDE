@@ -190,7 +190,6 @@ body.preload * { transition: none !important; }
 #file-list li:hover { background-color: var(--sidebar-file-hover-bg); }
 #file-list li button { margin-left: auto; visibility: hidden; }
 #file-list li:hover button { visibility: visible; }
-/* MODIFIED: Combined selectors to apply active style to modal lists as well */
 #file-list li.active-file-list-item,
 .modal-list li.active-file-list-item {
     background-color: var(--sidebar-file-active-bg);
@@ -206,7 +205,6 @@ body.preload * { transition: none !important; }
 #load-instructions-btn { background-color: var(--btn-manage-instr-bg); color: var(--btn-manage-instr-text); font-weight: var(--btn-manage-instr-text-bold); }
 #htvm-to-htvm-btn { background-color: var(--btn-htvm-to-htvm-bg); color: var(--btn-htvm-to-htvm-text); font-weight: var(--btn-htvm-to-htvm-text-bold); }
 #export-import-btn { background-color: var(--btn-export-import-bg); color: var(--btn-export-import-text); font-weight: var(--btn-export-import-text-bold); }
-/* MODIFIED: Added HTTP Server button styles */
 #http-server-btn {
     grid-column: 1 / -1;
     background-color: var(--btn-http-server-start-bg);
@@ -283,7 +281,7 @@ body.preload * { transition: none !important; }
 #terminal-panes { position: relative; width: 100%; flex-grow: 1; }
 .terminal-pane { position: absolute; top: 0; left: 0; width: 100%; height: 100%; visibility: hidden; }
 .terminal-pane.active { visibility: visible; }
-#terminal { width: 100%; height: 100%; } /* Kept for backwards compatibility if needed, but panes are preferred */
+#terminal { width: 100%; height: 100%; }
 #output-panel.visible ~ #output-panel-resizer { display: block; }
 #output-panel-resizer { width: var(--resizer-size); background-color: var(--resizer-bg); cursor: ew-resize; flex-shrink: 0; display: none; }
 #output-panel { width: 0; background-color: #fff; display: flex; flex-direction: column; transition: width 0.3s ease; overflow: hidden; }
@@ -292,8 +290,10 @@ body.preload * { transition: none !important; }
 #close-output-btn { background: none; border: none; color: var(--output-header-text); font-size: 1.2em; cursor: pointer; }
 #download-html-btn { background-color: var(--download-html-btn-bg); color: var(--download-html-btn-text); font-weight: var(--download-html-btn-text-bold); border: none; padding: 4px 10px; border-radius: 3px; cursor: pointer; font-size: 0.9em; margin-right: 8px; }
 #html-output { flex-grow: 1; border: none; }
+
+/* --- MODAL STYLES (CORRECTED) --- */
 #modal-overlay {
-    display: none;
+    display: none; /* Hidden by default */
     position: fixed;
     top: 0;
     left: 0;
@@ -301,9 +301,14 @@ body.preload * { transition: none !important; }
     height: 100%;
     background-color: rgba(0,0,0,0.7);
     z-index: 1000;
-    overflow-y: auto; /* Allow scrolling for tall modals */
+    overflow-y: auto; 
     padding: 20px;
     box-sizing: border-box;
+}
+/* This class will be toggled by JS to show the overlay and enable grid layout */
+#modal-overlay.visible {
+    display: grid;
+    place-items: center;
 }
 .modal-box {
     background-color: var(--modal-bg);
@@ -313,14 +318,27 @@ body.preload * { transition: none !important; }
     max-width: 500px;
     box-shadow: 0 5px 15px rgba(0,0,0,0.5);
     border: 1px solid var(--modal-border-color);
-    margin: 20px auto; /* Center horizontally, add top/bottom margin */
     position: relative;
-    z-index: 1001;
+    z-index: 1001; /* Ensure it's above overlay background */
+    /* THIS IS THE KEY: Layer all modals in the same grid cell to stack them */
+    grid-area: 1 / 1; 
+    /* Remove margin now that grid handles centering */
+    margin: 0; 
 }
 .modal-box h3 { margin-top:0; color: var(--modal-header-text); font-weight: var(--modal-header-text-bold); }
 .modal-list { list-style: none; padding: 0; margin: 0 0 15px 0; max-height: 300px; overflow-y: auto; border: 1px solid var(--modal-border-color); border-radius: 3px; }
 .modal-list li { padding: 8px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
 .modal-list li:not(.no-sessions):hover { background-color: var(--btn-new-file-bg); }
+.modal-list li > button {
+    background: none;
+    border: none;
+    color: #aaa;
+    cursor: pointer;
+    visibility: hidden;
+}
+.modal-list li:hover > button {
+    visibility: visible;
+}
 .modal-buttons { text-align: right; margin-top: 15px; }
 .modal-buttons button { margin-left: 8px; }
 .modal-btn-confirm { background-color: var(--modal-confirm-btn-bg); color: var(--modal-confirm-btn-text); font-weight: var(--modal-confirm-btn-text-bold); border: none; padding: 8px 16px; border-radius: 3px; cursor: pointer; }

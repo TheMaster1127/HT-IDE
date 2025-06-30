@@ -16,7 +16,7 @@ function promptForInitialInstructionSet() {
 
     const closeModal = () => {
         if (overlay.contains(modalInstance)) overlay.removeChild(modalInstance);
-        if (overlay.childElementCount === 0) overlay.style.display = 'none';
+        if (overlay.childElementCount === 0) overlay.classList.remove('visible');
     };
 
     modalInstance.querySelector('#initial-instr-cancel-btn').onclick = () => {
@@ -61,9 +61,8 @@ function promptForInitialInstructionSet() {
         fileInput.click();
     };
     
-    overlay.innerHTML = '';
     overlay.appendChild(modalInstance);
-    overlay.style.display = 'flex';
+    overlay.classList.add('visible');
 }
 
 
@@ -86,7 +85,7 @@ function openInstructionManagerModal() {
     
     const closeModal = () => {
         if(overlay.contains(modalInstance)) overlay.removeChild(modalInstance);
-        if(overlay.childElementCount === 0) overlay.style.display = 'none';
+        if(overlay.childElementCount === 0) overlay.classList.remove('visible');
     };
 
     const populateList = () => {
@@ -221,10 +220,9 @@ function openInstructionManagerModal() {
 
     modalInstance.querySelector('#instr-cancel-btn').onclick = closeModal;
     
-    overlay.innerHTML = '';
     overlay.appendChild(modalInstance);
     populateList();
-    overlay.style.display = 'flex';
+    overlay.classList.add('visible');
 }
 
 function openInstructionEditorModal(setId, setName) {
@@ -419,11 +417,10 @@ function openInstructionEditorModal(setId, setName) {
     modalInstance.querySelector('#instr-editor-save-btn').onclick = () => closeModal(true);
     modalInstance.querySelector('#instr-editor-cancel-btn').onclick = () => openConfirmModal("Cancel?", "All unsaved changes will be lost.", c => c && closeModal(false));
     
-    overlay.innerHTML = '';
     overlay.appendChild(modalInstance);
     populateList();
     if (instructions.length > 0) displayFunc(instructions[0].id);
-    overlay.style.display = 'flex';
+    overlay.classList.add('visible');
 }
 
 function openHtvmToHtvmModal() {
@@ -443,7 +440,7 @@ function openHtvmToHtvmModal() {
     
     const closeModal = () => {
         if(overlay.contains(modalInstance)) overlay.removeChild(modalInstance);
-        if(overlay.childElementCount === 0) overlay.style.display = 'none';
+        if(overlay.childElementCount === 0) overlay.classList.remove('visible');
     };
 
     const listEl = modalInstance.querySelector('#htvm-converter-list');
@@ -510,7 +507,6 @@ function openHtvmToHtvmModal() {
 
     modalInstance.querySelector('.modal-btn-cancel').onclick = closeModal;
     
-    overlay.innerHTML = '';
     overlay.appendChild(modalInstance);
-    overlay.style.display = 'flex';
+    overlay.classList.add('visible');
 }

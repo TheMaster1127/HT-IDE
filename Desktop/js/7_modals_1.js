@@ -1,10 +1,8 @@
 //---Modal Dialog Functions---
 
-// MODIFIED: This function is now non-destructive and supports modal stacking.
 function openConfirmModal(title, message, callback) {
     const overlay = document.getElementById('modal-overlay');
     
-    // Create a new element for this specific modal instance
     const modalInstance = document.createElement('div');
     modalInstance.className = 'modal-box';
     modalInstance.innerHTML = `
@@ -20,25 +18,20 @@ function openConfirmModal(title, message, callback) {
     const cancelBtn = modalInstance.querySelector('.modal-btn-cancel');
 
     const closeModal = (result) => {
-        // Remove only this modal's element from the overlay
         if (overlay.contains(modalInstance)) {
             overlay.removeChild(modalInstance);
         }
-        
-        // If no other modals are open, hide the overlay completely
         if (overlay.childElementCount === 0) {
-            overlay.style.display = 'none';
+            overlay.classList.remove('visible');
         }
-
         if (callback) callback(result);
     };
 
     confirmBtn.onclick = () => closeModal(true);
     cancelBtn.onclick = () => closeModal(false);
     
-    // Append the new modal and show the overlay
     overlay.appendChild(modalInstance);
-    overlay.style.display = 'block';
+    overlay.classList.add('visible');
 }
 
 
@@ -56,7 +49,7 @@ function openSessionModal(mode) {
             overlay.removeChild(modalInstance);
         }
         if (overlay.childElementCount === 0) {
-            overlay.style.display = 'none';
+            overlay.classList.remove('visible');
         }
     };
 
@@ -74,7 +67,6 @@ function openSessionModal(mode) {
             nameSpan.textContent = name;
             const delBtn = document.createElement('button');
             delBtn.textContent = '🗑️';
-            delBtn.style.cssText = 'background:none;border:none;color:#aaa;';
             delBtn.onclick = (e) => {
                 e.stopPropagation();
                 openConfirmModal('Delete Session', `Are you sure you want to delete the session "${name}"?`, (confirmed) => {
@@ -138,10 +130,9 @@ function openSessionModal(mode) {
         });
     }
     overlay.appendChild(modalInstance);
-    overlay.style.display = 'block';
+    overlay.classList.add('visible');
 }
 
-// MODIFIED: This function is now non-destructive and supports modal stacking.
 function openInputModal(title, label, defaultValue, callback) {
     const overlay = document.getElementById('modal-overlay');
 
@@ -166,7 +157,7 @@ function openInputModal(title, label, defaultValue, callback) {
              overlay.removeChild(modalInstance);
         }
         if (overlay.childElementCount === 0) {
-            overlay.style.display = 'none';
+            overlay.classList.remove('visible');
         }
         if (callback) callback(value);
     };
@@ -184,7 +175,7 @@ function openInputModal(title, label, defaultValue, callback) {
     };
     
     overlay.appendChild(modalInstance);
-    overlay.style.display = 'block';
+    overlay.classList.add('visible');
     setTimeout(() => {
         inputField.focus();
         inputField.select();
@@ -239,16 +230,13 @@ function captureSettingsState() {
     }
 }
 
-// MODIFIED: This function now manages its own DOM element and cleans up properly.
 async function openSettingsModal(initialState = null) {
     const overlay = document.getElementById('modal-overlay');
     
-    // Create a self-contained modal element
     const modalInstance = document.createElement('div');
     modalInstance.className = 'modal-box';
     modalInstance.style.maxWidth = '850px';
 
-    // Populate the self-contained element
     modalInstance.innerHTML = `
         <h3>Settings + Help</h3>
         <div id="settings-columns-container" style="display: flex; flex-wrap: wrap; gap: 20px; border-top: 1px solid #333; padding-top: 15px; padding-bottom: 15px;">
@@ -322,13 +310,12 @@ async function openSettingsModal(initialState = null) {
         <div class="modal-buttons" style="margin-top: 20px;"><button id="modal-ok-btn" style="padding: 10px 24px; font-size: 1.1em; font-weight: bold;">OK</button></div>
     `;
     
-    // Define how to close *this specific* modal
     const closeModal = () => {
         if (overlay.contains(modalInstance)) {
             overlay.removeChild(modalInstance);
         }
         if (overlay.childElementCount === 0) {
-            overlay.style.display = 'none';
+            overlay.classList.remove('visible');
         }
     };
 
@@ -427,7 +414,7 @@ async function openSettingsModal(initialState = null) {
     };
     
     overlay.appendChild(modalInstance);
-    overlay.style.display = 'block';
+    overlay.classList.add('visible');
 }
 
 function formatHotkey(config) {
@@ -546,7 +533,7 @@ function openHotkeyEditorModal(settingsState) {
     };
     
     overlay.appendChild(modalInstance);
-    overlay.style.display = 'block';
+    overlay.classList.add('visible');
 }
 
 
@@ -638,7 +625,7 @@ function openSyntaxColorModal(settingsState) {
     };
     
     overlay.appendChild(modalInstance);
-    overlay.style.display = 'block';
+    overlay.classList.add('visible');
 }
 
 function openThemeEditorModal(settingsState) {
@@ -785,7 +772,7 @@ function openThemeEditorModal(settingsState) {
     };
     
     overlay.appendChild(modalInstance);
-    overlay.style.display = 'block';
+    overlay.classList.add('visible');
 }
 
 function openExportImportModal() {
@@ -897,7 +884,7 @@ function openExportImportModal() {
 
     const closeModal = () => {
         if(overlay.contains(modalInstance)) overlay.removeChild(modalInstance);
-        if(overlay.childElementCount === 0) overlay.style.display = 'none';
+        if(overlay.childElementCount === 0) overlay.classList.remove('visible');
     };
 
     modalInstance.querySelector('.modal-btn-cancel').onclick = closeModal;
@@ -987,7 +974,7 @@ function openExportImportModal() {
     };
 
     overlay.appendChild(modalInstance);
-    overlay.style.display = 'block';
+    overlay.classList.add('visible');
 }
 
 function openWorkspaceManagerModal() {
@@ -1054,7 +1041,7 @@ function openWorkspaceManagerModal() {
     `;
     const closeModal = () => {
         if(overlay.contains(modalInstance)) overlay.removeChild(modalInstance);
-        if(overlay.childElementCount === 0) overlay.style.display = 'none';
+        if(overlay.childElementCount === 0) overlay.classList.remove('visible');
     };
 
     modalInstance.querySelector('#workspace-manager-back-btn').onclick = () => { closeModal(); openExportImportModal(); };
@@ -1069,7 +1056,7 @@ function openWorkspaceManagerModal() {
     };
     
     overlay.appendChild(modalInstance);
-    overlay.style.display = 'block';
+    overlay.classList.add('visible');
     populateList();
 }
 
@@ -1101,11 +1088,9 @@ function updateHotkeyTitles() {
     }
 }
 
-// MODIFIED: This function is now non-destructive and properly cleans up its UI.
 async function openNewProjectModal() {
     const overlay = document.getElementById('modal-overlay');
     
-    // --- Create a self-contained modal element ---
     const modalInstance = document.createElement('div');
     modalInstance.className = 'modal-box';
     
@@ -1116,7 +1101,6 @@ async function openNewProjectModal() {
     }
     const templateOptions = templates.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
 
-    // --- Populate the self-contained element ---
     modalInstance.innerHTML = `
         <h3>Create New Project</h3>
         <label for="new-project-name-input" style="display: block; margin: 15px 0 5px 0;">Project Name:</label>
@@ -1133,18 +1117,15 @@ async function openNewProjectModal() {
         </div>
     `;
 
-    // --- Define how to close *this specific* modal ---
     const closeModal = () => {
         if(overlay.contains(modalInstance)) {
             overlay.removeChild(modalInstance);
         }
-        // Only hide the overlay if it becomes empty
         if(overlay.childElementCount === 0) {
-            overlay.style.display = 'none';
+            overlay.classList.remove('visible');
         }
     };
 
-    // --- Attach event listeners to the buttons inside our instance ---
     modalInstance.querySelector('.modal-btn-cancel').onclick = closeModal;
 
     modalInstance.querySelector('.modal-btn-confirm').onclick = async () => {
@@ -1181,7 +1162,6 @@ async function openNewProjectModal() {
             filesToOpen.push(filePath);
         }
         
-        // --- This is the key change: close THIS modal before opening the next one ---
         closeModal();
 
         openConfirmModal("Project Created", `Project "${projectName}" was created successfully.\n\nDo you want to open it now? All current tabs will be closed.`, async (confirmed) => {
@@ -1212,13 +1192,12 @@ async function openNewProjectModal() {
     };
 
     overlay.appendChild(modalInstance);
-    overlay.style.display = 'block';
+    overlay.classList.add('visible');
     setTimeout(() => {
         modalInstance.querySelector('#new-project-name-input')?.focus();
     }, 50);
 }
 
-// --- COMPLETELY REWRITTEN AND STABILIZED FUNCTION ---
 function openProjectManagerModal(settingsState) {
     const overlay = document.getElementById('modal-overlay');
 
@@ -1418,5 +1397,5 @@ function openProjectManagerModal(settingsState) {
     
     overlay.appendChild(modalInstance);
     render();
-    overlay.style.display = 'block';
+    overlay.classList.add('visible');
 }
