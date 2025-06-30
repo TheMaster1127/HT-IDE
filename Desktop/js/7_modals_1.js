@@ -38,20 +38,28 @@ function openConfirmModal(title, message, callback) {
     
     // Append the new modal and show the overlay
     overlay.appendChild(modalInstance);
-    overlay.style.display = 'flex';
+    overlay.style.display = 'block';
 }
 
 
 function openSessionModal(mode) {
     const overlay = document.getElementById('modal-overlay');
-    overlay.style.pointerEvents = 'auto';
-    overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
-    overlay.style.alignItems = 'center';
-    overlay.style.justifyContent = 'center';
-
-    overlay.innerHTML = `<div class="modal-box"><h3 id="modal-title"></h3><div id="modal-save-content" style="display:none;"><p>Enter/overwrite session name:</p><input type="text" id="modal-input" style="width:calc(100% - 22px);padding:10px;margin-bottom:15px;background-color:#252525;border:1px solid #333;color:#e0e0e0;"></div><ul class="modal-list" id="modal-list"></ul><div class="modal-buttons"><button id="modal-cancel-btn">Cancel</button><button id="modal-confirm-btn" style="margin-left:8px;">Save</button></div></div>`;
     
-    const list = document.getElementById('modal-list');
+    const modalInstance = document.createElement('div');
+    modalInstance.className = 'modal-box';
+    modalInstance.innerHTML = `<h3 id="modal-title"></h3><div id="modal-save-content" style="display:none;"><p>Enter/overwrite session name:</p><input type="text" id="modal-input" style="width:calc(100% - 22px);padding:10px;margin-bottom:15px;background-color:#252525;border:1px solid #333;color:#e0e0e0;"></div><ul class="modal-list" id="modal-list"></ul><div class="modal-buttons"><button class="modal-btn-cancel">Cancel</button><button class="modal-btn-confirm" style="margin-left:8px;">Save</button></div>`;
+
+    const list = modalInstance.querySelector('#modal-list');
+    
+    const closeModal = () => {
+        if (overlay.contains(modalInstance)) {
+            overlay.removeChild(modalInstance);
+        }
+        if (overlay.childElementCount === 0) {
+            overlay.style.display = 'none';
+        }
+    };
+
     const populate = (cb) => {
         list.innerHTML = '';
         const sessions = lsGet('session_list') || [];
@@ -84,31 +92,27 @@ function openSessionModal(mode) {
         });
     };
 
-    document.getElementById('modal-cancel-btn').onclick = () => {
-        overlay.style.display = 'none';
-        overlay.innerHTML = ''; // Clear the content
-    };
+    modalInstance.querySelector('.modal-btn-cancel').onclick = closeModal;
 
     if (mode === 'save') {
-        document.getElementById('modal-title').textContent = 'Save Session';
-        document.getElementById('modal-save-content').style.display = 'block';
-        document.getElementById('modal-confirm-btn').textContent = 'Save';
-        populate(name => document.getElementById('modal-input').value = name);
-        document.getElementById('modal-confirm-btn').onclick = () => {
-            const name = document.getElementById('modal-input').value.trim();
+        modalInstance.querySelector('#modal-title').textContent = 'Save Session';
+        modalInstance.querySelector('#modal-save-content').style.display = 'block';
+        modalInstance.querySelector('.modal-btn-confirm').textContent = 'Save';
+        populate(name => modalInstance.querySelector('#modal-input').value = name);
+        modalInstance.querySelector('.modal-btn-confirm').onclick = () => {
+            const name = modalInstance.querySelector('#modal-input').value.trim();
             if (!name) return alert('Name cannot be empty.');
             let sessions = lsGet('session_list') || [];
             if (!sessions.includes(name)) sessions.push(name);
             lsSet('session_list', sessions);
             lsSet(`session_data_${name}`, openTabs);
-            overlay.style.display = 'none';
-            overlay.innerHTML = '';
+            closeModal();
             getActiveTerminalSession()?.xterm.writeln(`\x1b[32mSession '${name}' saved.\x1b[0m`);
         };
     } else { // 'load' mode
-        document.getElementById('modal-title').textContent = 'Load Session';
-        document.getElementById('modal-save-content').style.display = 'none';
-        document.getElementById('modal-confirm-btn').style.display = 'none';
+        modalInstance.querySelector('#modal-title').textContent = 'Load Session';
+        modalInstance.querySelector('#modal-save-content').style.display = 'none';
+        modalInstance.querySelector('.modal-btn-confirm').style.display = 'none';
         
         populate(async (name) => {
             const tabsToLoad = lsGet(`session_data_${name}`);
@@ -129,12 +133,12 @@ function openSessionModal(mode) {
                     await renderAll();
                 }
             }
-            overlay.style.display = 'none';
-            overlay.innerHTML = '';
+            closeModal();
             getActiveTerminalSession()?.xterm.writeln(`\x1b[32mSession '${name}' loaded.\x1b[0m`);
         });
     }
-    overlay.style.display = 'flex';
+    overlay.appendChild(modalInstance);
+    overlay.style.display = 'block';
 }
 
 // MODIFIED: This function is now non-destructive and supports modal stacking.
@@ -180,7 +184,7 @@ function openInputModal(title, label, defaultValue, callback) {
     };
     
     overlay.appendChild(modalInstance);
-    overlay.style.display = 'flex';
+    overlay.style.display = 'block';
     setTimeout(() => {
         inputField.focus();
         inputField.select();
@@ -238,8 +242,7 @@ function captureSettingsState() {
 // MODIFIED: This function now manages its own DOM element and cleans up properly.
 async function openSettingsModal(initialState = null) {
     const overlay = document.getElementById('modal-overlay');
-    overlay.style.pointerEvents = 'auto';
-
+    
     // Create a self-contained modal element
     const modalInstance = document.createElement('div');
     modalInstance.className = 'modal-box';
@@ -405,23 +408,26 @@ async function openSettingsModal(initialState = null) {
         const newHighlightOperators = modalInstance.querySelector('#symbol-operator-highlighting-checkbox').checked;
         const needsReload = (initialSyntaxEnabled !== newSyntaxEnabled) || (initialHighlightOperators !== newHighlightOperators);
 
+        lsSet('syntaxHighlightingEnabled', newSyntaxEnabled);
+        lsSet('highlightSymbolOperators', newHighlightOperators);
+        
         if (needsReload) {
             const msg = "Some syntax highlighting settings have changed. A reload is required for them to take full effect. Your work will be saved.\n\nReload now?";
-            openConfirmModal("Reload Required", (confirmed) => {
+            openConfirmModal("Reload Required", msg, (confirmed) => {
                 if(confirmed) {
-                    lsSet('syntaxHighlightingEnabled', newSyntaxEnabled);
-                    lsSet('highlightSymbolOperators', newHighlightOperators);
                     window.dispatchEvent(new Event('beforeunload'));
                     window.electronAPI.reloadApp();
+                } else {
+                    closeModal();
                 }
             });
+        } else {
+            closeModal();
         }
-        closeModal();
     };
     
-    // Add the new instance to the DOM and show it
     overlay.appendChild(modalInstance);
-    overlay.style.display = 'flex';
+    overlay.style.display = 'block';
 }
 
 function formatHotkey(config) {
@@ -440,7 +446,6 @@ function formatHotkey(config) {
 
 function openHotkeyEditorModal(settingsState) {
     const overlay = document.getElementById('modal-overlay');
-    overlay.style.pointerEvents = 'auto';
     const customHotkeys = lsGet('customHotkeys') || {};
 
     let itemsHtml = '';
@@ -457,7 +462,10 @@ function openHotkeyEditorModal(settingsState) {
         `;
     }
 
-    overlay.innerHTML = `<div class="modal-box" style="width:90%; max-width:600px;">
+    const modalInstance = document.createElement('div');
+    modalInstance.className = 'modal-box';
+    modalInstance.style.maxWidth = '600px';
+    modalInstance.innerHTML = `
         <h3>Customize Hotkeys</h3>
         <p style="font-size:0.9em; color:#ccc; margin-top:0;">Click on an input box and press your desired key combination. F5 for Run is a non-customizable secondary hotkey.</p>
         <div id="hotkey-picker-list" style="max-height: 60vh; overflow-y: auto; padding: 10px; border-top: 1px solid #333; border-bottom: 1px solid #333; margin: 15px 0;">
@@ -468,9 +476,14 @@ function openHotkeyEditorModal(settingsState) {
             <button id="modal-hotkeys-cancel-btn" class="modal-btn-cancel">Cancel</button>
             <button id="modal-hotkeys-save-btn" class="modal-btn-confirm">Save & Apply</button>
         </div>
-    </div>`;
+    `;
 
-    const container = document.getElementById('hotkey-picker-list');
+    const closeModal = () => {
+        if (overlay.contains(modalInstance)) overlay.removeChild(modalInstance);
+        openSettingsModal(settingsState);
+    };
+
+    const container = modalInstance.querySelector('#hotkey-picker-list');
     
     container.querySelectorAll('.hotkey-input').forEach(input => {
         const id = input.dataset.id;
@@ -480,31 +493,16 @@ function openHotkeyEditorModal(settingsState) {
             e.preventDefault();
             e.stopPropagation();
             
-            const newConfig = {
-                key: e.key,
-                ctrl: e.ctrlKey || e.metaKey,
-                shift: e.shiftKey,
-                alt: e.altKey
-            };
-
+            const newConfig = { key: e.key, ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey, alt: e.altKey };
             const currentId = e.target.dataset.id;
             const allInputs = container.querySelectorAll('.hotkey-input');
             
             for (const otherInput of allInputs) {
                 const otherId = otherInput.dataset.id;
                 if (currentId === otherId) continue;
-
                 const otherConfig = JSON.parse(otherInput.dataset.config);
-                const isDuplicate = (
-                    otherConfig.key.toLowerCase() === newConfig.key.toLowerCase() &&
-                    otherConfig.ctrl === newConfig.ctrl &&
-                    otherConfig.shift === newConfig.shift &&
-                    otherConfig.alt === newConfig.alt
-                );
-
-                if (isDuplicate) {
-                    const conflictLabel = hotkeyConfig[otherId].label;
-                    alert(`Hotkey '${formatHotkey(newConfig)}' is already in use by '${conflictLabel}'. Please choose a different combination.`);
+                if (otherConfig.key.toLowerCase() === newConfig.key.toLowerCase() && otherConfig.ctrl === newConfig.ctrl && otherConfig.shift === newConfig.shift && otherConfig.alt === newConfig.alt) {
+                    alert(`Hotkey '${formatHotkey(newConfig)}' is already in use by '${hotkeyConfig[otherId].label}'.`);
                     return;
                 }
             }
@@ -524,35 +522,36 @@ function openHotkeyEditorModal(settingsState) {
         };
     });
 
-    document.getElementById('modal-hotkeys-cancel-btn').onclick = () => { overlay.innerHTML = ''; openSettingsModal(settingsState); };
+    modalInstance.querySelector('#modal-hotkeys-cancel-btn').onclick = closeModal;
     
-    document.getElementById('modal-hotkeys-reset-all-btn').onclick = () => {
-        openConfirmModal("Reset All Hotkeys", "Are you sure you want to reset all hotkeys to their defaults?", (confirmed) => {
+    modalInstance.querySelector('#modal-hotkeys-reset-all-btn').onclick = () => {
+        openConfirmModal("Reset All Hotkeys", "Are you sure?", (confirmed) => {
             if (confirmed) {
                 lsRemove('customHotkeys');
                 applyAndSetHotkeys();
-                overlay.innerHTML = '';
+                if (overlay.contains(modalInstance)) overlay.removeChild(modalInstance);
                 openHotkeyEditorModal(settingsState);
             }
         });
     };
     
-    document.getElementById('modal-hotkeys-save-btn').onclick = () => {
+    modalInstance.querySelector('#modal-hotkeys-save-btn').onclick = () => {
         const newCustomHotkeys = {};
         container.querySelectorAll('.hotkey-input').forEach(input => {
             newCustomHotkeys[input.dataset.id] = JSON.parse(input.dataset.config);
         });
         lsSet('customHotkeys', newCustomHotkeys);
         applyAndSetHotkeys();
-        overlay.innerHTML = '';
-        openSettingsModal(settingsState);
+        closeModal();
     };
+    
+    overlay.appendChild(modalInstance);
+    overlay.style.display = 'block';
 }
 
 
 function openSyntaxColorModal(settingsState) {
     const overlay = document.getElementById('modal-overlay');
-    overlay.style.pointerEvents = 'auto';
 
     let colorItemsHtml = '';
     for (const key in syntaxColorConfig) {
@@ -563,78 +562,87 @@ function openSyntaxColorModal(settingsState) {
             ? `<label style="cursor:pointer; display:flex; align-items:center; gap: 4px; user-select: none;">
                    <input type="checkbox" id="bold_${key}"> Bold
                </label>`
-            : `<span class="info-icon" data-info-text="Boldness is a text property that changes the thickness of letters and numbers. This setting controls a background color, which is a solid block of color behind the text. Since there's no text in the background itself, the 'bold' option doesn't apply here." style="cursor:help; font-size: 1.2em;">ℹ️</span>`;
+            : `<span class="info-icon" data-info-text="This setting controls a background color, so 'bold' does not apply." style="cursor:help; font-size: 1.2em;">ℹ️</span>`;
 
         colorItemsHtml += `
             <div class="color-picker-item">
                 <label for="${key}" class="color-picker-main-label">${item.label}</label>
-                <div class="color-controls-wrapper" style="display: flex; align-items: center; gap: 15px;">
+                <div class="color-controls-wrapper">
                     ${controlHtml}
                     <input type="color" id="${key}" value="${savedColor}">
                 </div>
-            </div>
-        `;
+            </div>`;
     }
 
-    overlay.innerHTML = `<div class="modal-box" style="width:90%; max-width:550px;">
+    const modalInstance = document.createElement('div');
+    modalInstance.className = 'modal-box';
+    modalInstance.style.maxWidth = '550px';
+    modalInstance.innerHTML = `
         <h3>Customize Syntax Colors</h3>
         <div id="color-picker-list" style="max-height: 60vh; overflow-y: auto; padding: 10px; border-top: 1px solid #333; border-bottom: 1px solid #333; margin: 15px 0;">
             ${colorItemsHtml}
         </div>
         <div class="modal-buttons">
-            <button id="modal-colors-reset-btn" class="modal-btn-reset">Reset to Defaults</button>
-            <button id="modal-colors-cancel-btn" class="modal-btn-cancel">Cancel</button>
-            <button id="modal-colors-save-btn" class="modal-btn-confirm">Save & Apply</button>
+            <button class="modal-btn-reset">Reset to Defaults</button>
+            <button class="modal-btn-cancel">Cancel</button>
+            <button class="modal-btn-confirm">Save & Apply</button>
         </div>
-    </div>`;
+    `;
+    
+    const closeModal = () => {
+        if(overlay.contains(modalInstance)) overlay.removeChild(modalInstance);
+        openSettingsModal(settingsState);
+    };
 
     for (const key in syntaxColorConfig) {
         const item = syntaxColorConfig[key];
         if (item.isText) {
-            const boldCheckbox = document.getElementById(`bold_${key}`);
+            const boldCheckbox = modalInstance.querySelector(`#bold_${key}`);
             boldCheckbox.checked = lsGet(`boldness_${key}`) ?? item.defaultBold;
         }
     }
 
-    const listContainer = document.getElementById('color-picker-list');
+    const listContainer = modalInstance.querySelector('#color-picker-list');
     const infoTooltip = document.getElementById('info-tooltip');
     listContainer.addEventListener('mouseover', e => { if (e.target.classList.contains('info-icon')) { infoTooltip.textContent = e.target.dataset.infoText; infoTooltip.style.display = 'block'; } });
     listContainer.addEventListener('mouseout', e => { if (e.target.classList.contains('info-icon')) { infoTooltip.style.display = 'none'; } });
     listContainer.addEventListener('mousemove', e => { if (infoTooltip.style.display === 'block') { const t = infoTooltip, w = window, m=15; let l = e.clientX + m, p = e.clientY + m; if (l + t.offsetWidth > w.innerWidth) l = e.clientX - t.offsetWidth - m; if(l<0)l=0; if(p<0)p=0; t.style.left = l + 'px'; t.style.top = p + 'px'; } });
 
-    document.getElementById('modal-colors-cancel-btn').onclick = () => { overlay.innerHTML = ''; openSettingsModal(settingsState); };
+    modalInstance.querySelector('.modal-btn-cancel').onclick = closeModal;
     
-    document.getElementById('modal-colors-reset-btn').onclick = () => {
-        openConfirmModal("Reset Colors", "Are you sure you want to reset all syntax colors and styles to their defaults?", (confirmed) => {
+    modalInstance.querySelector('.modal-btn-reset').onclick = () => {
+        openConfirmModal("Reset Colors", "Are you sure?", (confirmed) => {
             if (confirmed) {
                 for (const key in syntaxColorConfig) {
                     const item = syntaxColorConfig[key];
-                    document.getElementById(key).value = item.default;
-                    if (item.isText) document.getElementById(`bold_${key}`).checked = item.defaultBold;
+                    modalInstance.querySelector(`#${key}`).value = item.default;
+                    if (item.isText) modalInstance.querySelector(`#bold_${key}`).checked = item.defaultBold;
                 }
             }
         });
     };
 
-    document.getElementById('modal-colors-save-btn').onclick = () => {
+    modalInstance.querySelector('.modal-btn-confirm').onclick = () => {
         for (const key in syntaxColorConfig) {
-            lsSet(`color_${key}`, document.getElementById(key).value);
-            if (syntaxColorConfig[key].isText) lsSet(`boldness_${key}`, document.getElementById(`bold_${key}`).checked);
+            lsSet(`color_${key}`, modalInstance.querySelector(`#${key}`).value);
+            if (syntaxColorConfig[key].isText) lsSet(`boldness_${key}`, modalInstance.querySelector(`#bold_${key}`).checked);
         }
-        overlay.innerHTML = '';
         
-        openConfirmModal("Reload Required", "Syntax colors and styles have been saved. A reload is required. Your work will be saved.\n\nReload now?", (confirmed) => {
+        openConfirmModal("Reload Required", "Syntax colors have been saved. A reload is required. Reload now?", (confirmed) => {
              if (confirmed) {
                 window.dispatchEvent(new Event('beforeunload'));
                 window.electronAPI.reloadApp();
             }
+            closeModal();
         });
     };
+    
+    overlay.appendChild(modalInstance);
+    overlay.style.display = 'block';
 }
 
 function openThemeEditorModal(settingsState) {
     const overlay = document.getElementById('modal-overlay');
-    overlay.style.pointerEvents = 'auto';
     const root = document.documentElement;
 
     const originalValues = {};
@@ -691,8 +699,11 @@ function openThemeEditorModal(settingsState) {
 
         return `<div class="theme-tab-pane ${index === 0 ? 'active' : ''}" data-category="${cat}">${itemsHtml}</div>`;
     }).join('');
-
-    overlay.innerHTML = `<div class="modal-box" style="width:90%; max-width:800px;">
+    
+    const modalInstance = document.createElement('div');
+    modalInstance.className = 'modal-box';
+    modalInstance.style.maxWidth = '800px';
+    modalInstance.innerHTML = `
         <h3>Customize UI Theme</h3>
         <p style="font-size:0.9em; color:#ccc; margin-top:0;">Changes are applied live. Hover over ℹ️ for details. Click Save to make them permanent.</p>
         <div class="theme-editor-container">
@@ -700,20 +711,25 @@ function openThemeEditorModal(settingsState) {
             <div id="theme-picker-list" class="theme-panes">${tabPanesHtml}</div>
         </div>
         <div class="modal-buttons" style="margin-top: 15px;">
-            <button id="modal-theme-reset-btn" class="modal-btn-reset">Reset All to Defaults</button>
-            <button id="modal-theme-cancel-btn" class="modal-btn-cancel">Cancel</button>
-            <button id="modal-theme-save-btn" class="modal-btn-confirm">Save Changes</button>
+            <button class="modal-btn-reset">Reset All to Defaults</button>
+            <button class="modal-btn-cancel">Cancel</button>
+            <button class="modal-btn-confirm">Save Changes</button>
         </div>
-    </div>`;
+    `;
 
-    const container = document.getElementById('theme-picker-list');
+    const closeModal = () => {
+        if(overlay.contains(modalInstance)) overlay.removeChild(modalInstance);
+        openSettingsModal(settingsState);
+    }
+    
+    const container = modalInstance.querySelector('#theme-picker-list');
 
-    overlay.querySelector('.theme-tabs').addEventListener('click', e => {
+    modalInstance.querySelector('.theme-tabs').addEventListener('click', e => {
         if (e.target.tagName === 'BUTTON') {
             const category = e.target.dataset.category;
-            overlay.querySelectorAll('.theme-tab-btn, .theme-tab-pane').forEach(el => el.classList.remove('active'));
+            modalInstance.querySelectorAll('.theme-tab-btn, .theme-tab-pane').forEach(el => el.classList.remove('active'));
             e.target.classList.add('active');
-            overlay.querySelector(`.theme-tab-pane[data-category="${category}"]`).classList.add('active');
+            modalInstance.querySelector(`.theme-tab-pane[data-category="${category}"]`).classList.add('active');
         }
     });
 
@@ -727,7 +743,7 @@ function openThemeEditorModal(settingsState) {
             const unit = item.unit || '';
             root.style.setProperty(key, value + unit);
             if(item.type === 'range') {
-                document.getElementById(`range-value-${key.replace(/--/g, '')}`).textContent = value + unit;
+                modalInstance.querySelector(`#range-value-${key.replace(/--/g, '')}`).textContent = value + unit;
             }
         } else if (boldKey) {
             const isBold = e.target.checked;
@@ -741,45 +757,40 @@ function openThemeEditorModal(settingsState) {
     container.addEventListener('mousemove', e => { if (infoTooltip.style.display === 'block') { const t = infoTooltip, w = window, m=15; let l = e.clientX + m, p = e.clientY + m; if (l + t.offsetWidth > w.innerWidth) l = e.clientX - t.offsetWidth - m; if(l<0)l=0; if(p<0)p=0; t.style.left = l + 'px'; t.style.top = p + 'px'; } });
 
 
-    document.getElementById('modal-theme-cancel-btn').onclick = () => {
+    modalInstance.querySelector('.modal-btn-cancel').onclick = () => {
         for (const key in originalValues) {
             root.style.setProperty(key, originalValues[key]);
         }
-        overlay.innerHTML = '';
-        openSettingsModal(settingsState);
+        closeModal();
     };
     
-    document.getElementById('modal-theme-reset-btn').onclick = () => {
-        openConfirmModal("Reset Theme", "Are you sure you want to reset all UI theme settings to their defaults? This will apply the changes live.", (confirmed) => {
+    modalInstance.querySelector('.modal-btn-reset').onclick = () => {
+        openConfirmModal("Reset Theme", "Are you sure? This applies changes live.", (confirmed) => {
             if (confirmed) {
                 for (const key in uiThemeConfig) {
                     lsRemove(`theme_${key}`);
-                    if (uiThemeConfig[key].hasBoldToggle) {
-                        lsRemove(`theme_bold_${key}`);
-                    }
+                    if (uiThemeConfig[key].hasBoldToggle) lsRemove(`theme_bold_${key}`);
                 }
                 applyUiThemeSettings();
-                overlay.innerHTML = '';
+                if(overlay.contains(modalInstance)) overlay.removeChild(modalInstance);
                 openThemeEditorModal(settingsState); 
             }
         });
     };
 
-    document.getElementById('modal-theme-save-btn').onclick = () => {
+    modalInstance.querySelector('.modal-btn-confirm').onclick = () => {
         container.querySelectorAll('input[data-key]').forEach(input => lsSet(`theme_${input.dataset.key}`, input.value));
         container.querySelectorAll('input[data-bold-key]').forEach(input => lsSet(`theme_bold_${input.dataset.boldKey}`, input.checked));
-        overlay.innerHTML = '';
-        openSettingsModal(settingsState);
+        closeModal();
     };
+    
+    overlay.appendChild(modalInstance);
+    overlay.style.display = 'block';
 }
 
 function openExportImportModal() {
     const overlay = document.getElementById('modal-overlay');
-    overlay.style.pointerEvents = 'auto';
-    overlay.style.display = 'flex';
-    overlay.style.alignItems = 'center';
-    overlay.style.justifyContent = 'center';
-
+    
     const triggerDownload = (data, filename) => {
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -818,9 +829,7 @@ function openExportImportModal() {
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
             const match = key.match(/^HT-IDE-id(\d+)-/);
-            if (match) {
-                ids.add(match[1]);
-            }
+            if (match) ids.add(match[1]);
         }
         return Array.from(ids).sort((a,b) => a - b);
     };
@@ -830,102 +839,95 @@ function openExportImportModal() {
         const keysToRemove = [];
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
-            if (key.startsWith(prefix)) {
-                keysToRemove.push(key);
-            }
+            if (key.startsWith(prefix)) keysToRemove.push(key);
         }
         keysToRemove.forEach(key => localStorage.removeItem(key));
     };
 
     const workspaceOptions = getAllWorkspaceIds().map(id => `<option value="${id}">Workspace ${id}</option>`).join('');
 
-    overlay.innerHTML = `
-        <div class="modal-box" style="max-width: 600px;">
-            <h3>Export / Import Data</h3>
-            <p style="font-size:0.9em; color:#ccc; margin-top:0;">Importing data will overwrite existing settings and requires a reload.</p>
-            
-            <div style="border-top: 1px solid #333; margin-top: 15px; padding-top: 15px;">
-                <h4><span style="color: #569cd6;">💻</span> Workspaces</h4>
-                <p style="font-size:0.8em; margin:0 0 10px 0;">Switch between different workspaces, or create new ones.</p>
-                <button id="manage-workspaces-btn" class="modal-btn-confirm" style="width:100%;">Manage Workspaces</button>
+    const modalInstance = document.createElement('div');
+    modalInstance.className = 'modal-box';
+    modalInstance.style.maxWidth = '600px';
+    modalInstance.innerHTML = `
+        <h3>Export / Import Data</h3>
+        <p style="font-size:0.9em; color:#ccc; margin-top:0;">Importing data will overwrite existing settings and requires a reload.</p>
+        
+        <div style="border-top: 1px solid #333; margin-top: 15px; padding-top: 15px;">
+            <h4><span style="color: #569cd6;">💻</span> Workspaces</h4>
+            <p style="font-size:0.8em; margin:0 0 10px 0;">Switch between different workspaces, or create new ones.</p>
+            <button id="manage-workspaces-btn" class="modal-btn-confirm" style="width:100%;">Manage Workspaces</button>
+        </div>
+        
+        <div style="border-top: 1px solid #333; margin-top: 15px; padding-top: 15px;">
+            <h4><span style="color: #f51000; font-weight: bold;">⚠</span> Everything</h4>
+            <p style="font-size:0.8em; margin:0 0 10px 0;">Exports or imports all workspaces, themes, and settings. Use with caution.</p>
+            <div style="display:flex; gap: 10px;">
+                <button id="export-all-btn" class="modal-btn-confirm" style="flex:1;">Export All Data</button>
+                <button id="import-all-btn" class="modal-btn-reset" style="flex:1;">Import All Data</button>
             </div>
-            
-            <div style="border-top: 1px solid #333; margin-top: 15px; padding-top: 15px;">
-                <h4><span style="color: #f51000; font-weight: bold;">⚠</span> Everything</h4>
-                <p style="font-size:0.8em; margin:0 0 10px 0;">Exports or imports all workspaces, themes, and settings. Use with caution.</p>
-                <div style="display:flex; gap: 10px;">
-                    <button id="export-all-btn" class="modal-btn-confirm" style="flex:1;">Export All Data</button>
-                    <button id="import-all-btn" class="modal-btn-reset" style="flex:1;">Import All Data</button>
-                </div>
-            </div>
+        </div>
 
-            <div style="border-top: 1px solid #333; margin-top: 15px; padding-top: 15px;">
-                <h4><span style="color: #a6e22e;">🎨</span> IDE Theme</h4>
-                <p style="font-size:0.8em; margin:0 0 10px 0;">Exports or imports only the UI and syntax color settings for the current workspace.</p>
-                <div style="display:flex; gap: 10px;">
-                    <button id="export-theme-btn" class="modal-btn-confirm" style="flex:1;">Export Theme</button>
-                    <button id="import-theme-btn" class="modal-btn-reset" style="flex:1;">Import Theme</button>
-                </div>
+        <div style="border-top: 1px solid #333; margin-top: 15px; padding-top: 15px;">
+            <h4><span style="color: #a6e22e;">🎨</span> IDE Theme</h4>
+            <p style="font-size:0.8em; margin:0 0 10px 0;">Exports or imports only the UI and syntax color settings for the current workspace.</p>
+            <div style="display:flex; gap: 10px;">
+                <button id="export-theme-btn" class="modal-btn-confirm" style="flex:1;">Export Theme</button>
+                <button id="import-theme-btn" class="modal-btn-reset" style="flex:1;">Import Theme</button>
             </div>
-            
-            <div style="border-top: 1px solid #333; margin-top: 15px; padding-top: 15px;">
-                <h4><span style="color: #569cd6;">💾</span> Workspace File</h4>
-                <p style="font-size:0.8em; margin:0 0 10px 0;">Exports a single workspace or imports a file into a new or existing workspace.</p>
-                <select id="workspace-select" style="width:100%; padding: 8px; margin-bottom: 10px; background: #252525; color: #e0e0e0; border: 1px solid #444;">
-                    ${workspaceOptions.length > 0 ? workspaceOptions : '<option disabled>No workspaces found</option>'}
-                </select>
-                <div style="display:flex; gap: 10px; margin-bottom: 10px;">
-                    <button id="export-workspace-btn" class="modal-btn-confirm" style="flex:1;">Export Selected</button>
-                    <button id="import-workspace-btn" style="flex:1; background-color: #3d8b40;">Import to New ID</button>
-                </div>
-                <button id="import-overwrite-workspace-btn" class="modal-btn-reset" style="width:100%;">Import & Overwrite Selected</button>
+        </div>
+        
+        <div style="border-top: 1px solid #333; margin-top: 15px; padding-top: 15px;">
+            <h4><span style="color: #569cd6;">💾</span> Workspace File</h4>
+            <p style="font-size:0.8em; margin:0 0 10px 0;">Exports a single workspace or imports a file into a new or existing workspace.</p>
+            <select id="workspace-select" style="width:100%; padding: 8px; margin-bottom: 10px; background: #252525; color: #e0e0e0; border: 1px solid #444;">
+                ${workspaceOptions.length > 0 ? workspaceOptions : '<option disabled>No workspaces found</option>'}
+            </select>
+            <div style="display:flex; gap: 10px; margin-bottom: 10px;">
+                <button id="export-workspace-btn" class="modal-btn-confirm" style="flex:1;">Export Selected</button>
+                <button id="import-workspace-btn" style="flex:1; background-color: #3d8b40;">Import to New ID</button>
             </div>
+            <button id="import-overwrite-workspace-btn" class="modal-btn-reset" style="width:100%;">Import & Overwrite Selected</button>
+        </div>
 
-            <div class="modal-buttons" style="margin-top: 25px;">
-                <button id="export-import-close-btn" class="modal-btn-cancel">Close</button>
-            </div>
-        </div>`;
+        <div class="modal-buttons" style="margin-top: 25px;">
+            <button class="modal-btn-cancel">Close</button>
+        </div>
+    `;
 
-    document.getElementById('export-import-close-btn').onclick = () => { overlay.style.display = 'none'; };
+    const closeModal = () => {
+        if(overlay.contains(modalInstance)) overlay.removeChild(modalInstance);
+        if(overlay.childElementCount === 0) overlay.style.display = 'none';
+    };
+
+    modalInstance.querySelector('.modal-btn-cancel').onclick = closeModal;
     
-    document.getElementById('manage-workspaces-btn').onclick = () => { overlay.innerHTML = ''; openWorkspaceManagerModal(); };
-
-    document.getElementById('export-all-btn').onclick = () => {
-        openInputModal('Export All Data', 'Enter a filename for the full backup:', 'ht-ide-backup-all.json', (filename) => {
+    modalInstance.querySelector('#manage-workspaces-btn').onclick = () => { closeModal(); openWorkspaceManagerModal(); };
+    
+    modalInstance.querySelector('#export-all-btn').onclick = () => {
+        openInputModal('Export All Data', 'Enter filename:', 'ht-ide-backup-all.json', (filename) => {
             if (!filename) return;
-            if (!filename.endsWith('.json')) filename += '.json';
-            
             const data = {};
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
-                if (key.startsWith('HT-IDE-')) {
-                    data[key] = localStorage.getItem(key);
-                }
+                if (key.startsWith('HT-IDE-')) data[key] = localStorage.getItem(key);
             }
-            triggerDownload(data, filename);
+            triggerDownload(data, filename.endsWith('.json') ? filename : filename + '.json');
         });
     };
-    document.getElementById('import-all-btn').onclick = () => {
-        const msg = "WARNING: This will delete ALL current workspaces and settings and replace them with the data from the file. This cannot be undone.\n\nContinue?";
-        openConfirmModal("Import All Data", msg, (confirmed) => {
-            if (confirmed) {
-                handleFileUpload(data => {
-                    localStorage.clear();
-                    for (const key in data) {
-                        localStorage.setItem(key, data[key]);
-                    }
-                    alert("Import complete. The IDE will now reload.");
-                    window.electronAPI.reloadApp();
-                });
-            }
+    modalInstance.querySelector('#import-all-btn').onclick = () => {
+        openConfirmModal("Import All Data", "WARNING: This will delete ALL current data. Continue?", (confirmed) => {
+            if (confirmed) handleFileUpload(data => {
+                localStorage.clear();
+                for (const key in data) localStorage.setItem(key, data[key]);
+                alert("Import complete. IDE will reload.");
+                window.electronAPI.reloadApp();
+            });
         });
     };
-
-    document.getElementById('export-theme-btn').onclick = () => {
-        openInputModal('Export Theme', 'Enter a filename for the theme backup:', 'ht-ide-theme.json', (filename) => {
+    modalInstance.querySelector('#export-theme-btn').onclick = () => {
+        openInputModal('Export Theme', 'Enter filename:', 'ht-ide-theme.json', (filename) => {
             if (!filename) return;
-            if (!filename.endsWith('.json')) filename += '.json';
-
             const data = {};
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
@@ -933,107 +935,82 @@ function openExportImportModal() {
                     data[key.replace(STORAGE_PREFIX, '')] = localStorage.getItem(key);
                 }
             }
-            triggerDownload(data, filename);
+            triggerDownload(data, filename.endsWith('.json') ? filename : filename + '.json');
         });
     };
-    document.getElementById('import-theme-btn').onclick = () => {
-        openConfirmModal("Import Theme", "This will overwrite your current theme settings for this workspace. Continue?", (confirmed) => {
-            if (confirmed) {
-                handleFileUpload(data => {
-                    for (const key in data) {
-                         localStorage.setItem(STORAGE_PREFIX + key, data[key]);
-                    }
-                    alert("Theme import complete. The IDE will now reload to apply changes.");
-                    window.electronAPI.reloadApp();
-                });
-            }
+    modalInstance.querySelector('#import-theme-btn').onclick = () => {
+        openConfirmModal("Import Theme", "This will overwrite current theme settings. Continue?", (confirmed) => {
+            if (confirmed) handleFileUpload(data => {
+                for (const key in data) localStorage.setItem(STORAGE_PREFIX + key, data[key]);
+                alert("Theme import complete. IDE will reload.");
+                window.electronAPI.reloadApp();
+            });
         });
     };
-    
-    document.getElementById('export-workspace-btn').onclick = () => {
-        const id = document.getElementById('workspace-select').value;
-        if (!id) return alert("Please select a workspace to export.");
-        
-        openInputModal('Export Workspace', `Enter a filename for the Workspace ${id} backup:`, `ht-ide-workspace-${id}.json`, (filename) => {
+    modalInstance.querySelector('#export-workspace-btn').onclick = () => {
+        const id = modalInstance.querySelector('#workspace-select').value;
+        if (!id) return alert("Please select a workspace.");
+        openInputModal('Export Workspace', `Enter filename for Workspace ${id}:`, `ht-ide-workspace-${id}.json`, (filename) => {
             if (!filename) return;
-            if (!filename.endsWith('.json')) filename += '.json';
-
             const prefix = `HT-IDE-id${id}-`;
             const data = {};
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
-                if (key.startsWith(prefix)) {
-                    data[key.replace(prefix, '')] = localStorage.getItem(key);
-                }
+                if (key.startsWith(prefix)) data[key.replace(prefix, '')] = localStorage.getItem(key);
             }
-            triggerDownload(data, filename);
+            triggerDownload(data, filename.endsWith('.json') ? filename : filename + '.json');
+        });
+    };
+    modalInstance.querySelector('#import-workspace-btn').onclick = () => {
+        const newId = (getAllWorkspaceIds().map(Number).pop() || -1) + 1;
+        openConfirmModal("Import to New Workspace", `This will import to a new workspace (ID ${newId}). Continue?`, (confirmed) => {
+            if (confirmed) handleFileUpload(data => {
+                const newPrefix = `HT-IDE-id${newId}-`;
+                for (const key in data) localStorage.setItem(newPrefix + key, data[key]);
+                alert(`Workspace imported to ID ${newId}. Switching now.`);
+                window.electronAPI.switchWorkspace(newId);
+            });
+        });
+    };
+    modalInstance.querySelector('#import-overwrite-workspace-btn').onclick = () => {
+        const id = modalInstance.querySelector('#workspace-select').value;
+        if (!id) return alert("Please select a workspace to overwrite.");
+        openConfirmModal("Overwrite Workspace", `EXTREME WARNING: This will permanently delete all data in Workspace ${id}. Continue?`, (confirmed) => {
+            if(confirmed) handleFileUpload(data => {
+                clearWorkspaceData(id);
+                const prefix = `HT-IDE-id${id}-`;
+                for (const key in data) localStorage.setItem(prefix + key, data[key]);
+                alert(`Workspace ${id} overwritten. Reloading.`);
+                window.electronAPI.switchWorkspace(id);
+            });
         });
     };
 
-    document.getElementById('import-workspace-btn').onclick = () => {
-        const allIds = getAllWorkspaceIds().map(Number);
-        const newId = allIds.length > 0 ? Math.max(...allIds) + 1 : 0;
-        openConfirmModal("Import to New Workspace", `This will import the workspace from the file into a new workspace with ID ${newId}. Continue?`, (confirmed) => {
-            if (confirmed) {
-                handleFileUpload(data => {
-                    const newPrefix = `HT-IDE-id${newId}-`;
-                    for (const key in data) {
-                        localStorage.setItem(newPrefix + key, data[key]);
-                    }
-                    alert(`Workspace imported successfully to ID ${newId}. You will now be redirected to the new workspace.`);
-                    window.electronAPI.switchWorkspace(newId);
-                });
-            }
-        });
-    };
-
-    document.getElementById('import-overwrite-workspace-btn').onclick = () => {
-        const idToOverwrite = document.getElementById('workspace-select').value;
-        if (!idToOverwrite) return alert("Please select a workspace to overwrite.");
-
-        const msg = `EXTREME WARNING:\n\nYou are about to permanently delete all data in Workspace ${idToOverwrite} and replace it with data from a file.\n\nTHIS CANNOT BE UNDONE.\n\nAre you absolutely sure you want to proceed?`;
-        openConfirmModal("Overwrite Workspace", msg, (confirmed) => {
-            if(confirmed) {
-                handleFileUpload(data => {
-                    clearWorkspaceData(idToOverwrite);
-                    const prefix = `HT-IDE-id${idToOverwrite}-`;
-                     for (const key in data) {
-                        localStorage.setItem(prefix + key, data[key]);
-                    }
-                    alert(`Workspace ${idToOverwrite} has been overwritten. The IDE will now reload.`);
-                    window.electronAPI.switchWorkspace(idToOverwrite);
-                });
-            }
-        });
-    };
+    overlay.appendChild(modalInstance);
+    overlay.style.display = 'block';
 }
 
 function openWorkspaceManagerModal() {
     const overlay = document.getElementById('modal-overlay');
-    overlay.style.pointerEvents = 'auto';
-    overlay.style.display = 'flex';
-    overlay.style.alignItems = 'center';
-    overlay.style.justifyContent = 'center';
+    
+    const modalInstance = document.createElement('div');
+    modalInstance.className = 'modal-box';
+    modalInstance.style.maxWidth = '600px';
 
     const populateList = () => {
-        const listEl = document.getElementById('workspace-manager-list');
+        const listEl = modalInstance.querySelector('#workspace-manager-list');
         listEl.innerHTML = '';
         const allIds = window.getAllWorkspaceIds();
         const currentId = getIdeId();
-
-        if (allIds.length === 0) {
-            allIds.push('0');
-        }
+        if (allIds.length === 0) allIds.push('0');
 
         allIds.forEach(id => {
             const li = document.createElement('li');
             const isActive = id === currentId;
             li.style.cssText = `display:flex; align-items:center; gap:10px; ${isActive ? 'background-color:#004a6e; font-weight:bold;' : ''}`;
-            
             const nameSpan = document.createElement('span');
             nameSpan.textContent = `Workspace ${id} ${isActive ? '(Active)' : ''}`;
             nameSpan.style.flexGrow = '1';
-
             const btnGroup = document.createElement('div');
 
             if (!isActive) {
@@ -1051,8 +1028,7 @@ function openWorkspaceManagerModal() {
                 deleteBtn.title = 'Delete Workspace';
                 deleteBtn.style.marginLeft = '8px';
                 deleteBtn.onclick = () => {
-                    const msg = `Are you sure you want to permanently delete all data for Workspace ${id}? This cannot be undone.`;
-                    openConfirmModal("Delete Workspace", msg, (confirmed) => {
+                    openConfirmModal("Delete Workspace", `Permanently delete all data for Workspace ${id}?`, (confirmed) => {
                         if (confirmed) {
                             window.clearWorkspaceData(id);
                             populateList();
@@ -1061,37 +1037,39 @@ function openWorkspaceManagerModal() {
                 };
                 btnGroup.appendChild(deleteBtn);
             }
-
             li.appendChild(nameSpan);
             li.appendChild(btnGroup);
             listEl.appendChild(li);
         });
     };
 
-    overlay.innerHTML = `
-        <div class="modal-box" style="width:90%; max-width:600px;">
-            <h3>Manage Workspaces</h3>
-            <p style="margin-top:0; color:#ccc;">Each workspace has its own separate files, settings, and themes.</p>
-            <ul class="modal-list" id="workspace-manager-list"></ul>
-            <div class="modal-buttons">
-                 <button id="workspace-add-new-btn" style="float:left; background-color:#2a8f2a;">Create New Workspace</button>
-                 <button id="workspace-manager-back-btn">Back to Export/Import</button>
-            </div>
-        </div>`;
+    modalInstance.innerHTML = `
+        <h3>Manage Workspaces</h3>
+        <p style="margin-top:0; color:#ccc;">Each workspace has its own separate files, settings, and themes.</p>
+        <ul class="modal-list" id="workspace-manager-list"></ul>
+        <div class="modal-buttons">
+             <button id="workspace-add-new-btn" style="float:left; background-color:#2a8f2a;">Create New Workspace</button>
+             <button id="workspace-manager-back-btn">Back to Export/Import</button>
+        </div>
+    `;
+    const closeModal = () => {
+        if(overlay.contains(modalInstance)) overlay.removeChild(modalInstance);
+        if(overlay.childElementCount === 0) overlay.style.display = 'none';
+    };
 
-    document.getElementById('workspace-manager-back-btn').onclick = () => { overlay.innerHTML = ''; openExportImportModal(); };
-    document.getElementById('workspace-add-new-btn').onclick = () => {
-        const allIds = getAllWorkspaceIds().map(Number);
-        const newId = allIds.length > 0 ? Math.max(...allIds) + 1 : 0;
-        const msg = `This will create and switch to a new, empty workspace with ID ${newId}. Continue?`;
-        openConfirmModal("Create New Workspace", msg, (confirmed) => {
+    modalInstance.querySelector('#workspace-manager-back-btn').onclick = () => { closeModal(); openExportImportModal(); };
+    modalInstance.querySelector('#workspace-add-new-btn').onclick = () => {
+        const newId = (getAllWorkspaceIds().map(Number).pop() || -1) + 1;
+        openConfirmModal("Create New Workspace", `Create and switch to a new, empty workspace (ID ${newId})?`, (confirmed) => {
             if (confirmed) {
                 window.dispatchEvent(new Event('beforeunload'));
                 window.electronAPI.switchWorkspace(newId);
             }
         });
     };
-
+    
+    overlay.appendChild(modalInstance);
+    overlay.style.display = 'block';
     populateList();
 }
 
@@ -1233,9 +1211,8 @@ async function openNewProjectModal() {
         });
     };
 
-    // --- Show the modal ---
     overlay.appendChild(modalInstance);
-    overlay.style.display = 'flex';
+    overlay.style.display = 'block';
     setTimeout(() => {
         modalInstance.querySelector('#new-project-name-input')?.focus();
     }, 50);
@@ -1244,7 +1221,6 @@ async function openNewProjectModal() {
 // --- COMPLETELY REWRITTEN AND STABILIZED FUNCTION ---
 function openProjectManagerModal(settingsState) {
     const overlay = document.getElementById('modal-overlay');
-    overlay.style.pointerEvents = 'auto';
 
     let memory = {
         templates: lsGet('projectTemplates') || [],
@@ -1257,6 +1233,10 @@ function openProjectManagerModal(settingsState) {
     }
 
     let templateEditor;
+    
+    const modalInstance = document.createElement('div');
+    modalInstance.className = 'modal-box';
+    modalInstance.style.cssText = "width:90%; max-width:1000px; height: 80vh; display: flex; flex-direction: column;";
 
     const saveActiveFileContent = () => {
         if (!memory.activeTemplateId || !memory.activeFilePath || !templateEditor) return;
@@ -1267,9 +1247,18 @@ function openProjectManagerModal(settingsState) {
             file.content = templateEditor.getValue();
         }
     };
+    
+    const closeModal = (save = false) => {
+        if (save) {
+            saveActiveFileContent();
+            lsSet('projectTemplates', memory.templates);
+        }
+        if(overlay.contains(modalInstance)) overlay.removeChild(modalInstance);
+        openSettingsModal(settingsState);
+    };
 
     const render = () => {
-        const modalHtml = `<div class="modal-box" style="width:90%; max-width:1000px; height: 80vh; display: flex; flex-direction: column;">
+        modalInstance.innerHTML = `
             <h3>Manage Project Structures</h3>
             <div style="display: flex; flex-grow: 1; gap: 15px; overflow: hidden; border-top: 1px solid #333; padding-top: 15px;">
                 <div style="width: 250px; display: flex; flex-direction: column; border-right: 1px solid #333; padding-right: 15px;">
@@ -1295,20 +1284,18 @@ function openProjectManagerModal(settingsState) {
                 </div>
             </div>
             <div class="modal-buttons" style="margin-top: 15px;">
-                <button id="structure-manager-cancel-btn" class="modal-btn-cancel">Cancel</button>
-                <button id="structure-manager-save-btn" class="modal-btn-confirm">Save & Close</button>
+                <button class="modal-btn-cancel">Cancel</button>
+                <button class="modal-btn-confirm">Save & Close</button>
             </div>
-        </div>`;
+        `;
         
-        if (!overlay.querySelector('#structure-manager-list')) {
-            overlay.innerHTML = modalHtml;
-            templateEditor = ace.edit("structure-file-editor");
-            templateEditor.setTheme("ace/theme/monokai");
-            templateEditor.setOptions({ wrap: true });
-            attachButtonHandlers();
-        }
+        templateEditor = ace.edit(modalInstance.querySelector("#structure-file-editor"));
+        templateEditor.setTheme("ace/theme/monokai");
+        templateEditor.setOptions({ wrap: true });
         
-        const templateListEl = document.getElementById('structure-manager-list');
+        attachButtonHandlers();
+        
+        const templateListEl = modalInstance.querySelector('#structure-manager-list');
         templateListEl.innerHTML = '';
         memory.templates.forEach(t => {
             const li = document.createElement('li');
@@ -1318,7 +1305,7 @@ function openProjectManagerModal(settingsState) {
             templateListEl.appendChild(li);
         });
 
-        const fileListEl = document.getElementById('structure-file-list');
+        const fileListEl = modalInstance.querySelector('#structure-file-list');
         fileListEl.innerHTML = '';
         const activeTemplate = memory.templates.find(t => t.id === memory.activeTemplateId);
 
@@ -1349,7 +1336,7 @@ function openProjectManagerModal(settingsState) {
     };
 
     const attachButtonHandlers = () => {
-        document.getElementById('structure-manager-list').onclick = (e) => {
+        modalInstance.querySelector('#structure-manager-list').onclick = (e) => {
             if (e.target.tagName === 'LI') {
                 saveActiveFileContent();
                 memory.activeTemplateId = e.target.dataset.id;
@@ -1358,7 +1345,7 @@ function openProjectManagerModal(settingsState) {
             }
         };
 
-        document.getElementById('structure-file-list').onclick = (e) => {
+        modalInstance.querySelector('#structure-file-list').onclick = (e) => {
             if (e.target.tagName === 'LI') {
                 saveActiveFileContent();
                 memory.activeFilePath = e.target.dataset.path;
@@ -1366,7 +1353,7 @@ function openProjectManagerModal(settingsState) {
             }
         };
 
-        document.getElementById('structure-add-btn').onclick = () => {
+        modalInstance.querySelector('#structure-add-btn').onclick = () => {
             openInputModal('New Structure', 'Enter name for new structure:', 'New Web Project', (name) => {
                 if (name && name.trim() && !memory.templates.some(t => t.name === name.trim())) {
                     memory.templates.push({ id: `template_${Date.now()}`, name: name.trim(), files: [] });
@@ -1375,7 +1362,7 @@ function openProjectManagerModal(settingsState) {
             });
         };
         
-        document.getElementById('structure-rename-btn').onclick = () => {
+        modalInstance.querySelector('#structure-rename-btn').onclick = () => {
             if (!memory.activeTemplateId) return;
             const tpl = memory.templates.find(t => t.id === memory.activeTemplateId);
             openInputModal('Rename Structure', 'Enter new name:', tpl.name, (name) => {
@@ -1386,10 +1373,8 @@ function openProjectManagerModal(settingsState) {
             });
         };
 
-        document.getElementById('structure-delete-btn').onclick = () => {
-            if (!memory.activeTemplateId) return;
-            // CORRECTED LOGIC: Prevent deleting the last structure.
-            if (memory.templates.length <= 1) {
+        modalInstance.querySelector('#structure-delete-btn').onclick = () => {
+            if (!memory.activeTemplateId || memory.templates.length <= 1) {
                 return alert("Cannot delete the last remaining project structure.");
             }
             const tpl = memory.templates.find(t => t.id === memory.activeTemplateId);
@@ -1403,7 +1388,7 @@ function openProjectManagerModal(settingsState) {
             });
         };
 
-        document.getElementById('structure-file-add-btn').onclick = () => {
+        modalInstance.querySelector('#structure-file-add-btn').onclick = () => {
             const tpl = memory.templates.find(t => t.id === memory.activeTemplateId);
             if (!tpl) return;
             openInputModal('Add File', 'Enter file path (e.g., "js/main.js"):', '', (path) => {
@@ -1415,7 +1400,7 @@ function openProjectManagerModal(settingsState) {
             });
         };
 
-        document.getElementById('structure-file-delete-btn').onclick = () => {
+        modalInstance.querySelector('#structure-file-delete-btn').onclick = () => {
             const tpl = memory.templates.find(t => t.id === memory.activeTemplateId);
             if (!tpl || !memory.activeFilePath) return;
             openConfirmModal('Delete File', `Delete "${memory.activeFilePath}"?`, (confirmed) => {
@@ -1427,19 +1412,11 @@ function openProjectManagerModal(settingsState) {
             });
         };
 
-        document.getElementById('structure-manager-save-btn').onclick = () => {
-            saveActiveFileContent();
-            lsSet('projectTemplates', memory.templates);
-            overlay.innerHTML = ''; // Clear the project manager
-            openSettingsModal(settingsState);
-        };
-        
-        document.getElementById('structure-manager-cancel-btn').onclick = () => {
-            overlay.innerHTML = ''; // Clear the project manager
-            openSettingsModal(settingsState);
-        };
+        modalInstance.querySelector('.modal-btn-confirm').onclick = () => closeModal(true);
+        modalInstance.querySelector('.modal-btn-cancel').onclick = () => closeModal(false);
     };
     
+    overlay.appendChild(modalInstance);
     render();
-    overlay.style.display = 'flex';
+    overlay.style.display = 'block';
 }
