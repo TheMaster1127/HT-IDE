@@ -90,9 +90,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load HTVM definitions and instruction sets
     await initializeInstructionSetManagement();
     
-    // Check for instruction set and start onboarding if necessary
-    const activeInstructionSet = await dbGet(instructionSetKeys.activeId);
-    if (!activeInstructionSet) {
+    // Check for instruction set and start onboarding if necessary.
+    const instructionList = await dbGet(instructionSetKeys.list) || [];
+    let shouldShowPrompt = false;
+    
+    if (instructionList.length === 0) {
+        // Condition 1: No instruction sets exist at all.
+        shouldShowPrompt = true;
+    } else if (instructionList.length === 1 && instructionList[0].name === 'Default') {
+        // Condition 2: The only set is the migrated "Default" one.
+        shouldShowPrompt = true;
+    }
+
+    if (shouldShowPrompt) {
         await promptForInitialInstructionSet();
     } else {
         await loadDefinitions();
