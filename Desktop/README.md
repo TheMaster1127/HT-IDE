@@ -174,6 +174,81 @@ The behavior of the **▶ Run** button (`Ctrl+Enter` or `F5`) is context-aware:
 -   **.html:** Renders the file in a dedicated HTML Output panel within the IDE.
 -   **Other Files:** The IDE will look for a corresponding `.htpr` (run) or `.htpc` (compile) "property file" in the `property files` directory. This allows you to define custom build and run commands for any language (e.g., C++, Python, Go).
 
+HT-IDE uses property files with the extensions `.htpc` and `.htpr` for compiling and running your code. These files provide the commands needed to execute or compile your code based on the file type (e.g., `.cpp`, `.py`, `.js` or more...). The files are located in the `/property files/` folder in the IDE, and you can create your own property files for different languages.
+
+---
+
+### File Extensions and Corresponding Property Files
+
+For each programming language you use in the **HT-IDE**, the property files should have matching names with the extension `.htpc` for compile commands and `.htpr` for run commands. For example:
+
+| Language        | File Extension     | HTVM Property File Extensions |
+|-----------------|--------------------|-------------------------------|
+| C++             | .cpp               | `cpp.htpc` (compile), `cpp.htpr` (run)  |
+| Python          | .py                | `py.htpc` (compile), `py.htpr` (run)    |
+| JavaScript      | .js                | `js.htpc` (compile), `js.htpr` (run)    |
+| Go              | .go                | `go.htpc` (compile), `go.htpr` (run)    |
+| Lua             | .lua               | `lua.htpc` (compile), `lua.htpr` (run)  |
+| C#              | .cs                | `cs.htpc` (compile), `cs.htpr` (run)    |
+| Java            | .java              | `java.htpc` (compile), `java.htpr` (run)|
+| Kotlin          | .kt                | `kt.htpc` (compile), `kt.htpr` (run)    |
+| Ruby            | .rb                | `rb.htpc` (compile), `rb.htpr` (run)    |
+| Nim             | .nim               | `nim.htpc` (compile), `nim.htpr` (run)  |
+| AutoHotKey      | .ahk               | `ahk.htpc` (compile), `ahk.htpr` (run)  |
+| Swift           | .swift             | `swift.htpc` (compile), `swift.htpr` (run)|
+| Dart            | .dart              | `dart.htpc` (compile), `dart.htpr` (run)|
+| TypeScript      | .ts                | `ts.htpc` (compile), `ts.htpr` (run)    |
+| Groovy          | .groovy            | `groovy.htpc` (compile), `groovy.htpr` (run)|
+
+Or any other file extention
+
+In other words, the file extension of the code corresponds to the name of the property file.
+
+---
+
+- **.htpc**: Property file for compiling when pressing `Ctrl+F7`
+- **.htpr**: Property file for running your code when pressing `F5`
+
+Here's how the syntax works in these property files:
+
+- **Placeholders**:
+  - `%FILENAME%`: Full file path of the file being processed
+  - `%ONLYFILENAME%`: The filename without its extension
+  - `%DIRFULLPATH%`: The full directory path of the file
+
+- **Commands**:
+  - `~~~`: A placeholder for space, used to replace any `~~~` occurrences in the commands
+ 
+- **Comments**:
+  - Use `;` to write comments.
+
+#### Example Property Files (`cpp.htpr` and `cpp.htpc`)
+
+The following example shows how to set up property files to run code in C++.
+
+
+#### **cpp.htpr**
+
+```plaintext
+; This is the property file for compiling and running C++ files.
+; The first command compiles the code.
+;g++ "%ONLYFILENAME%.cpp" "-O3" "-o" "%ONLYFILENAME%"
+g++ "%ONLYFILENAME%.cpp" "-o" "%ONLYFILENAME%"
+
+; The second command runs the compiled executable.
+"%ONLYFILENAME%.exe"
+```
+
+#### **cpp.htpc**
+
+```plaintext
+; only compile c++ code
+g++ "%ONLYFILENAME%.cpp" "-o" "%ONLYFILENAME%"
+```
+
+---
+
+
 #### Built-in JavaScript Debugger
 -   **Set Breakpoints:** Simply click in the editor's "gutter" (the area with line numbers) to set or remove a breakpoint on that line.
 -   **Debugger Panel:** When a breakpoint is hit during JS execution, a movable debugger panel appears.
