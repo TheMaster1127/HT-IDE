@@ -525,6 +525,24 @@ ipcMain.handle('run-command', async (event, { terminalId, command, cwd }) => {
     }
 });
 
+// --- MODIFICATION START: Added synchronous file reading handler for the compiler ---
+ipcMain.on('fs:read-file-relative-sync', (event, { baseFile, targetPath }) => {
+    try {
+        const isAbsolute = path.isAbsolute(targetPath);
+        const finalPath = isAbsolute ? targetPath : path.resolve(path.dirname(baseFile), targetPath);
+
+        if (fs.existsSync(finalPath) && fs.statSync(finalPath).isFile()) {
+            event.returnValue = fs.readFileSync(finalPath, 'utf-8');
+        } else {
+            event.returnValue = null;
+        }
+    } catch (e) {
+        console.error(`Error in fs:read-file-relative-sync for base "${baseFile}" and target "${targetPath}":`, e);
+        event.returnValue = null;
+    }
+});
+// --- MODIFICATION END ---
+
 ipcMain.handle('fs:getAllPaths', (event, dirPath) => { try { const p = dirPath === '/' ? userHomeDir : dirPath; const i = fs.readdirSync(p, { withFileTypes: true }); return i.map(t => ({ name: t.name, path: path.join(p, t.name), isFile: t.isFile() })); } catch (e) { if (e.code === 'ENOENT') return []; console.error(`Error reading directory ${dirPath}:`, e); return []; } });
 ipcMain.handle('fs:getFileContent', (event, filePath) => { try { if (fs.existsSync(filePath)) return fs.readFileSync(filePath, 'utf-8'); return null; } catch (e) { console.error(e); return null; } });
 ipcMain.handle('fs:saveFileContent', async (event, { filePath, content }) => {

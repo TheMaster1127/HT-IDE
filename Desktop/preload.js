@@ -13,6 +13,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // --- File System Functions ---
     getAllPaths: (dirPath) => ipcRenderer.invoke('fs:getAllPaths', dirPath),
     getFileContent: (filePath) => ipcRenderer.invoke('fs:getFileContent', filePath),
+    // --- MODIFICATION START: Added relative file reading for the compiler ---
+    readFileRelativeSync: (baseFile, targetPath) => ipcRenderer.sendSync('fs:read-file-relative-sync', { baseFile, targetPath }),
+    // --- MODIFICATION END ---
     saveFileContent: (filePath, content) => ipcRenderer.invoke('fs:saveFileContent', { filePath, content }),
     saveFileContentSync: (filePath, content) => ipcRenderer.send('fs:saveFileContentSync', { filePath, content }),
     deleteItem: (itemPath, isFile) => ipcRenderer.invoke('fs:deleteItem', { itemPath, isFile }),

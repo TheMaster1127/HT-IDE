@@ -155,7 +155,13 @@ function formatHtvmCode(code) {
     if (activeSession) activeSession.xterm.writeln(`\x1b[32mFormatting HTVM file...\x1b[0m`);
     resetGlobalVarsOfHTVMjs();
     argHTVMinstrMORE.push(instructionSet.join('\n'));
+
+    // --- MODIFICATION START: Set compiler context ---
+    window.__HTVM_COMPILER_CONTEXT_FILE__ = currentOpenFile;
     const formattedCode = compiler(code, instructionSet.join('\n'), "full", "htvm");
+    window.__HTVM_COMPILER_CONTEXT_FILE__ = ''; // Clean up context
+    // --- MODIFICATION END ---
+
     resetGlobalVarsOfHTVMjs();
     
     if (activeSession) activeSession.xterm.writeln(`\x1b[32mFormatting complete.\x1b[0m`);
@@ -176,7 +182,13 @@ async function runHtvmCode(code) {
     }
     
     activeSession.xterm.writeln(`\x1b[32mTranspiling HTVM to ${isFullHtml ? 'HTML' : lang.toUpperCase()}...\x1b[0m`);
+    
+    // --- MODIFICATION START: Set compiler context ---
+    window.__HTVM_COMPILER_CONTEXT_FILE__ = currentOpenFile;
     const compiled = compiler(code, instructionSet.join('\n'), "full", lang);
+    window.__HTVM_COMPILER_CONTEXT_FILE__ = ''; // Clean up context
+    // --- MODIFICATION END ---
+
     resetGlobalVarsOfHTVMjs();
     
     const newFileExt = isFullHtml ? 'html' : lang;

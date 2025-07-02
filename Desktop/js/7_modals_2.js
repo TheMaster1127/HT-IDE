@@ -469,7 +469,12 @@ function openHtvmToHtvmModal() {
                         const code = await file.text();
                         resetGlobalVarsOfHTVMjs();
                         argHTVMinstrMORE.push(targetContent.replace(/\r/g, ''));
+                        
+                        // --- MODIFICATION START: Set compiler context ---
+                        window.__HTVM_COMPILER_CONTEXT_FILE__ = file.path;
                         const convertedCode = compiler(code, sourceContent, "full", "htvm");
+                        window.__HTVM_COMPILER_CONTEXT_FILE__ = ''; // Clean up context
+                        // --- MODIFICATION END ---
                         
                         let newName = file.name.replace(/(\.htvm)$/i, '.converted.htvm');
                         let finalName = newName, counter = 1;
