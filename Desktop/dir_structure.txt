@@ -24,6 +24,7 @@
 ├── 📁 property files/           // For custom compile/run commands (.htpc, .htpr).
 │
 ├── 📁 js/                       // All application logic (Renderer), loaded in order.
+│   ├── 📜 0_htvm_io.js            // Defines the global `FileRead` function for compiler imports.
 │   ├── 📜 0_storage_init.js       // Intercepts localStorage calls and redirects them to the backend.
 │   ├── 📜 1_state.js              // Global variables (the app's central memory).
 │   ├── 📜 2_autocomplete_keywords.js   // All autocomplete keywords for non HTVM langs.
