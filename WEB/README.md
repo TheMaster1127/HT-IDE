@@ -116,6 +116,8 @@ Small details that make a big difference.
 *   **Informative Tooltips:** Hover over help icons (`ℹ️`) in settings modals to get detailed explanations of what each option does.
 *   **Workspace Isolation:** Each workspace (identified by the `?id=` in the URL) is completely sandboxed in its own database, with its own files, settings, and instruction sets, preventing data leaks.
 
+---
+
 ## License
 
 This project is licensed under the GNU General Public License v3.0. Please see the `LICENSE` file in the root directory of the repository for the full license text.
