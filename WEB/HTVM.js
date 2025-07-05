@@ -10345,7 +10345,7 @@ function compiler(htCode, allInstructionFile, mode, langToConvertToParam = "") {
                             if (isAlreadyIncluded == false) {
                                 fileContent = Trim(FileRead(filePathToInclude));
                                 // The 'include' line is replaced by the file's content in the reconstructed code.
-                                reconstructedCode = reconstructedCode . Chr(10) . keyWordComment . " start of " . filePathToInclude + Chr(10) . fileContent . Chr(10) . keyWordComment . " end of " . filePathToInclude . Chr(10) . Chr(10)
+                                reconstructedCode = reconstructedCode + Chr(10) + keyWordComment + " start of " + filePathToInclude + Chr(10) + fileContent + Chr(10) + keyWordComment + " end of " + filePathToInclude + Chr(10) + Chr(10);
                                 HTVM_Append(includedFilePaths, filePathToInclude);
                             }
                         } else {
