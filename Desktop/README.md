@@ -382,3 +382,5 @@ HT-IDE features Discord Rich Presence, which automatically shows your current st
 
 ## License
 
+This project is licensed under the GNU General Public License v3.0. Please see the `LICENSE` file in the root directory of the repository for the full license text.
+
