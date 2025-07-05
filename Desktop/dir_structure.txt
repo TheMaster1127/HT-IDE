@@ -16,7 +16,6 @@
 ├── 📜 htvm_completions.js       // Autocomplete data for the editor.
 │
 ├── 📝 README.md                 // Project description and instructions.
-├── 📝 LICENCE                   // The project's license file.
 ├── 🖼️ icon.png                   // The application and browser tab icon.
 │
 ├── 📁 node_modules/             // Directory for all project dependencies (managed by npm).
