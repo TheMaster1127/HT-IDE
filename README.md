@@ -11,3 +11,6 @@ The IDE of the future — seamlessly designed for HTVM, fully customizable, effi
 
 ### Navigate to the `Desktop` or `WEB` folder to find their respective README files and documentation.
 
+## License
+
+This project is licensed under the GNU General Public License v3.0. Please see the `LICENSE` file in the root directory of the repository for the full license text.
