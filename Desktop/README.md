@@ -381,4 +381,4 @@ HT-IDE features Discord Rich Presence, which automatically shows your current st
 ---
 
 ## License
-This project is licensed under the **MIT License**.
+
