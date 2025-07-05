@@ -10,7 +10,6 @@
 ├── 📜 htvm_completions.js       // Autocomplete data for the editor.
 │
 ├── 📝 README.md                 // Project description and instructions.
-├── 📝 LICENCE                   // The project's license file.
 ├── 🖼️ icon.png                   // The favicon for the browser tab.
 │
 ├── 📁 js/                       // All application logic, loaded in order.
