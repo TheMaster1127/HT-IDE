@@ -337,7 +337,13 @@ function applyAndSetHotkeys() {
         else if (checkMatch(activeHotkeys.formatFile)) {
             e.preventDefault();
             if (!currentOpenFile || !currentOpenFile.endsWith('.htvm')) { alert("The formatter only works with .htvm files."); return; }
-            try { editor.session.setValue(formatHtvmCode(editor.getValue())); }
+            try {
+                // MODIFICATION START: Use session.replace to make formatting undoable
+                const formattedCode = formatHtvmCode(editor.getValue());
+                const fullRange = new ace.Range(0, 0, editor.session.getLength(), Infinity);
+                editor.session.replace(fullRange, formattedCode);
+                // MODIFICATION END
+            }
             catch (err) { getActiveTerminalSession()?.xterm.writeln(`\x1b[31mAn error occurred during formatting: ${err.message}\x1b[0m`); }
         }
         else if (checkMatch(activeHotkeys.closeTab)) {
@@ -495,7 +501,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('run-btn').addEventListener('click', handleRun);
     document.getElementById('format-btn').addEventListener('click', () => {
         if (!currentOpenFile || !currentOpenFile.endsWith('.htvm')) { alert("The formatter only works with .htvm files."); return; }
-        try { editor.session.setValue(formatHtvmCode(editor.getValue())); }
+        try {
+            // MODIFICATION START: Use session.replace to make formatting undoable
+            const formattedCode = formatHtvmCode(editor.getValue());
+            const fullRange = new ace.Range(0, 0, editor.session.getLength(), Infinity);
+            editor.session.replace(fullRange, formattedCode);
+            // MODIFICATION END
+        }
         catch (err) { getActiveTerminalSession()?.xterm.writeln(`\x1b[31mAn error occurred during formatting: ${err.message}\x1b[0m`); }
     });
     document.getElementById('close-output-btn').addEventListener('click', () => document.getElementById('output-panel').classList.remove('visible'));
