@@ -1,3 +1,5 @@
+// js/7_modals_1.js
+
 //---Modal Dialog Functions---
 
 function openConfirmModal(title, message, callback) {
@@ -1080,6 +1082,12 @@ function updateHotkeyTitles() {
         const formatHotkeyStr = formatHotkey(activeHotkeys.formatFile);
         formatBtn.title = `Format HTVM File (${formatHotkeyStr})`;
     }
+    
+    const mapLineBtn = document.getElementById('map-line-btn');
+    if (mapLineBtn) {
+        const mapLineHotkeyStr = formatHotkey(activeHotkeys.mapLine);
+        mapLineBtn.title = `Map Target Line to HTVM (${mapLineHotkeyStr})`;
+    }
 
     const toggleSidebarBtn = document.getElementById('main-toggle-sidebar-btn');
     if (toggleSidebarBtn) {
@@ -1397,5 +1405,112 @@ function openProjectManagerModal(settingsState) {
     
     overlay.appendChild(modalInstance);
     render();
+    overlay.classList.add('visible');
+}
+
+// --- NEW/FIXED LINE MAPPING LOGIC ---
+
+async function startLineMappingProcess() {
+    let sourceCode, targetCode;
+    
+    if (currentOpenFile && currentOpenFile.endsWith('.htvm')) {
+        sourceCode = editor.getValue();
+        openConfirmModal("Paste Target Code", "The HTVM code has been pre-filled.\n\nPlease copy the target language code, then click OK.", async (ok) => {
+            if (!ok) return;
+            try {
+                targetCode = await navigator.clipboard.readText();
+                if (!targetCode) throw new Error("Clipboard is empty.");
+                openLineMapperModal(sourceCode, targetCode);
+            } catch (err) {
+                alert(`Could not read from clipboard. Please manually copy the target code and try again.\nError: ${err.message}`);
+            }
+        });
+    } else if (currentOpenFile) {
+        targetCode = editor.getValue();
+        openConfirmModal("Paste HTVM Code", "The target code has been pre-filled.\n\nPlease copy the HTVM source code, then click OK.", async (ok) => {
+            if (!ok) return;
+            try {
+                sourceCode = await navigator.clipboard.readText();
+                 if (!sourceCode) throw new Error("Clipboard is empty.");
+                openLineMapperModal(sourceCode, targetCode);
+            } catch (err) {
+                 alert(`Could not read from clipboard. Please manually copy the HTVM code and try again.\nError: ${err.message}`);
+            }
+        });
+    } else {
+         openLineMapperModal("", "");
+    }
+}
+
+
+function openLineMapperModal(htvmCode = "", targetCode = "") {
+    const overlay = document.getElementById('modal-overlay');
+
+    const modalInstance = document.createElement('div');
+    modalInstance.className = 'modal-box';
+    modalInstance.style.maxWidth = '90vw';
+    modalInstance.style.width = '1200px';
+
+    modalInstance.innerHTML = `
+        <h3>HTVM Line Mapper</h3>
+        <p style="margin-top:0; color:#ccc;">Paste the source HTVM code and the target language code into the boxes below, then provide the line number from the target code to find the corresponding HTVM line.</p>
+        <div style="display: flex; gap: 15px; margin: 15px 0;">
+            <div style="flex: 1; display: flex; flex-direction: column;">
+                <label for="mapper-htvm-code">HTVM Code:</label>
+                <textarea id="mapper-htvm-code" style="flex-grow: 1; resize: none; background-color: #252525; color: #e0e0e0; border: 1px solid #333; height: 300px;"></textarea>
+            </div>
+            <div style="flex: 1; display: flex; flex-direction: column;">
+                <label for="mapper-target-code">Target Language Code:</label>
+                <textarea id="mapper-target-code" style="flex-grow: 1; resize: none; background-color: #252525; color: #e0e0e0; border: 1px solid #333;"></textarea>
+            </div>
+        </div>
+        <div style="display: flex; gap: 15px; align-items: flex-end; margin-bottom: 15px;">
+            <div>
+                <label for="mapper-line-number">Target Line Number:</label>
+                <input type="number" id="mapper-line-number" style="width: 100px; padding: 8px; background-color: #252525; color: #e0e0e0; border: 1px solid #333;">
+            </div>
+            <button id="mapper-run-btn" class="modal-btn-confirm" style="padding: 8px 16px;">Map Line</button>
+        </div>
+        <div>
+            <h4>Result:</h4>
+            <div id="mapper-result" style="background-color: #1a1a1a; padding: 10px; border-radius: 3px; border: 1px solid #333; min-height: 24px; white-space: pre-wrap; font-family: monospace;"></div>
+        </div>
+        <div class="modal-buttons">
+            <button class="modal-btn-cancel">Close</button>
+        </div>
+    `;
+
+    const closeModal = () => {
+        if(overlay.contains(modalInstance)) overlay.removeChild(modalInstance);
+        if(overlay.childElementCount === 0) overlay.classList.remove('visible');
+    };
+
+    modalInstance.querySelector('.modal-btn-cancel').onclick = closeModal;
+
+    const htvmCodeEl = modalInstance.querySelector('#mapper-htvm-code');
+    const targetCodeEl = modalInstance.querySelector('#mapper-target-code');
+    htvmCodeEl.value = htvmCode;
+    targetCodeEl.value = targetCode;
+
+    modalInstance.querySelector('#mapper-run-btn').onclick = () => {
+        const htvmCodeVal = htvmCodeEl.value;
+        const targetCodeVal = targetCodeEl.value;
+        const lineNumber = modalInstance.querySelector('#mapper-line-number').value;
+
+        if (!htvmCodeVal || !targetCodeVal || !lineNumber) {
+            alert("Please fill in all fields.");
+            return;
+        }
+
+        try {
+            const result = tryToMapHTVMlineToTargetLine(htvmCodeVal, targetCodeVal, lineNumber);
+            modalInstance.querySelector('#mapper-result').textContent = result;
+        } catch (e) {
+            modalInstance.querySelector('#mapper-result').textContent = `An error occurred: ${e.message}`;
+            console.error("Line mapping error:", e);
+        }
+    };
+    
+    overlay.appendChild(modalInstance);
     overlay.classList.add('visible');
 }

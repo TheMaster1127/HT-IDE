@@ -353,8 +353,8 @@ function applyAndSetHotkeys() {
         }
         else if (checkMatch(activeHotkeys.reopenTab)) { e.preventDefault(); await handleReopenTab(); }
         else if (checkMatch(activeHotkeys.toggleSidebar)) { e.preventDefault(); document.getElementById('main-toggle-sidebar-btn').click(); }
-        // --- THIS IS THE CRITICAL FIX ---
         else if (checkMatch(activeHotkeys.newProject)) { e.preventDefault(); await openNewProjectModal(); }
+        else if (checkMatch(activeHotkeys.mapLine)) { e.preventDefault(); await startLineMappingProcess(); }
     };
 
     document.addEventListener('keydown', hotkeyListener);
@@ -499,6 +499,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('run-js-after-htvm').onchange = e => lsSet('runJsAfterHtvm', e.target.checked);
     document.getElementById('full-html-checkbox').onchange = e => lsSet('fullHtml', e.target.checked);
     document.getElementById('run-btn').addEventListener('click', handleRun);
+    document.getElementById('map-line-btn').addEventListener('click', startLineMappingProcess);
     document.getElementById('format-btn').addEventListener('click', () => {
         if (!currentOpenFile || !currentOpenFile.endsWith('.htvm')) { alert("The formatter only works with .htvm files."); return; }
         try {

@@ -75,6 +75,10 @@
     --btn-format-bg: #3d8b40;
     --btn-format-text: #ffffff;
     --btn-format-text-bold: bold;
+    /* MODIFIED: Added map line button variables */
+    --btn-map-line-bg: #0e639c;
+    --btn-map-line-text: #ffffff;
+    --btn-map-line-text-bold: bold;
     --htvm-lang-selector-text: #e0e0e0;
     --htvm-lang-selector-text-bold: normal;
     --htvm-checkbox-text: #e0e0e0;
@@ -243,6 +247,18 @@ body.preload * { transition: none !important; }
     background-color: var(--btn-format-bg);
     color: var(--btn-format-text);
     font-weight: var(--btn-format-text-bold);
+}
+#map-line-btn {
+    display: none; /* Hidden on desktop by default */
+    border: none;
+    padding: 8px 16px;
+    border-radius: 3px;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-left: 10px;
+    background-color: var(--btn-map-line-bg);
+    color: var(--btn-map-line-text);
+    font-weight: var(--btn-map-line-text-bold);
 }
 #run-btn { 
     margin-left: 8px; 
@@ -425,6 +441,7 @@ body.syntax-highlighting-disabled .ace_line > span[class*="ace_"] { color: #f8f8
     #tabs-container { order: 3; width: 100%; flex-basis: 100%; margin-top: 5px; padding: 5px 0 0 0; border-bottom: none; }
     #main-toggle-sidebar-btn { order: 1; }
     #format-btn { display: block; order: 2; margin-left: auto; }
+    #map-line-btn { display: block; order: 2; }
     #run-btn { order: 2; margin-left: 10px; }
     #htvm-controls { order: 3; width: 100%; flex-basis: 100%; margin: 8px 0 0 0; justify-content: center; flex-wrap: wrap; gap: 8px; }
     .select-container { flex-grow: 1; min-width: 130px; }
