@@ -8696,8 +8696,21 @@ function FixDoubleInThe4langs(line) {
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function fString(line) {
     if (langToConvertTo != langFileExtension_2) {
-        line = StrReplace(line, "{", Chr(34) + " + fstr(");
-        line = StrReplace(line, "}", ") + " + Chr(34));
+        if (langToConvertTo == "lua") {
+            line = StrReplace(line, "{", Chr(34) + " .. fstr(");
+            line = StrReplace(line, "}", ") .. " + Chr(34));
+        }
+        else if (langToConvertTo == "ahk") {
+            line = StrReplace(line, "{", Chr(34) + " . fstr(");
+            line = StrReplace(line, "}", ") . " + Chr(34));
+        }
+        else if (langToConvertTo == "nim") {
+            line = StrReplace(line, "{", Chr(34) + " & fstr(");
+            line = StrReplace(line, "}", ") & " + Chr(34));
+        } else {
+            line = StrReplace(line, "{", Chr(34) + " + fstr(");
+            line = StrReplace(line, "}", ") + " + Chr(34));
+        }
     }
     return line;
 }
