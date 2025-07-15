@@ -8601,6 +8601,9 @@ function fixJAVAstrCmp_FjavaUGH(javaCode) {
     javaCode = StrReplace(javaCode, "huiuuhuuhtheidFor\\-\\-asdsas\\-\\-theuhturtyphoutr\\-\\-AA", "huiuuhuuhtheidFor--asdsas--theuhturtyphoutr--AA");
     javaCode = StrReplace(javaCode, "AA\\).equals(", "AA.equals(");
     javaCode = StrReplace(javaCode, ".equals(ihuiuuhuuhtheidFor)--asdsas--theuhturtyphoutr--AA", ".equals(ihuiuuhuuhtheidFor--asdsas--theuhturtyphoutr--AA");
+    javaCode = StrReplace(javaCode, ".equals(ihuiuuhuuhtheidFor))--asdsas--theuhturtyphoutr--AA", ".equals(ihuiuuhuuhtheidFor--asdsas--theuhturtyphoutr--AA");
+    javaCode = fixLastParentesis(javaCode);
+    javaCode = fixLastParentesis(javaCode);
     javaCode = fixLastParentesis(javaCode);
     return javaCode;
 }
