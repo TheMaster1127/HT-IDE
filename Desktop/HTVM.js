@@ -9059,12 +9059,10 @@ function when_patternMatching_HELP_HTVMtoHTVM(theCode) {
             out += A_LoopField170 + Chr(10);
         }
         if (SubStr(Trim(A_LoopField170), 1, 5) == "when " || SubStr(Trim(A_LoopField170), 1, 5) == "wehn " || Trim(A_LoopField170) == "when" || Trim(A_LoopField170) == "wehn") {
-            if (SubStr(Trim(A_LoopField170), 1, 5) == "when " || SubStr(Trim(A_LoopField170), 1, 5) == "wehn ") {
-                inWhen++;
-            }
-            if (Trim(A_LoopField170) == "subout") {
-                inWhen--;
-            }
+            inWhen++;
+        }
+        if (Trim(A_LoopField170) == "subout") {
+            inWhen--;
         }
     }
     out = StringTrimRight(out, 1);
