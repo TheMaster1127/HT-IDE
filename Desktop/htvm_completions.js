@@ -67,6 +67,7 @@ const hardcodedHtvmWords = [
     "endpoint",
     "fileinit",
     "subout",
+    "when",
     "port",
     "gui",
     "A_Input",
