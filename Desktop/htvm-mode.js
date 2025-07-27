@@ -215,7 +215,7 @@ const regexGuiOptions = new RegExp(`\\b(?:${gui_option_pattern1})(?=:)|\\b(?:${g
                     { token: "arrayMethods", regex: "\\." + cleanAndBuild(arrayMethods_temp) },
                     { token: "static_types", regex: cleanAndBuild(staticTypes_temp) + "|" + "\\b(?:" + "[Gg][Uu][Ii]" + "|" + "[Gg][Uu][Ii][Cc][Oo][Nn][Tt][Rr][Oo][Ll]" + ")\\b" },
                     { token: "programmingBlocksAndImport", regex: cleanAndBuild(programmingBlocksAndImport_temp) },
-                    { token: "trueANDfalse", regex: cleanAndBuild(htvm_trueFalseGlobalNull_temp) },
+                    { token: "trueANDfalse", regex: cleanAndBuild(htvm_trueFalseGlobalNull_temp) + "|\\bin\\b" },
 {
     token: "guiOptions",
     regex: regexGuiOptions
