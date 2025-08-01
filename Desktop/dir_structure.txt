@@ -38,6 +38,8 @@
 │   ├── 📜 7_modals_3.js           // Logic for the Debugger modal.
 │   └── 📜 8_main.js               // App entry point, wires everything together (the "Conductor").
 │
+├── 📁 assets/                   // Icons for the file explorer.
+│ ... icons
 └── 📁 images/                   // Icons for the language selector dropdown.
     ├── 🖼️ ahk.png
     ├── 🖼️ cpp.png
