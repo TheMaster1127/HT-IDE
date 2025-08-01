@@ -53,9 +53,22 @@ async function renderFileList() {
         const li = document.createElement('li');
         const span = document.createElement('span');
         span.className = 'file-item-name';
-        
-        span.textContent = `${item.isFile ? '📄' : '📁'} ${item.name}`;
+        span.textContent = item.name;
         li.title = item.path;
+
+        let iconElement;
+        if (item.isFile) {
+            if (item.icon) {
+                iconElement = document.createElement('img');
+                iconElement.src = `assets/${item.icon}`;
+                iconElement.className = 'file-icon';
+            } else {
+                iconElement = document.createTextNode('📄 ');
+            }
+        } else {
+            iconElement = document.createTextNode('📁 ');
+        }
+        li.appendChild(iconElement);
 
         li.onclick = () => (item.isFile ? openFileInEditor(item.path) : setCurrentDirectory(item.path + '/'));
 

@@ -435,6 +435,15 @@ body.syntax-highlighting-disabled .ace_line > span[class*="ace_"] { color: #f8f8
 .range-control-wrapper input[type="range"] { width: 100%; }
 .range-control-wrapper span { min-width: 35px; text-align: right; }
 
+/* --- MODIFICATION START: File Icon Styling --- */
+.file-icon {
+    width: 16px;
+    height: 16px;
+    margin-right: 6px;
+    object-fit: contain;
+}
+/* --- MODIFICATION END --- */
+
 /* --- Mobile Responsiveness --- */
 @media (max-width: 768px) {
     .top-bar { flex-wrap: wrap; padding: 5px; justify-content: space-between; }

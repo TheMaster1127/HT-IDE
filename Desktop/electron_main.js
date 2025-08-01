@@ -543,7 +543,7 @@ ipcMain.on('fs:read-file-relative-sync', (event, { baseFile, targetPath }) => {
 });
 // --- MODIFICATION END ---
 
-ipcMain.handle('fs:getAllPaths', (event, dirPath) => { try { const p = dirPath === '/' ? userHomeDir : dirPath; const i = fs.readdirSync(p, { withFileTypes: true }); return i.map(t => ({ name: t.name, path: path.join(p, t.name), isFile: t.isFile() })); } catch (e) { if (e.code === 'ENOENT') return []; console.error(`Error reading directory ${dirPath}:`, e); return []; } });
+ipcMain.handle('fs:getAllPaths', (event, dirPath) => { try { const p = dirPath === '/' ? userHomeDir : dirPath; const i = fs.readdirSync(p, { withFileTypes: true }); return i.map(t => { const isFile = t.isFile(); let icon = null; if (isFile) { const ext = path.extname(t.name).substring(1); const iconPath = path.join(app.getAppPath(), 'assets', `${ext}.png`); if (fs.existsSync(iconPath)) { icon = `${ext}.png`; } } return { name: t.name, path: path.join(p, t.name), isFile, icon }; }); } catch (e) { if (e.code === 'ENOENT') return []; console.error(`Error reading directory ${dirPath}:`, e); return []; } });
 ipcMain.handle('fs:getFileContent', (event, filePath) => { try { if (fs.existsSync(filePath)) return fs.readFileSync(filePath, 'utf-8'); return null; } catch (e) { console.error(e); return null; } });
 ipcMain.handle('fs:saveFileContent', async (event, { filePath, content }) => {
     try {
