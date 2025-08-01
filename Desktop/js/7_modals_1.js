@@ -813,15 +813,21 @@ function openExportImportModal() {
         input.click();
     };
     
+    // --- MODIFICATION START: Corrected workspace ID detection ---
     window.getAllWorkspaceIds = () => {
         const ids = new Set();
+        // Always include the current workspace ID, even if no data is stored for it yet.
+        // This ensures that when starting fresh, the current workspace "0" is recognized.
+        ids.add(getIdeId());
+        
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
             const match = key.match(/^HT-IDE-id(\d+)-/);
             if (match) ids.add(match[1]);
         }
-        return Array.from(ids).sort((a,b) => a - b);
+        return Array.from(ids).sort((a,b) => Number(a) - Number(b));
     };
+    // --- MODIFICATION END ---
 
     window.clearWorkspaceData = (id) => {
         const prefix = `HT-IDE-id${id}-`;
@@ -951,7 +957,8 @@ function openExportImportModal() {
         });
     };
     modalInstance.querySelector('#import-workspace-btn').onclick = () => {
-        const newId = (getAllWorkspaceIds().map(Number).pop() || -1) + 1;
+        const allIds = getAllWorkspaceIds().map(Number);
+        const newId = allIds.length > 0 ? Math.max(...allIds) + 1 : 0;
         openConfirmModal("Import to New Workspace", `This will import to a new workspace (ID ${newId}). Continue?`, (confirmed) => {
             if (confirmed) handleFileUpload(data => {
                 const newPrefix = `HT-IDE-id${newId}-`;
@@ -991,7 +998,6 @@ function openWorkspaceManagerModal() {
         listEl.innerHTML = '';
         const allIds = window.getAllWorkspaceIds();
         const currentId = getIdeId();
-        if (allIds.length === 0) allIds.push('0');
 
         allIds.forEach(id => {
             const li = document.createElement('li');
@@ -1048,7 +1054,8 @@ function openWorkspaceManagerModal() {
 
     modalInstance.querySelector('#workspace-manager-back-btn').onclick = () => { closeModal(); openExportImportModal(); };
     modalInstance.querySelector('#workspace-add-new-btn').onclick = () => {
-        const newId = (getAllWorkspaceIds().map(Number).pop() || -1) + 1;
+        const allIds = window.getAllWorkspaceIds().map(Number);
+        const newId = allIds.length > 0 ? Math.max(...allIds) + 1 : 0;
         openConfirmModal("Create New Workspace", `Create and switch to a new, empty workspace (ID ${newId})?`, (confirmed) => {
             if (confirmed) {
                 window.dispatchEvent(new Event('beforeunload'));
