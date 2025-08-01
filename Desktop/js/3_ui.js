@@ -355,17 +355,31 @@ function handleDownloadHtml() {
     const iframe = document.getElementById('html-output');
     const htmlContent = iframe.srcdoc;
     if (!htmlContent) return alert('No HTML content to download.');
-    let fileName = prompt("Please enter a name for the HTML file:", "output.html")?.trim();
-    if (!fileName) return;
-    if (!fileName.toLowerCase().endsWith('.html')) fileName += '.html';
-    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(link.href);
+
+    // Use the custom input modal which is already defined in 7_modals_1.js
+    openInputModal(
+        "Download HTML File",
+        "Please enter a name for the HTML file:",
+        "output.html",
+        (fileName) => {
+            // This is the callback function that runs after the user enters a name
+            if (!fileName || !fileName.trim()) return; // User cancelled or entered an empty string
+
+            let finalName = fileName.trim();
+            if (!finalName.toLowerCase().endsWith('.html')) {
+                finalName += '.html';
+            }
+            
+            const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = finalName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+        }
+    );
 }
 
 function handleDragStart(e) {
