@@ -39,14 +39,14 @@ function openDebuggerModal() {
                 debuggerState.isPaused = false;
                 debuggerState.resolve();
             }
-            overlay.style.display = 'none';
+            // MODIFICATION: Removed the line that incorrectly hid the main overlay.
             modalBox.style.display = 'none';
             clearHighlight();
         };
 
         const stopAndHide = () => {
             stopDebugger();
-            overlay.style.display = 'none';
+            // MODIFICATION: Removed the line that incorrectly hid the main overlay.
             modalBox.style.display = 'none';
         }
 
