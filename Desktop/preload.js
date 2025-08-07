@@ -49,6 +49,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     watchFile: (filePath) => ipcRenderer.send('watch-file', filePath),
     unwatchFile: (filePath) => ipcRenderer.send('unwatch-file', filePath),
     onFileChanged: (callback) => ipcRenderer.on('file-changed', (event, filePath) => callback(filePath)),
+    // --- MODIFICATION START: Add directory watcher bridge ---
+    watchDirectory: (dirPath) => ipcRenderer.send('fs:watch-directory', dirPath),
+    onDirectoryChanged: (callback) => ipcRenderer.on('fs:directory-changed', () => callback()),
+    // --- MODIFICATION END ---
     
     // --- App control functions ---
     reloadApp: () => ipcRenderer.send('app:reload'),

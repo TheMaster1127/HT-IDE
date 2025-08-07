@@ -401,6 +401,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
     
+    // --- MODIFICATION START: Add listener for directory changes ---
+    window.electronAPI.onDirectoryChanged(async () => {
+        console.log("Directory change detected, refreshing file list.");
+        await renderFileList();
+    });
+    // --- MODIFICATION END ---
+
     window.electronAPI.onCloseTabFromContextMenu(async (filePath) => await handleCloseTabRequest(filePath));
 
     window.electronAPI.onFileChanged(async (filePath) => {

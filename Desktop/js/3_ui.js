@@ -282,15 +282,22 @@ function checkDirtyState(filename) {
 
 async function setCurrentDirectory(path) {
     const homeDir = await window.electronAPI.getHomeDir();
+    let pathToWatch;
     if (path === '/') {
         currentDirectory = '/';
+        pathToWatch = homeDir;
     } else {
         currentDirectory = path.replace(/[\\\/]$/, '') + '/';
+        pathToWatch = currentDirectory;
     }
     
     document.getElementById('current-path-display').textContent = currentDirectory;
     lsSet('lastCwd', currentDirectory);
     
+    // --- MODIFICATION START: Tell the main process to watch the new directory ---
+    window.electronAPI.watchDirectory(pathToWatch);
+    // --- MODIFICATION END ---
+
     const activeSession = getActiveTerminalSession();
     if(activeSession && !activeSession.isExecuting) {
         const newCwd = currentDirectory === '/' ? homeDir : currentDirectory;

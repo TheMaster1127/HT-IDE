@@ -47,6 +47,18 @@ let startTimestamp = new Date();
 
 const fileWatchers = new Map();
 
+// --- MODIFICATION START: Add watcher for the file list sidebar ---
+let currentDirectoryWatcher = null;
+const debounce = (func, delay) => {
+    let timeout;
+    return (...args) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), delay);
+    };
+};
+// --- MODIFICATION END ---
+
+
 let httpServer = null;
 const mimeTypes = {
     '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
@@ -264,6 +276,12 @@ app.on('will-quit', () => {
     fileWatchers.forEach(watcher => watcher.close());
     fileWatchers.clear();
     
+    // --- MODIFICATION START: Close directory watcher on quit ---
+    if (currentDirectoryWatcher) {
+        currentDirectoryWatcher.close();
+    }
+    // --- MODIFICATION END ---
+
     if (httpServer && httpServer.listening) {
         httpServer.close();
     }
@@ -417,6 +435,46 @@ ipcMain.on('unwatch-file', (event, filePath) => {
         fileWatchers.delete(filePath);
     }
 });
+
+// --- MODIFICATION START: Add handler for watching the sidebar directory ---
+ipcMain.on('fs:watch-directory', (event, dirPath) => {
+    // Stop watching the previous directory
+    if (currentDirectoryWatcher) {
+        currentDirectoryWatcher.close();
+        currentDirectoryWatcher = null;
+    }
+
+    const pathExists = fs.existsSync(dirPath);
+    if (!pathExists) {
+        console.warn(`Attempted to watch a directory that does not exist: ${dirPath}`);
+        return;
+    }
+
+    // Debounce the event to prevent multiple re-renders for a single action
+    const debouncedRefresh = debounce(() => {
+        if (!event.sender.isDestroyed()) {
+            event.sender.send('fs:directory-changed');
+        }
+    }, 150);
+
+    try {
+        currentDirectoryWatcher = fs.watch(dirPath, (eventType, filename) => {
+            // eventType can be 'rename' (for create/delete/rename) or 'change' (for modification)
+            // In either case, we just trigger a refresh.
+            if (filename) {
+                // console.log(`Directory change detected in ${dirPath}: ${eventType} on ${filename}`);
+                debouncedRefresh();
+            }
+        });
+
+        currentDirectoryWatcher.on('error', (err) => {
+            console.error(`Error with directory watcher for ${dirPath}:`, err);
+        });
+    } catch (err) {
+        console.error(`Failed to start directory watcher for ${dirPath}:`, err);
+    }
+});
+// --- MODIFICATION END ---
 
 ipcMain.handle('dialog:openDirectory', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({ properties: ['openDirectory'] });
