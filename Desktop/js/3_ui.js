@@ -29,7 +29,8 @@ async function renderFileList() {
             for (const file of files) {
                 await window.electronAPI.dropFile(file.path, currentDirectory);
             }
-            await renderFileList();
+            // MODIFICATION: Removed redundant renderFileList call.
+            // The directory watcher will automatically handle this refresh.
         }
     };
 

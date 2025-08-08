@@ -96,10 +96,16 @@ async function deleteItem(pathToDelete, isFile) {
                 editor.setSession(ace.createEditSession("// No file open."));
                 editor.setReadOnly(true);
                 document.getElementById('htvm-controls').style.display = 'none';
-                await renderAll();
+                // MODIFICATION: Removed redundant renderAll call.
+                // Tab rendering is handled by the logic above, and file list
+                // rendering is handled by the directory watcher.
+                renderTabs();
+                renderTerminalTabs();
             }
         } else {
-            await renderAll();
+             // MODIFICATION: Removed redundant renderAll call.
+             renderTabs();
+             renderTerminalTabs();
         }
     });
 }
@@ -144,7 +150,8 @@ async function handleNewFolder() {
         
         const { success, error } = await window.electronAPI.createItem(path, false);
         if (success) {
-            await renderFileList();
+            // MODIFICATION: Removed redundant renderFileList call.
+            // The directory watcher will automatically handle this refresh.
         } else {
              alert(`Error creating folder: ${error}`);
         }

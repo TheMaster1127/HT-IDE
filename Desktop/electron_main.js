@@ -228,6 +228,20 @@ function createWindow() {
         }
     });
 
+    // --- MODIFICATION START: Add listener to clean up watcher on reload ---
+    // This event fires whenever the renderer process navigates, which includes reloads.
+    mainWindow.webContents.on('did-start-navigation', (event, url, isInPlace, isMainFrame) => {
+        // We only care about the main window frame reloading
+        if (isMainFrame) {
+            if (currentDirectoryWatcher) {
+                // console.log('Renderer is reloading, closing the old directory watcher.');
+                currentDirectoryWatcher.close();
+                currentDirectoryWatcher = null;
+            }
+        }
+    });
+    // --- MODIFICATION END ---
+
     const registerDevShortcuts = () => {
         globalShortcut.register('CommandOrControl+Shift+I', () => {
             mainWindow.webContents.toggleDevTools();
