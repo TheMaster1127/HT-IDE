@@ -649,6 +649,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.body.classList.remove('preload');
         getActiveTerminalSession()?.fitAddon.fit();
     }, 50);
+
+    // MODIFICATION: Added failsafe to detect and correct file list duplication
+    // This is the "UI Janitor" that ensures the file list is always correct.
+    setInterval(() => {
+        const fileList = document.getElementById('file-list');
+        if (!fileList) return;
+
+        // Find all list items that could be the '..' entry
+        const strongElements = fileList.querySelectorAll('li > strong');
+        
+        let parentDirEntries = 0;
+        strongElements.forEach(strong => {
+            if (strong.textContent.includes('..')) {
+                parentDirEntries++;
+            }
+        });
+
+        // If more than one '..' entry is found, a duplication bug has occurred.
+        if (parentDirEntries > 1) {
+            console.warn("Duplicate '..' entry detected in file list. Forcing a refresh to correct the UI.");
+            renderFileList(); // Force a re-render
+        }
+    }, 500); // Check every half a second
 });
 
 function applyEditorColorSettings() {
