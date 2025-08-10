@@ -54,8 +54,11 @@ function promptForInitialInstructionSet() {
                     window.electronAPI.reloadApp();
                 };
                 reader.readAsText(file);
-                fileInput.value = ''; 
             });
+            // MODIFICATION START: Reset the file input after selection.
+            // This prevents the bug where selecting the same file twice doesn't fire the 'onchange' event.
+            fileInput.value = '';
+            // MODIFICATION END
         };
         
         fileInput.click();
@@ -212,8 +215,11 @@ function openInstructionManagerModal() {
                     }
                 };
                 reader.readAsText(file);
-                fileInput.value = '';
             });
+            // MODIFICATION START: Reset the file input after selection.
+            // This prevents the bug where selecting the same file twice doesn't fire the 'onchange' event.
+            fileInput.value = '';
+            // MODIFICATION END
         };
         fileInput.click();
     };
