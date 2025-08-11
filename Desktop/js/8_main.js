@@ -599,10 +599,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, 200));
 
     window.addEventListener('beforeunload', () => {
-        if (currentOpenFile) {
-            saveFileContentSync(currentOpenFile, editor.getValue());
+        // MODIFICATION START: Only save the current file if it has unsaved changes.
+        if (currentOpenFile && fileSessions.has(currentOpenFile)) {
+            const currentSession = fileSessions.get(currentOpenFile);
+            // Check if the undo manager reports any changes.
+            if (!currentSession.getUndoManager().isClean()) {
+                saveFileContentSync(currentOpenFile, editor.getValue());
+            }
             lsSet('state_' + currentOpenFile, { scrollTop: editor.session.getScrollTop(), cursor: editor.getCursorPosition() });
         }
+        // MODIFICATION END
         openTabs.forEach(tab => window.electronAPI.unwatchFile(tab));
         terminalSessions.forEach(s => window.electronAPI.terminalKillProcess(s.id));
 
