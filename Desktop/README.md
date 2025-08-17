@@ -225,9 +225,6 @@ Here's how the syntax works in these property files:
   - `%FILENAME%`: Full file path of the file being processed
   - `%ONLYFILENAME%`: The filename without its extension
   - `%DIRFULLPATH%`: The full directory path of the file
-
-- **Commands**:
-  - `~~~`: A placeholder for space, used to replace any `~~~` occurrences in the commands
  
 - **Comments**:
   - Use `;` to write comments.

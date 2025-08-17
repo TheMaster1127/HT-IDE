@@ -1,0 +1,9 @@
+
+
+; htrs
+; rust
+; cpp = rust cuz i moded HTVM to only gen rust
+"C:\Users\The_M\OneDrive\Desktop\GitHub Projects\HT-Rust\HT-Rust" "%FILENAME%" "C:\Users\The_M\OneDrive\Desktop\GitHub Projects\HT-Rust\HT-Rust-instructions.txt" "cpp"
+; old code i will comment out
+;g++ "%ONLYFILENAME%.cpp" "-o" "%ONLYFILENAME%"
+;cd "%DIRFULLPATH%" && "%ONLYFILENAME%.exe"
