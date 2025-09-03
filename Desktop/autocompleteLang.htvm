@@ -1,0 +1,64 @@
+; autocompleteLang: customizable symbolic code—type sequences and spaces, expand to full structured code with blocks, operators, and placeholders.
+
+str str0 := ""
+str str1 := ""
+str str2 := ""
+str str3 := ""
+str str4 := ""
+str str5 := ""
+str str6 := ""
+str str7 := ""
+str str8 := ""
+str str9 := ""
+str str10 := ""
+str str11 := ""
+str str12 := ""
+
+func str autocompleteLang(str code, str HTVM_instrFile, str autocompleteLang_InstrFile) {
+str out := ""
+
+str keyWord_if := ""
+str keyWord_equal := ""
+Loop, Parse, autocompleteLang_InstrFile, `n, `r {
+if (A_Index = 0) {
+keyWord_if := Trim(StrSplit(A_LoopField, "%:%", 1))
+}
+else if (A_Index = 1) {
+keyWord_equal := Trim(StrSplit(A_LoopField, "%:%", 1))
+}
+
+}
+arr str constructs := [keyWord_if]
+
+code := Trim(code)
+Loop, % constructs.size() {
+    code := StrReplace(code, constructs[A_Index], Chr(10) . constructs[A_Index])
+}
+
+code := Trim(code)
+
+Loop, Parse, code, `n, `r {
+
+if (SubStr(Trim(A_LoopField), 1, StrLen(keyWord_if) + 1) = keyWord_if . " ") {
+
+str1 := Trim(StringTrimLeft(Trim(A_LoopField), StrLen(keyWord_if) + 1))
+if (str1 = keyWord_equal) {
+out .= "if (var1 = var2)"
+}
+
+}
+
+
+
+}
+
+
+
+return out
+}
+
+main
+; test
+
+
+print(autocompleteLang("15 3", "", "15%:% if" . Chr(10) . "3%:% ="))

@@ -99,7 +99,13 @@ function openSessionModal(mode) {
             let sessions = lsGet('session_list') || [];
             if (!sessions.includes(name)) sessions.push(name);
             lsSet('session_list', sessions);
-            lsSet(`session_data_${name}`, openTabs);
+            // MODIFICATION START: Save an object containing both tabs and the current directory.
+            const sessionData = {
+                tabs: openTabs,
+                directory: currentDirectory
+            };
+            lsSet(`session_data_${name}`, sessionData);
+            // MODIFICATION END
             closeModal();
             getActiveTerminalSession()?.xterm.writeln(`\x1b[32mSession '${name}' saved.\x1b[0m`);
         };
@@ -109,24 +115,46 @@ function openSessionModal(mode) {
         modalInstance.querySelector('.modal-btn-confirm').style.display = 'none';
         
         populate(async (name) => {
-            const tabsToLoad = lsGet(`session_data_${name}`);
-            if (tabsToLoad && Array.isArray(tabsToLoad)) {
-                
-                currentOpenFile = null;
-                openTabs.forEach(tab => window.electronAPI.unwatchFile(tab));
-                openTabs = [];
-                fileSessions.clear();
+            // MODIFICATION START: Handle both old (array) and new (object) session formats.
+            const sessionData = lsGet(`session_data_${name}`);
+            if (!sessionData) return;
 
-                for (const tabPath of tabsToLoad) {
-                    await openFileInEditor(tabPath);
-                }
+            let tabsToLoad;
+            let directoryToLoad;
 
-                if (openTabs.length === 0) {
-                    editor.setSession(ace.createEditSession("// No file open."));
-                    editor.setReadOnly(true);
-                    await renderAll();
-                }
+            // Check for backward compatibility with old session format.
+            if (Array.isArray(sessionData)) {
+                tabsToLoad = sessionData;
+                directoryToLoad = '/'; // Default to root if directory isn't specified.
+            } else if (typeof sessionData === 'object' && sessionData.tabs) {
+                tabsToLoad = sessionData.tabs;
+                directoryToLoad = sessionData.directory || '/';
+            } else {
+                return; // Invalid session data
             }
+
+            // Clear the current state before loading the new one.
+            currentOpenFile = null;
+            openTabs.forEach(tab => window.electronAPI.unwatchFile(tab));
+            openTabs = [];
+            fileSessions.clear();
+
+            // Set the directory FIRST.
+            await setCurrentDirectory(directoryToLoad);
+
+            // Then, load all the files.
+            for (const tabPath of tabsToLoad) {
+                await openFileInEditor(tabPath);
+            }
+
+            // Handle the case where the session was empty.
+            if (openTabs.length === 0) {
+                editor.setSession(ace.createEditSession("// No file open."));
+                editor.setReadOnly(true);
+                await renderAll();
+            }
+            // MODIFICATION END
+
             closeModal();
             getActiveTerminalSession()?.xterm.writeln(`\x1b[32mSession '${name}' loaded.\x1b[0m`);
         });

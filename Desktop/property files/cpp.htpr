@@ -6,4 +6,4 @@ g++ "%ONLYFILENAME%.cpp" "-o" "%ONLYFILENAME%"
 
 ; The second command runs the compiled executable.
 ; The 'cd' command is NOT needed because the IDE already runs this from the correct directory (%DIRFULLPATH%).
-"%ONLYFILENAME%.exe"
+./"%ONLYFILENAME%"
