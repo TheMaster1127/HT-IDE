@@ -463,24 +463,23 @@ function openHtvmToHtvmModal() {
             fileInput.type = 'file';
             fileInput.multiple = true;
             fileInput.accept = '.htvm';
-            fileInput.onchange = async (e) => {
-                if (!e.target.files?.length) return;
+            // MODIFICATION START: The event handler now uses 'fileInput.files' directly, which is more robust.
+            fileInput.onchange = async () => {
+                if (!fileInput.files?.length) return;
                 closeModal();
                 const activeTerm = getActiveTerminalSession();
-                activeTerm?.writeln(`\x1b[36mStarting HTVM conversion for ${e.target.files.length} file(s)...\x1b[0m`);
+                activeTerm?.xterm.writeln(`\x1b[36mStarting HTVM conversion for ${fileInput.files.length} file(s)...\x1b[0m`);
                 let allKnownPaths = (await getAllPaths()).map(item => item.path);
 
-                for (const file of Array.from(e.target.files)) {
+                for (const file of Array.from(fileInput.files)) {
                     try {
                         const code = await file.text();
                         resetGlobalVarsOfHTVMjs();
                         argHTVMinstrMORE.push(targetContent.replace(/\r/g, ''));
                         
-                        // --- MODIFICATION START: Set compiler context ---
                         window.__HTVM_COMPILER_CONTEXT_FILE__ = file.path;
                         const convertedCode = compiler(code, sourceContent, "full", "htvm");
-                        window.__HTVM_COMPILER_CONTEXT_FILE__ = ''; // Clean up context
-                        // --- MODIFICATION END ---
+                        window.__HTVM_COMPILER_CONTEXT_FILE__ = '';
                         
                         let newName = file.name.replace(/(\.htvm)$/i, '.converted.htvm');
                         let finalName = newName, counter = 1;
@@ -491,14 +490,15 @@ function openHtvmToHtvmModal() {
                         
                         await saveFileContent(prefix + finalName, convertedCode, false);
                         allKnownPaths.push(prefix + finalName);
-                        activeTerm?.writeln(`\x1b[32mConverted ${file.name} -> ${finalName}\x1b[0m`);
+                        activeTerm?.xterm.writeln(`\x1b[32mConverted ${file.name} -> ${finalName}\x1b[0m`);
                     } catch (error) {
-                        activeTerm?.writeln(`\x1b[31mError processing ${file.name}: ${error.message}\x1b[0m`);
+                        activeTerm?.xterm.writeln(`\x1b[31mError processing ${file.name}: ${error.message}\x1b[0m`);
                     }
                 }
                 await renderFileList();
-                activeTerm?.writeln(`\x1b[32m\nConversion process finished.\x1b[0m`);
+                activeTerm?.xterm.writeln(`\x1b[32m\nConversion process finished.\x1b[0m`);
             };
+            // MODIFICATION END
             fileInput.click();
         };
 
