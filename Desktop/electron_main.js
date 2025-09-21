@@ -1,6 +1,6 @@
 // electron_main.js
 
-const { app, BrowserWindow, ipcMain, globalShortcut, dialog, shell, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, dialog, shell, Menu, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -9,9 +9,13 @@ const { spawn } = require('child_process');
 const DiscordRPC = require('discord-rpc');
 const contextMenu = require('electron-context-menu');
 
+const isDev = !app.isPackaged;
+
+const userPropertyFilesPath = path.join(app.getPath('userData'), 'property files');
+const userPluginsPath = path.join(app.getPath('userData'), 'plugins');
+
 const userHomeDir = os.homedir();
 
-// --- MODIFICATION START: File-based Storage ---
 const storageFilePath = path.join(app.getPath('userData'), 'app-storage.json');
 let storageCache = {};
 
@@ -30,13 +34,11 @@ function loadStorage() {
 
 function saveStorage() {
     try {
-        // Use writeFileSync for atomicity and to prevent data loss on quit.
         fs.writeFileSync(storageFilePath, JSON.stringify(storageCache, null, 2));
     } catch (e) {
         console.error("Failed to save storage file.", e);
     }
 }
-// --- MODIFICATION END ---
 
 
 // --- Discord Rich Presence Setup ---
@@ -47,7 +49,6 @@ let startTimestamp = new Date();
 
 const fileWatchers = new Map();
 
-// --- MODIFICATION START: Add watcher for the file list sidebar ---
 let currentDirectoryWatcher = null;
 const debounce = (func, delay) => {
     let timeout;
@@ -56,7 +57,6 @@ const debounce = (func, delay) => {
         timeout = setTimeout(() => func.apply(this, args), delay);
     };
 };
-// --- MODIFICATION END ---
 
 
 let httpServer = null;
@@ -228,19 +228,14 @@ function createWindow() {
         }
     });
 
-    // --- MODIFICATION START: Add listener to clean up watcher on reload ---
-    // This event fires whenever the renderer process navigates, which includes reloads.
     mainWindow.webContents.on('did-start-navigation', (event, url, isInPlace, isMainFrame) => {
-        // We only care about the main window frame reloading
         if (isMainFrame) {
             if (currentDirectoryWatcher) {
-                // console.log('Renderer is reloading, closing the old directory watcher.');
                 currentDirectoryWatcher.close();
                 currentDirectoryWatcher = null;
             }
         }
     });
-    // --- MODIFICATION END ---
 
     const registerDevShortcuts = () => {
         globalShortcut.register('CommandOrControl+Shift+I', () => {
@@ -262,6 +257,24 @@ function createWindow() {
     mainWindow.setMenu(null);
     mainWindow.loadFile('HT-IDE.html');
 }
+
+app.on('ready', () => {
+    if (!fs.existsSync(userPropertyFilesPath)) {
+        console.log('First run: Copying default property files to user data directory.');
+        fs.mkdirSync(userPropertyFilesPath, { recursive: true });
+        const defaultPropertyFilesPath = isDev 
+            ? path.join(__dirname, 'property files') 
+            : path.join(process.resourcesPath, 'property files');
+        if (fs.existsSync(defaultPropertyFilesPath)) {
+            fs.cpSync(defaultPropertyFilesPath, userPropertyFilesPath, { recursive: true });
+        }
+    }
+
+    if (!fs.existsSync(userPluginsPath)) {
+        console.log('Creating plugins directory for the first time.');
+        fs.mkdirSync(userPluginsPath, { recursive: true });
+    }
+});
 
 app.whenReady().then(async () => {
     loadStorage();
@@ -290,12 +303,10 @@ app.on('will-quit', () => {
     fileWatchers.forEach(watcher => watcher.close());
     fileWatchers.clear();
     
-    // --- MODIFICATION START: Close directory watcher on quit ---
     if (currentDirectoryWatcher) {
         currentDirectoryWatcher.close();
     }
-    // --- MODIFICATION END ---
-
+    
     if (httpServer && httpServer.listening) {
         httpServer.close();
     }
@@ -450,9 +461,7 @@ ipcMain.on('unwatch-file', (event, filePath) => {
     }
 });
 
-// --- MODIFICATION START: Add handler for watching the sidebar directory ---
 ipcMain.on('fs:watch-directory', (event, dirPath) => {
-    // Stop watching the previous directory
     if (currentDirectoryWatcher) {
         currentDirectoryWatcher.close();
         currentDirectoryWatcher = null;
@@ -464,7 +473,6 @@ ipcMain.on('fs:watch-directory', (event, dirPath) => {
         return;
     }
 
-    // Debounce the event to prevent multiple re-renders for a single action
     const debouncedRefresh = debounce(() => {
         if (!event.sender.isDestroyed()) {
             event.sender.send('fs:directory-changed');
@@ -473,10 +481,7 @@ ipcMain.on('fs:watch-directory', (event, dirPath) => {
 
     try {
         currentDirectoryWatcher = fs.watch(dirPath, (eventType, filename) => {
-            // eventType can be 'rename' (for create/delete/rename) or 'change' (for modification)
-            // In either case, we just trigger a refresh.
             if (filename) {
-                // console.log(`Directory change detected in ${dirPath}: ${eventType} on ${filename}`);
                 debouncedRefresh();
             }
         });
@@ -488,7 +493,6 @@ ipcMain.on('fs:watch-directory', (event, dirPath) => {
         console.error(`Failed to start directory watcher for ${dirPath}:`, err);
     }
 });
-// --- MODIFICATION END ---
 
 ipcMain.handle('dialog:openDirectory', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({ properties: ['openDirectory'] });
@@ -507,7 +511,7 @@ ipcMain.handle('http:toggle', async (event, { rootPath, port: startPort, default
     }
 
     const finalRootPath = rootPath === '/' ? os.homedir() : rootPath;
-    let port = startPort; // Use the provided port setting
+    let port = startPort;
     const finalDefaultFile = defaultFile || 'index.html';
 
     const createServerHandler = (req, res) => {
@@ -597,7 +601,6 @@ ipcMain.handle('run-command', async (event, { terminalId, command, cwd }) => {
     }
 });
 
-// --- MODIFICATION START: Added synchronous file reading handler for the compiler ---
 ipcMain.on('fs:read-file-relative-sync', (event, { baseFile, targetPath }) => {
     try {
         const isAbsolute = path.isAbsolute(targetPath);
@@ -613,23 +616,198 @@ ipcMain.on('fs:read-file-relative-sync', (event, { baseFile, targetPath }) => {
         event.returnValue = null;
     }
 });
-// --- MODIFICATION END ---
 
 ipcMain.handle('fs:getAllPaths', (event, dirPath) => { try { const p = dirPath === '/' ? userHomeDir : dirPath; const i = fs.readdirSync(p, { withFileTypes: true }); return i.map(t => { const isFile = t.isFile(); let icon = null; if (isFile) { const ext = path.extname(t.name).substring(1); const iconPath = path.join(app.getAppPath(), 'assets', `${ext}.png`); if (fs.existsSync(iconPath)) { icon = `${ext}.png`; } } return { name: t.name, path: path.join(p, t.name), isFile, icon }; }); } catch (e) { if (e.code === 'ENOENT') return []; console.error(`Error reading directory ${dirPath}:`, e); return []; } });
-ipcMain.handle('fs:getFileContent', (event, filePath) => { try { if (fs.existsSync(filePath)) return fs.readFileSync(filePath, 'utf-8'); return null; } catch (e) { console.error(e); return null; } });
+
+ipcMain.handle('fs:getFileContent', (event, filePath) => {
+    try {
+        let finalPath = filePath;
+        if (filePath && filePath.includes(path.sep + 'property files' + path.sep)) {
+            const propertyFileName = path.basename(filePath);
+            finalPath = path.join(userPropertyFilesPath, propertyFileName);
+        }
+        
+        if (fs.existsSync(finalPath)) {
+            return fs.readFileSync(finalPath, 'utf-8');
+        }
+        return null;
+    } catch (e) {
+        console.error(e);
+        return null;
+    }
+});
+
 ipcMain.handle('fs:saveFileContent', async (event, { filePath, content }) => {
     try {
-        const dir = path.dirname(filePath);
+        let finalPath = filePath;
+        if (filePath && filePath.includes(path.sep + 'property files' + path.sep)) {
+             const propertyFileName = path.basename(filePath);
+             finalPath = path.join(userPropertyFilesPath, propertyFileName);
+        }
+
+        const dir = path.dirname(finalPath);
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
         }
-        fs.writeFileSync(filePath, content);
+        fs.writeFileSync(finalPath, content);
         return { success: true };
     } catch (e) {
         return { success: false, error: e.message };
     }
 });
-ipcMain.on('fs:saveFileContentSync', (event, { filePath, content }) => { fs.writeFileSync(filePath, content); });
-ipcMain.handle('fs:deleteItem', async (event, { itemPath, isFile }) => { try { if (isFile) fs.unlinkSync(itemPath); else fs.rmSync(itemPath, { recursive: true, force: true }); return { success: true }; } catch (e) { return { success: false, error: e.message }; } });
-ipcMain.handle('fs:createItem', async (event, { itemPath, isFile }) => { try { if (isFile) fs.writeFileSync(itemPath, ''); else fs.mkdirSync(itemPath, { recursive: true }); return { success: true }; } catch (e) { return { success: false, error: e.message }; } });
+ipcMain.on('fs:saveFileContentSync', (event, { filePath, content }) => { 
+    let finalPath = filePath;
+    if (filePath && filePath.includes(path.sep + 'property files' + path.sep)) {
+         const propertyFileName = path.basename(filePath);
+         finalPath = path.join(userPropertyFilesPath, propertyFileName);
+    }
+    fs.writeFileSync(finalPath, content); 
+});
+ipcMain.handle('fs:deleteItem', async (event, { itemPath, isFile }) => { 
+    try { 
+        let finalPath = itemPath;
+        if (itemPath && itemPath.includes(path.sep + 'property files' + path.sep)) {
+             const propertyFileName = path.basename(itemPath);
+             finalPath = path.join(userPropertyFilesPath, propertyFileName);
+        }
+        if (isFile) fs.unlinkSync(finalPath); 
+        else fs.rmSync(finalPath, { recursive: true, force: true }); 
+        return { success: true }; 
+    } catch (e) { 
+        return { success: false, error: e.message }; 
+    } 
+});
+ipcMain.handle('fs:createItem', async (event, { itemPath, isFile }) => { 
+    try { 
+        let finalPath = itemPath;
+        if (itemPath && itemPath.includes(path.sep + 'property files' + path.sep)) {
+             const propertyFileName = path.basename(itemPath);
+             finalPath = path.join(userPropertyFilesPath, propertyFileName);
+        }
+        if (isFile) fs.writeFileSync(finalPath, ''); 
+        else fs.mkdirSync(finalPath, { recursive: true }); 
+        return { success: true }; 
+    } catch (e) { 
+        return { success: false, error: e.message }; 
+    } 
+});
 ipcMain.handle('fs:dropFile', async (event, { originalPath, targetDir }) => { try { const s = fs.statSync(originalPath); const n = path.basename(originalPath); const d = path.join(targetDir, n); if (s.isDirectory()) { fs.cpSync(originalPath, d, { recursive: true }); } else { fs.copyFileSync(originalPath, d); } return { success: true }; } catch (e) { return { success: false, error: e.message }; } });
+
+ipcMain.handle('plugins:fetch-marketplace', async () => {
+    const url = 'https://api.github.com/repos/TheMaster1127/htvm-marketplace/contents/main';
+    try {
+        const response = await net.fetch(url);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const data = await response.json();
+        return data.filter(item => item.type === 'dir').map(item => ({ name: item.name, url: item.url }));
+    } catch (error) {
+        console.error('Failed to fetch marketplace plugins:', error);
+        return { error: error.message };
+    }
+});
+
+ipcMain.handle('plugins:fetch-file', async (event, url) => {
+    try {
+        const response = await net.fetch(url);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const data = await response.json();
+        if (data.encoding === 'base64') {
+            return Buffer.from(data.content, 'base64').toString('utf-8');
+        }
+        return data.content;
+    } catch (error) {
+        console.error(`Failed to fetch file from ${url}:`, error);
+        return { error: error.message };
+    }
+});
+
+// --- THIS IS THE MISSING PIECE ---
+ipcMain.handle('plugins:fetch-readme', async (event, pluginName) => {
+    const localReadmePath = path.join(userPluginsPath, pluginName, 'README.md');
+    if (fs.existsSync(localReadmePath)) {
+        return fs.readFileSync(localReadmePath, 'utf-8');
+    }
+
+    const url = `https://api.github.com/repos/TheMaster1127/htvm-marketplace/contents/main/${pluginName}/README.md`;
+    try {
+        const response = await net.fetch(url);
+        if (!response.ok) {
+            return `# ${pluginName}\n\n*No README.md found for this plugin.*`;
+        }
+        const data = await response.json();
+        if (data.encoding === 'base64') {
+            return Buffer.from(data.content, 'base64').toString('utf-8');
+        }
+        return `# Error\n\nCould not decode README content.`;
+    } catch (error) {
+        console.error(`Failed to fetch README for ${pluginName}:`, error);
+        return `# Error\n\nCould not fetch README.md for this plugin.\n\n*Details: ${error.message}*`;
+    }
+});
+
+ipcMain.handle('plugins:install', (event, { pluginName, files }) => {
+    try {
+        const pluginDir = path.join(userPluginsPath, pluginName);
+        if (!fs.existsSync(pluginDir)) {
+            fs.mkdirSync(pluginDir, { recursive: true });
+        }
+        for (const file of files) {
+            fs.writeFileSync(path.join(pluginDir, file.name), file.content);
+        }
+        return { success: true };
+    } catch (error) {
+        console.error(`Failed to install plugin ${pluginName}:`, error);
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('plugins:get-installed', () => {
+    try {
+        const entries = fs.readdirSync(userPluginsPath, { withFileTypes: true });
+        const plugins = [];
+        for (const entry of entries) {
+            if (entry.isDirectory()) {
+                const manifestPath = path.join(userPluginsPath, entry.name, 'plugin.json');
+                if (fs.existsSync(manifestPath)) {
+                    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+                    plugins.push({ id: entry.name, ...manifest });
+                }
+            }
+        }
+        return plugins;
+    } catch (error) {
+        console.error('Failed to get installed plugins:', error);
+        return [];
+    }
+});
+
+ipcMain.handle('plugins:get-code', (event, pluginId) => {
+    try {
+        const manifestPath = path.join(userPluginsPath, pluginId, 'plugin.json');
+        if (!fs.existsSync(manifestPath)) return null;
+        
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+        const mainFilePath = path.join(userPluginsPath, pluginId, manifest.main);
+
+        if (fs.existsSync(mainFilePath)) {
+            return fs.readFileSync(mainFilePath, 'utf-8');
+        }
+        return null;
+    } catch (error) {
+        console.error(`Failed to get code for plugin ${pluginId}:`, error);
+        return null;
+    }
+});
+
+ipcMain.handle('plugins:delete', (event, pluginId) => {
+    try {
+        const pluginDir = path.join(userPluginsPath, pluginId);
+        if (fs.existsSync(pluginDir)) {
+            fs.rmSync(pluginDir, { recursive: true, force: true });
+        }
+        return { success: true };
+    } catch (error) {
+        console.error(`Failed to delete plugin ${pluginId}:`, error);
+        return { success: false, error: error.message };
+    }
+});

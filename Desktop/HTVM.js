@@ -218,6 +218,8 @@ function HTVM_Size(arr) {
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 // ------------------------------------------------------------------------
+// start of HTVM_API.htvm
+// end of HTVM_API.htvm
 var str0 = "nothing";
 var str00 = "nothing";
 var str1 = "";
@@ -11372,6 +11374,7 @@ function compiler(htCode, allInstructionFile, mode, langToConvertToParam = "") {
         //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
         //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
         //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+        code = htvm_hook1(code);
         if (langToConvertTo == langFileExtension_2) {
             if (useSemicolon_2 == "on") {
                 theSemicolon = ";";
@@ -19334,4 +19337,9 @@ function HTVMv2() {
         //print("JS")
     }
 }
-HTVMv2();
+async function main() {
+    HTVMv2();
+    
+
+}
+main();

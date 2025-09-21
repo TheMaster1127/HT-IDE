@@ -30,6 +30,11 @@
     --btn-settings-bg: #333;
     --btn-settings-text: #ffffff;
     --btn-settings-text-bold: normal;
+    /* PLUGIN API START: Added Plugins button variables */
+    --btn-plugins-bg: #6a0dad;
+    --btn-plugins-text: #ffffff;
+    --btn-plugins-text-bold: normal;
+    /* PLUGIN API END */
     --btn-manage-instr-bg: #2a8f2a;
     --btn-manage-instr-text: #ffffff;
     --btn-manage-instr-text-bold: normal;
@@ -42,7 +47,6 @@
     --btn-open-folder-bg: #0e639c;
     --btn-open-folder-text: #ffffff;
     --btn-open-folder-text-bold: normal;
-    /* MODIFIED: Added server button variables */
     --btn-http-server-start-bg: #4caf50;
     --btn-http-server-start-text: #ffffff;
     --btn-http-server-start-text-bold: normal;
@@ -75,7 +79,6 @@
     --btn-format-bg: #3d8b40;
     --btn-format-text: #ffffff;
     --btn-format-text-bold: bold;
-    /* MODIFIED: Added map line button variables */
     --btn-map-line-bg: #0e639c;
     --btn-map-line-text: #ffffff;
     --btn-map-line-text-bold: bold;
@@ -206,6 +209,9 @@ body.preload * { transition: none !important; }
 #save-session-btn { background-color: var(--btn-save-session-bg); color: var(--btn-save-session-text); font-weight: var(--btn-save-session-text-bold); }
 #load-session-btn { background-color: var(--btn-load-session-bg); color: var(--btn-load-session-text); font-weight: var(--btn-load-session-text-bold); }
 #settings-btn { background-color: var(--btn-settings-bg); color: var(--btn-settings-text); font-weight: var(--btn-settings-text-bold); }
+/* PLUGIN API START: Added styling for the new button */
+#plugins-btn { background-color: var(--btn-plugins-bg); color: var(--btn-plugins-text); font-weight: var(--btn-plugins-text-bold); }
+/* PLUGIN API END */
 #load-instructions-btn { background-color: var(--btn-manage-instr-bg); color: var(--btn-manage-instr-text); font-weight: var(--btn-manage-instr-text-bold); }
 #htvm-to-htvm-btn { background-color: var(--btn-htvm-to-htvm-bg); color: var(--btn-htvm-to-htvm-text); font-weight: var(--btn-htvm-to-htvm-text-bold); }
 #export-import-btn { background-color: var(--btn-export-import-bg); color: var(--btn-export-import-text); font-weight: var(--btn-export-import-text-bold); }
@@ -321,7 +327,6 @@ body.preload * { transition: none !important; }
     padding: 20px;
     box-sizing: border-box;
 }
-/* This class will be toggled by JS to show the overlay and enable grid layout */
 #modal-overlay.visible {
     display: grid;
     place-items: center;
@@ -335,10 +340,8 @@ body.preload * { transition: none !important; }
     box-shadow: 0 5px 15px rgba(0,0,0,0.5);
     border: 1px solid var(--modal-border-color);
     position: relative;
-    z-index: 1001; /* Ensure it's above overlay background */
-    /* THIS IS THE KEY: Layer all modals in the same grid cell to stack them */
+    z-index: 1001;
     grid-area: 1 / 1; 
-    /* Remove margin now that grid handles centering */
     margin: 0; 
 }
 .modal-box h3 { margin-top:0; color: var(--modal-header-text); font-weight: var(--modal-header-text-bold); }
@@ -435,14 +438,32 @@ body.syntax-highlighting-disabled .ace_line > span[class*="ace_"] { color: #f8f8
 .range-control-wrapper input[type="range"] { width: 100%; }
 .range-control-wrapper span { min-width: 35px; text-align: right; }
 
-/* --- MODIFICATION START: File Icon Styling --- */
+/* --- File Icon Styling --- */
 .file-icon {
     width: 16px;
     height: 16px;
     margin-right: 6px;
     object-fit: contain;
 }
-/* --- MODIFICATION END --- */
+
+/* --- PLUGIN API START: Plugin Manager Modal Styling --- */
+.plugins-modal { max-width: 800px; }
+.plugin-tabs { display: flex; border-bottom: 1px solid var(--modal-border-color); margin-bottom: 15px; }
+.plugin-tab-btn { background: none; border: none; color: #aaa; padding: 10px 15px; cursor: pointer; font-size: 1em; border-bottom: 3px solid transparent; }
+.plugin-tab-btn:hover { color: #fff; }
+.plugin-tab-btn.active { color: #fff; font-weight: bold; border-bottom-color: var(--btn-new-file-bg); }
+.plugin-tab-pane { display: none; }
+.plugin-tab-pane.active { display: block; }
+.plugin-list li { padding: 12px 10px; }
+.plugin-info { flex-grow: 1; }
+.plugin-info strong { font-size: 1.1em; }
+.plugin-info span { font-size: 0.8em; color: #888; margin-left: 8px; }
+.plugin-info p { margin: 4px 0 0 0; font-size: 0.9em; color: #ccc; }
+.plugin-controls { display: flex; gap: 8px; align-items: center; }
+.plugin-controls button { padding: 6px 12px; }
+.plugin-active-indicator { font-size: 0.8em; color: #4caf50; font-weight: bold; }
+/* --- PLUGIN API END --- */
+
 
 /* --- Mobile Responsiveness --- */
 @media (max-width: 768px) {

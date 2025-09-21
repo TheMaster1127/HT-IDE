@@ -3,7 +3,6 @@
 let hotkeyListener = null;
 
 // NEW: Global state and listener for correct tab cycling.
-// This is reset whenever the Control/Meta key is released.
 const tabCycleState = {
     isCycling: false,
 };
@@ -231,7 +230,6 @@ async function createTerminalInstanceForSession(session) {
 }
 window.createTerminalInstanceForSession = createTerminalInstanceForSession;
 
-// MODIFIED: HTTP Server toggle handler now reads from settings
 async function handleToggleHttpServer() {
     const btn = document.getElementById('http-server-btn');
     const activeTerm = getActiveTerminalSession();
@@ -244,7 +242,6 @@ async function handleToggleHttpServer() {
         const homeDir = await window.electronAPI.getHomeDir();
         const rootDir = currentDirectory === '/' ? homeDir : currentDirectory;
         
-        // Read port and default file from settings, with defaults
         const port = lsGet('serverPort') || 8080;
         const defaultFile = lsGet('serverDefaultFile') || 'index.html';
         
@@ -268,7 +265,6 @@ async function handleToggleHttpServer() {
             activeTerm.xterm.writeln(`\r\n\x1b[31m✖ HTTP Server stopped.\x1b[0m`);
             writePrompt(activeTerm);
         } else if (result.status === 'error') {
-            // Error is now logged by the main process, so we just redraw the prompt.
             writePrompt(activeTerm);
         }
     } catch (error) {
@@ -330,7 +326,6 @@ function applyAndSetHotkeys() {
 
         if (e.key === 'F5') { e.preventDefault(); await handleRun(e); return; }
         
-        // MODIFIED: The if/else if chain is critical for correct hotkey logic.
         if (checkMatch(activeHotkeys.runFile)) { e.preventDefault(); await handleRun(e); }
         else if (checkMatch(activeHotkeys.compileFile)) { e.preventDefault(); await runPropertyCommand('compile'); }
         else if (checkMatch(activeHotkeys.saveFile)) { e.preventDefault(); await saveFileContent(currentOpenFile, editor.getValue()); }
@@ -338,11 +333,9 @@ function applyAndSetHotkeys() {
             e.preventDefault();
             if (!currentOpenFile || !currentOpenFile.endsWith('.htvm')) { alert("The formatter only works with .htvm files."); return; }
             try {
-                // MODIFICATION START: Use session.replace to make formatting undoable
                 const formattedCode = formatHtvmCode(editor.getValue());
                 const fullRange = new ace.Range(0, 0, editor.session.getLength(), Infinity);
                 editor.session.replace(fullRange, formattedCode);
-                // MODIFICATION END
             }
             catch (err) { getActiveTerminalSession()?.xterm.writeln(`\x1b[31mAn error occurred during formatting: ${err.message}\x1b[0m`); }
         }
@@ -373,7 +366,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     editor = ace.edit("editor");
     
-    // MODIFIED: Global IPC listeners now route data to the correct terminal.
     window.electronAPI.onCommandOutput(({ terminalId, data }) => {
         terminalSessions.get(terminalId)?.xterm.write(data.replace(/\n/g, "\r\n"));
     });
@@ -389,24 +381,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (session) session.cwd = newPath;
     });
 
-    // MODIFIED: Added server log listener
     window.electronAPI.onHttpServerLog(({ terminalId, message }) => {
         const session = terminalSessions.get(terminalId);
         if (session && session.xterm) {
-            // Write log in grey, then redraw the prompt on a new line
-            session.xterm.write('\r\x1b[K'); // Clear current line
-            session.xterm.writeln(`\x1b[90m${message}\x1b[0m`); // Write log in grey
-            writePrompt(session); // Redraw prompt
-            session.xterm.write(session.currentLine); // Rewrite user's current input
+            session.xterm.write('\r\x1b[K'); 
+            session.xterm.writeln(`\x1b[90m${message}\x1b[0m`);
+            writePrompt(session); 
+            session.xterm.write(session.currentLine);
         }
     });
     
-    // --- MODIFICATION START: Add listener for directory changes ---
     window.electronAPI.onDirectoryChanged(async () => {
         console.log("Directory change detected, refreshing file list.");
         await renderFileList();
     });
-    // --- MODIFICATION END ---
 
     window.electronAPI.onCloseTabFromContextMenu(async (filePath) => await handleCloseTabRequest(filePath));
 
@@ -443,6 +431,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     initializeInstructionSetManagement();
     
+    // --- PLUGIN API START: Load the active plugin on startup ---
+    await loadActivePlugin();
+    // --- PLUGIN API END ---
+
     if (!lsGet(instructionSetKeys.activeId)) {
         promptForInitialInstructionSet();
     } else {
@@ -472,12 +464,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('save-session-btn').addEventListener('click', () => openSessionModal('save'));
     document.getElementById('load-session-btn').addEventListener('click', () => openSessionModal('load'));
     document.getElementById('settings-btn').addEventListener('click', openSettingsModal);
+    document.getElementById('plugins-btn').addEventListener('click', openPluginsModal);
     document.getElementById('load-instructions-btn').addEventListener('click', openInstructionManagerModal);
     document.getElementById('htvm-to-htvm-btn').addEventListener('click', openHtvmToHtvmModal);
     document.getElementById('export-import-btn').addEventListener('click', openExportImportModal);
     document.getElementById('open-folder-btn').addEventListener('click', handleOpenFolder);
-    document.getElementById('new-terminal-btn').addEventListener('click', handleNewTerminal); // NEW
-    // MODIFIED: Added server button listener
+    document.getElementById('new-terminal-btn').addEventListener('click', handleNewTerminal);
     document.getElementById('http-server-btn').addEventListener('click', handleToggleHttpServer);
     
     const toggleBtn = document.getElementById('main-toggle-sidebar-btn'), sidebar = document.querySelector('.sidebar'), backdrop = document.getElementById('sidebar-backdrop'), closeBtn = document.getElementById('sidebar-close-btn');
@@ -510,11 +502,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('format-btn').addEventListener('click', () => {
         if (!currentOpenFile || !currentOpenFile.endsWith('.htvm')) { alert("The formatter only works with .htvm files."); return; }
         try {
-            // MODIFICATION START: Use session.replace to make formatting undoable
             const formattedCode = formatHtvmCode(editor.getValue());
             const fullRange = new ace.Range(0, 0, editor.session.getLength(), Infinity);
             editor.session.replace(fullRange, formattedCode);
-            // MODIFICATION END
         }
         catch (err) { getActiveTerminalSession()?.xterm.writeln(`\x1b[31mAn error occurred during formatting: ${err.message}\x1b[0m`); }
     });
@@ -527,14 +517,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     initResizer(document.getElementById('terminal-resizer'), document.getElementById('terminal-container'), 'terminalHeight', 'y');
     initResizer(document.getElementById('output-panel-resizer'), document.getElementById('output-panel'), 'outputPanelWidth', 'x');
 
-    // MODIFIED: This call now handles its own welcome message logic.
-    await handleNewTerminal(); // Create the first terminal on startup.
+    await handleNewTerminal(); 
     
     document.getElementById('run-js-after-htvm').checked = lsGet('runJsAfterHtvm') !== false;
     document.getElementById('full-html-checkbox').checked = lsGet('fullHtml') === true;
 
     const savedBreakpoints = lsGet('fileBreakpoints');
-    if (savedBreakpoints) { for (const file in savedBreakpoints) { fileBreakpoints.set(file, new Set(savedBreakpoints[file])); } }
+    if (savedBreakpoints) { for (const [file, bpSet] of fileBreakpoints.entries()) { fileBreakpoints.set(file, new Set(savedBreakpoints[file])); } }
 
     const sidebarWidth = lsGet('sidebarWidth'); if (sidebarWidth) document.querySelector('.sidebar').style.width = sidebarWidth;
     const terminalHeight = lsGet('terminalHeight'); if (terminalHeight) document.getElementById('terminal-container').style.height = terminalHeight;
@@ -599,20 +588,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, 200));
 
     window.addEventListener('beforeunload', () => {
-        // MODIFICATION START: Only save the current file if it has unsaved changes.
         if (currentOpenFile && fileSessions.has(currentOpenFile)) {
             const currentSession = fileSessions.get(currentOpenFile);
-            // Check if the undo manager reports any changes.
             if (!currentSession.getUndoManager().isClean()) {
                 saveFileContentSync(currentOpenFile, editor.getValue());
             }
             lsSet('state_' + currentOpenFile, { scrollTop: editor.session.getScrollTop(), cursor: editor.getCursorPosition() });
         }
-        // MODIFICATION END
         openTabs.forEach(tab => window.electronAPI.unwatchFile(tab));
         terminalSessions.forEach(s => window.electronAPI.terminalKillProcess(s.id));
 
-        // MODIFIED: Ensure server is stopped on close/reload to prevent orphaned processes
         if (isServerRunning) {
             window.electronAPI.toggleHttpServer(currentDirectory, serverPort, getActiveTerminalSession()?.id);
         }
@@ -656,13 +641,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         getActiveTerminalSession()?.fitAddon.fit();
     }, 50);
 
-    // MODIFICATION: Added failsafe to detect and correct file list duplication
-    // This is the "UI Janitor" that ensures the file list is always correct.
     setInterval(() => {
         const fileList = document.getElementById('file-list');
         if (!fileList) return;
 
-        // Find all list items that could be the '..' entry
         const strongElements = fileList.querySelectorAll('li > strong');
         
         let parentDirEntries = 0;
@@ -672,12 +654,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
 
-        // If more than one '..' entry is found, a duplication bug has occurred.
         if (parentDirEntries > 1) {
             console.warn("Duplicate '..' entry detected in file list. Forcing a refresh to correct the UI.");
-            renderFileList(); // Force a re-render
+            renderFileList();
         }
-    }, 500); // Check every half a second
+    }, 500); 
 });
 
 function applyEditorColorSettings() {

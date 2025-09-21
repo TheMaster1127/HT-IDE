@@ -1,3 +1,41 @@
+// js/6_htvm.js
+
+// --- PLUGIN API START: The new plugin loader function ---
+async function loadActivePlugin() {
+    // First, reset all hooks to their default empty state.
+    // This is CRITICAL for when a user deactivates a plugin.
+    // It ensures that old plugin logic doesn't "stick around".
+    htvm_hook1 = (code) => code; htvm_hook2 = (code) => code; htvm_hook3 = (code) => code;
+    htvm_hook4 = (code) => code; htvm_hook5 = (code) => code; htvm_hook6 = (code) => code;
+    htvm_hook7 = (code) => code; htvm_hook8 = (code) => code; htvm_hook9 = (code) => code;
+    htvm_hook10 = (code) => code; htvm_hook11 = (code) => code; htvm_hook12 = (code) => code;
+    htvm_hook13 = (code) => code; htvm_hook14 = (code) => code; htvm_hook15 = (code) => code;
+    htvm_hook16 = (code) => code; htvm_hook17 = (code) => code; htvm_hook18 = (code) => code;
+    htvm_hook19 = (code) => code; htvm_hook20 = (code) => code; htvm_hook21 = (code) => code;
+    htvm_hook22 = (code) => code; htvm_hook23 = (code) => code; htvm_hook24 = (code) => code;
+    htvm_hook25 = (code) => code; htvm_hook26 = (code) => code; htvm_hook27 = (code) => code;
+    htvm_hook28 = (code) => code; htvm_hook29 = (code) => code; htvm_hook30 = (code) => code;
+
+    const activePluginId = lsGet('active_plugin_id');
+    if (activePluginId) {
+        const activePluginCode = await window.electronAPI.pluginsGetCode(activePluginId);
+        if (activePluginCode) {
+            try {
+                // This is the magic. We execute the user's plugin code using the safe Function constructor.
+                // This code should redefine one or more of the global htvm_hook functions.
+                new Function(activePluginCode)();
+                console.log(`Successfully loaded and activated plugin: ${activePluginId}`);
+            } catch (e) {
+                console.error(`Error loading active plugin ${activePluginId}:`, e);
+                alert(`The active plugin has an error and could not be loaded. Please check the developer console.`);
+                // If the plugin fails to load, we clear the active plugin setting to prevent future errors.
+                lsRemove('active_plugin_id');
+            }
+        }
+    }
+}
+// --- PLUGIN API END ---
+
 // --- HTVM and Code Execution ---
 
 function initializeInstructionSetManagement() {
@@ -113,7 +151,6 @@ function getAllFunctionNames(code) {
 function protectAndTransform(code, transformFn) {
     const placeholders = new Map();
     let placeholderId = 0;
-    // Add a random component to the placeholder to make it "super unique"
     const runId = Math.random().toString(36).substring(2);
     
     const regex = /(["'`])(?:\\.|(?!\1).)*\1|\/\*[\s\S]*?\*\/|\/\/.*/g;
@@ -204,19 +241,12 @@ async function runJsCode(code) {
                                      'window.__execution_resolver__.reject(e);\n' +
                                      '}';
 
-            // Wrap the entire execution block in an async IIFE (Immediately Invoked Function Expression).
-            // This provides a top-level async context, allowing `await` to be used
-            // for function calls when the debugger is active, which is not allowed
-            // in a non-module context like the one created by `new Function`.
             const finalCodeToExecute = `(async () => { ${executionWrapper} })()`;
 
             try {
-                // `new Function()` will throw a SyntaxError immediately if the code is invalid.
                 const executable = new Function(finalCodeToExecute);
-                // If it's valid, we run it.
                 executable();
             } catch (e) {
-                // This catch block handles the SyntaxErrors from `new Function`.
                 reject(e);
             }
         });
@@ -264,6 +294,9 @@ async function runHtvmCode(code) {
     }
     
     activeSession.xterm.writeln(`\x1b[32mTranspiling HTVM to ${isFullHtml ? 'HTML' : lang.toUpperCase()}...\x1b[0m`);
+    
+    // NOTE: We no longer pass plugin code to the compiler.
+    // The `loadActivePlugin` function handles setting up the global hook functions.
     
     window.__HTVM_COMPILER_CONTEXT_FILE__ = currentOpenFile;
     const compiled = compiler(code, instructionSet.join('\n'), "full", lang);

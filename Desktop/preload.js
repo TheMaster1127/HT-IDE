@@ -3,19 +3,16 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-    // --- MODIFICATION START: File-based storage functions ---
+    // --- Storage Functions ---
     storageGetAll: () => ipcRenderer.invoke('storage:get-all'),
     storageSetItem: (key, value) => ipcRenderer.invoke('storage:set-item', { key, value }),
     storageRemoveItem: (key) => ipcRenderer.invoke('storage:remove-item', key),
     storageClear: () => ipcRenderer.invoke('storage:clear'),
-    // --- MODIFICATION END ---
 
     // --- File System Functions ---
     getAllPaths: (dirPath) => ipcRenderer.invoke('fs:getAllPaths', dirPath),
     getFileContent: (filePath) => ipcRenderer.invoke('fs:getFileContent', filePath),
-    // --- MODIFICATION START: Added relative file reading for the compiler ---
     readFileRelativeSync: (baseFile, targetPath) => ipcRenderer.sendSync('fs:read-file-relative-sync', { baseFile, targetPath }),
-    // --- MODIFICATION END ---
     saveFileContent: (filePath, content) => ipcRenderer.invoke('fs:saveFileContent', { filePath, content }),
     saveFileContentSync: (filePath, content) => ipcRenderer.send('fs:saveFileContentSync', { filePath, content }),
     deleteItem: (itemPath, isFile) => ipcRenderer.invoke('fs:deleteItem', { itemPath, isFile }),
@@ -49,17 +46,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
     watchFile: (filePath) => ipcRenderer.send('watch-file', filePath),
     unwatchFile: (filePath) => ipcRenderer.send('unwatch-file', filePath),
     onFileChanged: (callback) => ipcRenderer.on('file-changed', (event, filePath) => callback(filePath)),
-    // --- MODIFICATION START: Add directory watcher bridge ---
     watchDirectory: (dirPath) => ipcRenderer.send('fs:watch-directory', dirPath),
     onDirectoryChanged: (callback) => ipcRenderer.on('fs:directory-changed', () => callback()),
-    // --- MODIFICATION END ---
     
     // --- App control functions ---
     reloadApp: () => ipcRenderer.send('app:reload'),
     switchWorkspace: (newId) => ipcRenderer.send('app:switch-workspace', newId),
     setZoomLevel: (level) => ipcRenderer.send('app:set-zoom-level', level),
 
-    // --- MODIFIED: HTTP Server function signature updated ---
+    // --- HTTP Server ---
     toggleHttpServer: (rootPath, port, defaultFile, terminalId) => ipcRenderer.invoke('http:toggle', { rootPath, port, defaultFile, terminalId }),
     onHttpServerLog: (callback) => ipcRenderer.on('http-server-log', (event, data) => callback(data)),
+
+    // --- PLUGIN API ---
+    pluginsFetchMarketplace: () => ipcRenderer.invoke('plugins:fetch-marketplace'),
+    pluginsFetchFile: (url) => ipcRenderer.invoke('plugins:fetch-file', url),
+    pluginsFetchReadme: (pluginName) => ipcRenderer.invoke('plugins:fetch-readme', pluginName), // ADDED THIS LINE
+    pluginsInstall: (pluginName, files) => ipcRenderer.invoke('plugins:install', { pluginName, files }),
+    pluginsGetInstalled: () => ipcRenderer.invoke('plugins:get-installed'),
+    pluginsGetCode: (pluginId) => ipcRenderer.invoke('plugins:get-code', pluginId),
+    pluginsDelete: (pluginId) => ipcRenderer.invoke('plugins:delete', pluginId),
 });
