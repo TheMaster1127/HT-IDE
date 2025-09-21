@@ -3,15 +3,61 @@
   "version": "1.0.0",
   "description": "The HT-IDE Desktop Application",
   "main": "electron_main.js",
+  "homepage": "https://github.com/themaster1127/HT-IDE",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "electron-builder --publish never"
   },
-  "keywords": [],
-  "author": "",
+  "author": "themaster1127 <your-email@example.com>",
   "license": "ISC",
-  "devDependencies": {
-    "electron": "^28.0.0",
+  "dependencies": {
     "discord-rpc": "^4.0.1",
     "electron-context-menu": "^3.6.1"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.themaster1127.ht-ide",
+    "productName": "HT-IDE",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron_main.js",
+      "preload.js",
+      "HT-IDE.html",
+      "style.css",
+      "HTVM.js",
+      "htvm-mode.js",
+      "htvm_completions.js",
+      "icon.png",
+      "js/**/*",
+      "images/**/*",
+      "assets/**/*",
+      "property files/**/*",
+      "node_modules/**/*"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "icon.png",
+      "category": "Development;IDE;",
+      "maintainer": "themaster1127 <your-email@example.com>"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }
