@@ -1,1 +1,10 @@
+# Ignore dependencies for the Desktop app
 Desktop/node_modules/
+
+# Ignore build output for the Desktop app
+Desktop/dist/
+Desktop/build/
+
+# General OS files
+.DS_Store
+Thumbs.db
