@@ -66,4 +66,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     pluginsGetInstalled: () => ipcRenderer.invoke('plugins:get-installed'),
     pluginsGetCode: (pluginId) => ipcRenderer.invoke('plugins:get-code', pluginId),
     pluginsDelete: (pluginId) => ipcRenderer.invoke('plugins:delete', pluginId),
+    pluginsLoadLocal: () => ipcRenderer.invoke('plugins:load-local'), // ADDED THIS LINE
+
 });

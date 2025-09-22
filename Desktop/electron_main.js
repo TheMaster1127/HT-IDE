@@ -721,7 +721,6 @@ ipcMain.handle('plugins:fetch-file', async (event, url) => {
     }
 });
 
-// --- THIS IS THE MISSING PIECE ---
 ipcMain.handle('plugins:fetch-readme', async (event, pluginName) => {
     const localReadmePath = path.join(userPluginsPath, pluginName, 'README.md');
     if (fs.existsSync(localReadmePath)) {
@@ -809,5 +808,40 @@ ipcMain.handle('plugins:delete', (event, pluginId) => {
     } catch (error) {
         console.error(`Failed to delete plugin ${pluginId}:`, error);
         return { success: false, error: error.message };
+    }
+});
+
+// --- THIS IS THE MISSING PIECE ---
+ipcMain.handle('plugins:load-local', async (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const { canceled, filePaths } = await dialog.showOpenDialog(window, {
+        title: 'Select a local plugin.json file to test',
+        filters: [{ name: 'Plugin Manifest', extensions: ['json'] }],
+        properties: ['openFile']
+    });
+
+    if (canceled || filePaths.length === 0) {
+        return null;
+    }
+
+    const manifestPath = filePaths[0];
+    const pluginDir = path.dirname(manifestPath);
+
+    try {
+        const manifestContent = fs.readFileSync(manifestPath, 'utf-8');
+        const manifest = JSON.parse(manifestContent);
+        
+        if (!manifest.main) throw new Error('plugin.json is missing the "main" property.');
+        
+        const codePath = path.join(pluginDir, manifest.main);
+        if (!fs.existsSync(codePath)) throw new Error(`Main file not found: ${manifest.main}`);
+        
+        const codeContent = fs.readFileSync(codePath, 'utf-8');
+
+        return codeContent;
+
+    } catch (error) {
+        console.error(`Error loading local plugin from ${manifestPath}:`, error);
+        return { error: error.message };
     }
 });

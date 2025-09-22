@@ -2,34 +2,38 @@
 
 // --- PLUGIN API START: The new plugin loader function ---
 async function loadActivePlugin() {
-    // First, reset all hooks to their default empty state.
-    // This is CRITICAL for when a user deactivates a plugin.
-    // It ensures that old plugin logic doesn't "stick around".
     htvm_hook1 = (code) => code; htvm_hook2 = (code) => code; htvm_hook3 = (code) => code;
     htvm_hook4 = (code) => code; htvm_hook5 = (code) => code; htvm_hook6 = (code) => code;
     htvm_hook7 = (code) => code; htvm_hook8 = (code) => code; htvm_hook9 = (code) => code;
     htvm_hook10 = (code) => code; htvm_hook11 = (code) => code; htvm_hook12 = (code) => code;
-    htvm_hook13 = (code) => code; htvm_hook14 = (code) => code; htvm_hook15 = (code) => code;
+    htvm_hook13 = (code) => code; htvm_hook14 = (code) => code; htvm_hook15 = (functionsObject) => functionsObject;
     htvm_hook16 = (code) => code; htvm_hook17 = (code) => code; htvm_hook18 = (code) => code;
     htvm_hook19 = (code) => code; htvm_hook20 = (code) => code; htvm_hook21 = (code) => code;
     htvm_hook22 = (code) => code; htvm_hook23 = (code) => code; htvm_hook24 = (code) => code;
     htvm_hook25 = (code) => code; htvm_hook26 = (code) => code; htvm_hook27 = (code) => code;
-    htvm_hook28 = (code) => code; htvm_hook29 = (code) => code; htvm_hook30 = (code) => code;
+    htvm_hook28 = (code) => code; htvm_hook29 = (code) => code; htvm_hook30 = (finalCode) => finalCode;
 
     const activePluginId = lsGet('active_plugin_id');
+    let activePluginCode = '';
+
     if (activePluginId) {
-        const activePluginCode = await window.electronAPI.pluginsGetCode(activePluginId);
+        // MODIFIED: Check for the special local dev plugin ID
+        if (activePluginId === 'local-dev-plugin') {
+            console.log("Loading temporary local plugin for testing...");
+            activePluginCode = sessionStorage.getItem('temp_local_plugin_code');
+        } else {
+            activePluginCode = await window.electronAPI.pluginsGetCode(activePluginId);
+        }
+
         if (activePluginCode) {
             try {
-                // This is the magic. We execute the user's plugin code using the safe Function constructor.
-                // This code should redefine one or more of the global htvm_hook functions.
                 new Function(activePluginCode)();
                 console.log(`Successfully loaded and activated plugin: ${activePluginId}`);
             } catch (e) {
                 console.error(`Error loading active plugin ${activePluginId}:`, e);
                 alert(`The active plugin has an error and could not be loaded. Please check the developer console.`);
-                // If the plugin fails to load, we clear the active plugin setting to prevent future errors.
                 lsRemove('active_plugin_id');
+                sessionStorage.removeItem('temp_local_plugin_code');
             }
         }
     }

@@ -55,7 +55,9 @@ async function openPluginsModal() {
             <p style="font-size:0.9em; color:#ccc; margin-top:0;">Manage your installed plugins. Only one plugin can be active at a time.</p>
             <ul class="modal-list plugin-list" id="installed-list"><li>Loading...</li></ul>
         </div>
+        <!-- MODIFIED: Added local plugin testing button -->
         <div class="modal-buttons">
+            <button id="load-local-plugin-btn" style="float: left; background-color: #6a0dad;">Test Local Plugin...</button>
             <button class="modal-btn-cancel">Close</button>
         </div>
     `;
@@ -66,6 +68,28 @@ async function openPluginsModal() {
     };
 
     modalInstance.querySelector('.modal-btn-cancel').onclick = closeModal;
+    
+    // MODIFIED: Added logic for the new button
+    modalInstance.querySelector('#load-local-plugin-btn').onclick = async () => {
+        const result = await window.electronAPI.pluginsLoadLocal();
+        if (result === null) return; // User cancelled
+        if (result.error) {
+            alert(`Error loading local plugin:\n${result.error}`);
+            return;
+        }
+
+        // We got the code, store it in a temporary session variable
+        sessionStorage.setItem('temp_local_plugin_code', result);
+        lsSet('active_plugin_id', 'local-dev-plugin'); // Set a special ID
+
+        openConfirmModal("Load Local Plugin", "Local plugin loaded for this session. A reload is required to activate it. This will not be saved permanently. Continue?", (confirmed) => {
+            if (confirmed) {
+                window.dispatchEvent(new Event('beforeunload'));
+                window.electronAPI.reloadApp();
+            }
+        });
+    };
+
 
     const tabs = modalInstance.querySelectorAll('.plugin-tab-btn');
     const panes = modalInstance.querySelectorAll('.plugin-tab-pane');
@@ -89,7 +113,37 @@ async function openPluginsModal() {
         const activePluginId = lsGet('active_plugin_id');
         installedListEl.innerHTML = '';
 
-        if (installedPlugins.length === 0) {
+        // MODIFIED: Add a special entry if a local plugin is active
+        if (activePluginId === 'local-dev-plugin') {
+            const li = document.createElement('li');
+            li.innerHTML = `
+                <div class="plugin-info">
+                    <strong>Local Development Plugin</strong>
+                    <span>Loaded from your computer</span>
+                    <p>This is a temporary plugin for testing. It will be removed when the IDE is closed.</p>
+                </div>
+                <div class="plugin-controls">
+                    <span class="plugin-active-indicator">✔ Active</span>
+                    <button class="deactivate-btn modal-btn-cancel">Deactivate</button>
+                </div>
+            `;
+            const deactivateBtn = li.querySelector('.deactivate-btn');
+            if (deactivateBtn) {
+                deactivateBtn.onclick = () => {
+                     openConfirmModal("Deactivate Plugin", `Deactivating this plugin requires an IDE reload. Continue?`, (confirmed) => {
+                        if (confirmed) {
+                            lsRemove('active_plugin_id');
+                            sessionStorage.removeItem('temp_local_plugin_code');
+                            window.dispatchEvent(new Event('beforeunload'));
+                            window.electronAPI.reloadApp();
+                        }
+                    });
+                }
+            }
+            installedListEl.appendChild(li);
+        }
+
+        if (installedPlugins.length === 0 && activePluginId !== 'local-dev-plugin') {
             installedListEl.innerHTML = `<li class='no-sessions'>No plugins installed.</li>`;
             return;
         }
@@ -105,7 +159,6 @@ async function openPluginsModal() {
             li.innerHTML = `
                 <div class="plugin-info">
                     <strong>${plugin.name}</strong>
-                    <!-- MODIFIED: Added author name -->
                     <span>v${plugin.version} by ${plugin.author || 'Unknown'}</span>
                     <p>${plugin.description}</p>
                 </div>
@@ -128,6 +181,7 @@ async function openPluginsModal() {
                     openConfirmModal("Activate Plugin", `Activating a plugin requires an IDE reload. Continue?`, (confirmed) => {
                         if (confirmed) {
                             lsSet('active_plugin_id', plugin.id);
+                            sessionStorage.removeItem('temp_local_plugin_code');
                             window.dispatchEvent(new Event('beforeunload'));
                             window.electronAPI.reloadApp();
                         }
@@ -202,6 +256,7 @@ async function openPluginsModal() {
                     openConfirmModal("Install & Activate Plugin", `Plugin "${manifest.name}" was installed. Activating requires an IDE reload. Continue?`, (confirmed) => {
                         if (confirmed) {
                             lsSet('active_plugin_id', pluginName);
+                            sessionStorage.removeItem('temp_local_plugin_code');
                             window.dispatchEvent(new Event('beforeunload'));
                             window.electronAPI.reloadApp();
                         }
@@ -238,16 +293,12 @@ async function openPluginsModal() {
             const isInstalled = installedPlugins.some(p => p.id === plugin.name);
             const li = document.createElement('li');
             
-            // MODIFIED: Added new "Install & Activate" button
-            let installButtonsHtml = '';
-            if (isInstalled) {
-                installButtonsHtml = '<button disabled>Installed</button>';
-            } else {
-                installButtonsHtml = `
+            let installButtonsHtml = isInstalled 
+                ? '<button disabled>Installed</button>'
+                : `
                     <button class="install-btn modal-btn-confirm">Install</button>
                     <button class="install-activate-btn" style="background-color: #0e639c;">Install & Activate</button>
                 `;
-            }
 
             li.innerHTML = `
                 <div class="plugin-info">
@@ -271,7 +322,6 @@ async function openPluginsModal() {
                 const manifestContent = await window.electronAPI.pluginsFetchFile(manifestUrl);
                 const manifest = JSON.parse(manifestContent);
                 
-                // MODIFIED: Added author name
                 li.querySelector('.plugin-info').innerHTML = `
                     <strong>${manifest.name}</strong>
                     <span>v${manifest.version} by ${manifest.author || 'Unknown'}</span>
