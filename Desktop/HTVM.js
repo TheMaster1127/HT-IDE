@@ -9311,7 +9311,9 @@ function doseHaveInclude(TheCodeThatMightHaveInclude) {
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function compiler(htCode, allInstructionFile, mode, langToConvertToParam = "") {
+    htCode = htvm_hook11(htCode);
     var instructions = allInstructionFile;
+    instructions += Chr(10) + Chr(10) + htvm_hook10("");
     var FIXFIX_allInstructionFile = "";
     let FIXFIX_allInstructionFile_ARR = [];
     var FIXFIX_allInstructionFile_HELP_INT = 0;
@@ -11419,6 +11421,7 @@ function compiler(htCode, allInstructionFile, mode, langToConvertToParam = "") {
             // when
             // when
         }
+        code = htvm_hook2(code);
         if (useCurlyBraces == "on") {
             fixSomeCurlyBraceForExratFlexability = "";
             str1 = "";
@@ -11513,6 +11516,7 @@ function compiler(htCode, allInstructionFile, mode, langToConvertToParam = "") {
         //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
         //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
         //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+        code = htvm_hook3(code);
         // name: subroutine/func for GUI and backend
         if (langToConvertTo != langFileExtension_2) {
             if (langToConvertTo == "js" || langToConvertTo == "py") {
@@ -11534,6 +11538,7 @@ function compiler(htCode, allInstructionFile, mode, langToConvertToParam = "") {
             // GUI
             // GUI
         }
+        code = htvm_hook4(code);
         //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
         //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
         //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -11686,6 +11691,7 @@ function compiler(htCode, allInstructionFile, mode, langToConvertToParam = "") {
         fullLangAllOperators = GETfullLangAllOperators();
         fullLangAllOperators_HELP = GETfullLangAllOperators_HELP();
         if (isNotHTVMfile2 == 0) {
+            code = htvm_hook5(code);
             let items221 = LoopParseFunc(code, "\n", "\r");
             for (let A_Index221 = 0; A_Index221 < items221.length; A_Index221++) {
                 const A_LoopField221 = items221[A_Index221 - 0];
@@ -11774,6 +11780,7 @@ function compiler(htCode, allInstructionFile, mode, langToConvertToParam = "") {
         //print("=======UP==========")
         //print(code)
         //print("=======DOWN==========")
+        code = htvm_hook6(code);
         let items223 = LoopParseFunc(code, "\n", "\r");
         for (let A_Index223 = 0; A_Index223 < items223.length; A_Index223++) {
             const A_LoopField223 = items223[A_Index223 - 0];
@@ -18958,6 +18965,7 @@ function compiler(htCode, allInstructionFile, mode, langToConvertToParam = "") {
         for (let A_Index313 = 0; A_Index313 < HTVM_Size(commentsBugFix); A_Index313++) {
             htCode = StrReplace(htCode, "HTVM--cnavisdofbuvsesdivdidufg79wregwewaeosd8ges7dfdftuawdiHTVMv2yerheyziberlasduci6syiq--AA" + STR(A_Index313) + "AA", commentsBugFix[A_Index313]);
         }
+        code = htvm_hook7(code);
     }
     var jsHTMLdownCode = "</script>" + Chr(10) + "</body>" + Chr(10) + "</html>";
     var includeLibsInCppIf = 0;
@@ -19075,6 +19083,7 @@ function compiler(htCode, allInstructionFile, mode, langToConvertToParam = "") {
     //;;;;;;;;;;;;;;;;;;;;
     //;;;;;;;;;;;;;;;;;;;;
     //;;;;;;;;;;;;;;;;;;;;
+    code = htvm_hook8(code);
     availableFuncsInHTVMInHTVM = "";
     saveAllArrayVarNamesSoWeCanDoAfix = "";
     for (let A_Index321 = 0; A_Index321 < theIdNumOfThe34; A_Index321++) {
@@ -19146,6 +19155,7 @@ function compiler(htCode, allInstructionFile, mode, langToConvertToParam = "") {
         htCode = htCode + Chr(10) + Chr(10) + "if __name__ == " + Chr(34) + "__main__" + Chr(34) + ":" + Chr(10) + "    # --- Cleaned up startup messages ---" + Chr(10) + "    # print(f" + Chr(34) + "--- Flask Routes ---" + Chr(34) + ") # REMOVED" + Chr(10) + "    # print(app.url_map) # REMOVED" + Chr(10) + "    # print(f" + Chr(34) + "--------------------" + Chr(34) + ") # REMOVED" + Chr(10) + "    # print(f" + Chr(34) + "Starting server on http://0.0.0.0:{HTVM_server_port_HTVM}" + Chr(34) + ") # REMOVED" + Chr(10) + "    " + Chr(10) + "    # KEEP This specific message:" + Chr(10) + "    print(f" + Chr(34) + "Root '/' will attempt to serve './{HTVM_DEFAULT_FILE_HTVM}' as configured." + Chr(34) + ")" + Chr(10) + "    " + Chr(10) + "    # print(" + Chr(34) + "Endpoints /hello and /goodbye (POST) expect PLAIN TEXT input and return PLAIN TEXT." + Chr(34) + ") # REMOVED" + Chr(10) + "" + Chr(10) + "    # Standard app run" + Chr(10) + "    app.run(host=" + Chr(34) + "0.0.0.0" + Chr(34) + ", port=HTVM_server_port_HTVM, debug=True)";
     }
     initializeBackendAndGUIInteractionWithLabelSubroutineLikeButConvertsToFunction_WAS_IN_PYTHON = 0;
+    code = htvm_hook9(code);
     //print(htCode)
     return htCode;
 }
@@ -19337,9 +19347,4 @@ function HTVMv2() {
         //print("JS")
     }
 }
-async function main() {
-    HTVMv2();
-    
-
-}
-main();
+HTVMv2();
