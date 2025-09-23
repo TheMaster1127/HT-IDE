@@ -1,42 +1,78 @@
 // js/6_htvm.js
 
 // --- PLUGIN API START: The new plugin loader function ---
-async function loadActivePlugin() {
-    htvm_hook1 = (code) => code; htvm_hook2 = (code) => code; htvm_hook3 = (code) => code;
-    htvm_hook4 = (code) => code; htvm_hook5 = (code) => code; htvm_hook6 = (code) => code;
-    htvm_hook7 = (code) => code; htvm_hook8 = (code) => code; htvm_hook9 = (code) => code;
-    htvm_hook10 = (code) => code; htvm_hook11 = (code) => code; htvm_hook12 = (code) => code;
-    htvm_hook13 = (code) => code; htvm_hook14 = (code) => code; htvm_hook15 = (functionsObject) => functionsObject;
-    htvm_hook16 = (code) => code; htvm_hook17 = (code) => code; htvm_hook18 = (code) => code;
-    htvm_hook19 = (code) => code; htvm_hook20 = (code) => code; htvm_hook21 = (code) => code;
-    htvm_hook22 = (code) => code; htvm_hook23 = (code) => code; htvm_hook24 = (code) => code;
-    htvm_hook25 = (code) => code; htvm_hook26 = (code) => code; htvm_hook27 = (code) => code;
-    htvm_hook28 = (code) => code; htvm_hook29 = (code) => code; htvm_hook30 = (finalCode) => finalCode;
+async function loadActivePlugins() {
+    const hookNames = Array.from({ length: 30 }, (_, i) => `htvm_hook${i + 1}`);
+    const placeholderFunction = () => { /* This is a unique placeholder function. */ };
 
-    const activePluginId = lsGet('active_plugin_id');
-    let activePluginCode = '';
+    // This object will hold the ordered lists of functions for each hook.
+    const pluginExecutionOrder = {};
+    for (const hookName of hookNames) {
+        pluginExecutionOrder[hookName] = [];
+    }
 
-    if (activePluginId) {
-        // MODIFIED: Check for the special local dev plugin ID
-        if (activePluginId === 'local-dev-plugin') {
-            console.log("Loading temporary local plugin for testing...");
-            activePluginCode = sessionStorage.getItem('temp_local_plugin_code');
+    const activePluginIds = lsGet('active_plugin_ids') || [];
+    if (activePluginIds.length === 0) {
+        console.log("No active plugins.");
+        // If there are no plugins, make sure the global hooks exist as pass-through functions.
+        for (const hookName of hookNames) {
+            window[hookName] = (input) => input;
+        }
+        return;
+    }
+
+    console.log(`Loading ${activePluginIds.length} active plugin(s) in order:`, activePluginIds);
+
+    // 1. Loop through each plugin, execute its code in isolation, and capture its defined hooks.
+    for (const pluginId of activePluginIds) {
+        let pluginCode = '';
+        if (pluginId === 'local-dev-plugin') {
+            pluginCode = sessionStorage.getItem('temp_local_plugin_code');
         } else {
-            activePluginCode = await window.electronAPI.pluginsGetCode(activePluginId);
+            pluginCode = await window.electronAPI.pluginsGetCode(pluginId);
         }
 
-        if (activePluginCode) {
-            try {
-                new Function(activePluginCode)();
-                console.log(`Successfully loaded and activated plugin: ${activePluginId}`);
-            } catch (e) {
-                console.error(`Error loading active plugin ${activePluginId}:`, e);
-                alert(`The active plugin has an error and could not be loaded. Please check the developer console.`);
-                lsRemove('active_plugin_id');
-                sessionStorage.removeItem('temp_local_plugin_code');
+        if (!pluginCode) {
+            console.warn(`Could not fetch code for plugin ${pluginId}. Skipping.`);
+            continue;
+        }
+
+        try {
+            // A. Reset all global hooks to our placeholder before running the plugin code.
+            // This creates a clean slate for us to detect what this specific plugin defines.
+            for (const hookName of hookNames) {
+                window[hookName] = placeholderFunction;
             }
+
+            // B. Execute the plugin's code. This will overwrite some of the global placeholders.
+            new Function(pluginCode)();
+
+            // C. Capture the functions that were just defined by this plugin.
+            for (const hookName of hookNames) {
+                if (window[hookName] !== placeholderFunction) {
+                    // This hook was defined by the plugin, so add it to our execution list.
+                    pluginExecutionOrder[hookName].push(window[hookName]);
+                }
+            }
+        } catch (e) {
+            console.error(`Error executing code for plugin ${pluginId}:`, e);
         }
     }
+
+    // 2. Now that all plugins have been processed, create the final "orchestrator" for each hook.
+    for (const hookName of hookNames) {
+        // This single function will be the global hook that HTVM.js calls.
+        window[hookName] = (initialInput) => {
+            let processedData = initialInput;
+            // It loops through the list of functions we collected and executes them in order.
+            for (const pluginFunc of pluginExecutionOrder[hookName]) {
+                processedData = pluginFunc(processedData);
+            }
+            return processedData;
+        };
+    }
+
+    console.log("All active plugins loaded and registered for execution.", pluginExecutionOrder);
 }
 // --- PLUGIN API END ---
 
@@ -81,8 +117,7 @@ async function loadDefinitions(instructionContent = null) {
     }
 }
 
-// --- SELF-CONTAINED DEBUGGER ---
-
+// --- THIS IS THE OLD DEBUGGER LOGIC, WE WILL REPLACE IT WITH YOUR HTVM-BASED ONE ---
 let activeLineMarker = null;
 function highlightLine(row) {
     clearHighlight();
@@ -90,180 +125,15 @@ function highlightLine(row) {
         new ace.Range(row, 0, row, 1), "ace_debugger_active_line", "fullLine", true
     );
 }
-
 function clearHighlight() {
     if (activeLineMarker) {
         editor.session.removeMarker(activeLineMarker);
         activeLineMarker = null;
     }
 }
-
-async function __debug_pause__(line, scopeFn) {
-    debuggerState.isPaused = true;
-    debuggerState.scope = scopeFn();
-    highlightLine(line);
-    openDebuggerModal();
-
-    return new Promise((resolve, reject) => {
-        debuggerState.resolve = resolve;
-        debuggerState.reject = reject;
-    });
-}
-
-function stopDebugger() {
-    if (debuggerState.reject) {
-        debuggerState.reject(new Error("Execution stopped by user."));
-    }
-    debuggerState.isActive = false;
-    debuggerState.isPaused = false;
-    clearHighlight();
-    printExecutionEndMessage();
-}
-
-function getDeclaredVariables(code) {
-    const declared = new Set();
-    let match;
-
-    const varRegex = /(?:let|const|var)\s+([a-zA-Z0-9_$]+(?:\s*,\s*[a-zA-Z0-9_$]+)*)/g;
-    while ((match = varRegex.exec(code)) !== null) {
-        match[1].split(',').forEach(v => declared.add(v.trim()));
-    }
-
-    const forLoopRegex = /for\s*\(\s*(?:let|const|var)\s+([a-zA-Z0-9_$]+)\s+(in|of)/g;
-    while ((match = forLoopRegex.exec(code)) !== null) {
-        declared.add(match[1].trim());
-    }
-
-    const funcRegex = /(?:async\s+)?function\s+([a-zA-Z0-9_$]+)/g;
-    while ((match = funcRegex.exec(code)) !== null) {
-        declared.add(match[1].trim());
-    }
-
-    return Array.from(declared);
-}
-
-function getAllFunctionNames(code) {
-    const names = new Set();
-    const funcRegex = /function\s+([a-zA-Z0-9_$]+)\s*\(/g;
-    let match;
-    while ((match = funcRegex.exec(code)) !== null) {
-        names.add(match[1]);
-    }
-    return Array.from(names);
-}
-
-function protectAndTransform(code, transformFn) {
-    const placeholders = new Map();
-    let placeholderId = 0;
-    const runId = Math.random().toString(36).substring(2);
-    
-    const regex = /(["'`])(?:\\.|(?!\1).)*\1|\/\*[\s\S]*?\*\/|\/\/.*/g;
-
-    let protectedCode = code.replace(regex, (match) => {
-        const placeholder = `__DBG_PROTECT_${runId}_${placeholderId++}__`;
-        placeholders.set(placeholder, match);
-        return placeholder;
-    });
-
-    let transformedCode = transformFn(protectedCode);
-
-    placeholders.forEach((original, placeholder) => {
-        transformedCode = transformedCode.replace(new RegExp(placeholder, 'g'), original);
-    });
-
-    return transformedCode;
-}
-
-async function runJsCode(code) {
-    const activeSession = getActiveTerminalSession();
-    if (!activeSession) return;
-
-    activeSession.xterm.writeln(`\x1b[1;33m--- JS Execution ---\x1b[0m`);
-    const originalLog = window.console.log;
-
-    debuggerState.isActive = true;
-    debuggerState.isPaused = false;
-    activeSession.isExecuting = true;
-
-    const cleanup = () => {
-        delete window.__debug_pause__;
-        delete window.__execution_resolver__;
-        window.console.log = originalLog;
-        if (debuggerState.isActive) printExecutionEndMessage();
-        debuggerState.isActive = false;
-        debuggerState.isPaused = false;
-        activeSession.isExecuting = false;
-        writePrompt(activeSession);
-        clearHighlight();
-    };
-
-    try {
-        await new Promise((resolve, reject) => {
-            window.__debug_pause__ = __debug_pause__;
-            window.__execution_resolver__ = { resolve, reject };
-
-            let codeToRun = code;
-            const breakpoints = fileBreakpoints.get(currentOpenFile);
-
-            if (breakpoints && breakpoints.size > 0) {
-                activeSession.xterm.writeln(`\x1b[36mDebugger attached. Transforming code for breakpoints.\x1b[0m`);
-
-                const funcNames = getAllFunctionNames(codeToRun);
-                
-                codeToRun = protectAndTransform(codeToRun, (sanitizedCode) => {
-                    let transformed = sanitizedCode.replace(/(?<!async\s)function(\s+[a-zA-Z0-9_$]*\s*\()/g, "async function$1");
-                    transformed = transformed.replace(/(=|\:)\s*function(\s*\()/g, "$1 async function$2");
-
-                    if (funcNames.length > 0) {
-                        const callRegex = new RegExp(`(?<!function |async function |await )\\b(${funcNames.join('|')})\\b(?=\\s*\\()`, 'g');
-                        transformed = transformed.replace(callRegex, 'await $&');
-                    }
-                    return transformed;
-                });
-                
-                const lines = codeToRun.split('\n');
-                const sortedBreakpoints = Array.from(breakpoints).sort((a, b) => b - a);
-                const declaredVars = getDeclaredVariables(codeToRun);
-                const scopeCapture = `(() => { const scope = {}; ${declaredVars.map(v => `try { if(typeof ${v} !== 'undefined') scope['${v}'] = ${v}; } catch(e){}`).join(' ')} return scope; })`;
-                
-                sortedBreakpoints.forEach(row => {
-                    if(lines[row] !== undefined) {
-                       lines.splice(row, 0, `await window.__debug_pause__(${row}, ${scopeCapture});`);
-                    }
-                });
-                codeToRun = lines.join('\n');
-            } else {
-                 activeSession.xterm.writeln(`\x1b[32mRunning code without debugger.\x1b[0m`);
-            }
-
-            window.console.log = (...args) => activeSession.xterm.writeln(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)).join(' '));
-            
-            const executionWrapper = 'try {\n' +
-                                     codeToRun + '\n' +
-                                     'window.__execution_resolver__.resolve();\n' +
-                                     '} catch (e) {\n' +
-                                     'window.__execution_resolver__.reject(e);\n' +
-                                     '}';
-
-            const finalCodeToExecute = `(async () => { ${executionWrapper} })()`;
-
-            try {
-                const executable = new Function(finalCodeToExecute);
-                executable();
-            } catch (e) {
-                reject(e);
-            }
-        });
-    } catch (e) {
-        if (e.message !== "Execution stopped by user.") {
-             activeSession.xterm.writeln(`\x1b[31mError: ${e.message}\x1b[0m`);
-        } else {
-             activeSession.xterm.writeln(`\x1b[33mExecution stopped by user.\x1b[0m`);
-        }
-    } finally {
-        cleanup();
-    }
-}
+async function __debug_pause__(line, scopeFn) { /* This function is now deprecated and will be replaced by HTVM's logic */ }
+function stopDebugger() { /* This function is now deprecated */ }
+// --- END DEPRECATED DEBUGGER ---
 
 
 function formatHtvmCode(code) {
@@ -271,14 +141,14 @@ function formatHtvmCode(code) {
     let instructionSet = JSON.parse(localStorage.getItem(instructionSetKeys.legacyKey) || '[]');
     
     if (activeSession) activeSession.xterm.writeln(`\x1b[32mFormatting HTVM file...\x1b[0m`);
-    resetGlobalVarsOfHTVMjs();
+    // MODIFIED: REMOVED resetGlobalVarsOfHTVMjs() CALL
     argHTVMinstrMORE.push(instructionSet.join('\n'));
 
     window.__HTVM_COMPILER_CONTEXT_FILE__ = currentOpenFile;
     const formattedCode = compiler(code, instructionSet.join('\n'), "full", "htvm");
     window.__HTVM_COMPILER_CONTEXT_FILE__ = ''; 
 
-    resetGlobalVarsOfHTVMjs();
+    // MODIFIED: REMOVED resetGlobalVarsOfHTVMjs() CALL
     
     if (activeSession) activeSession.xterm.writeln(`\x1b[32mFormatting complete.\x1b[0m`);
     return formattedCode;
@@ -288,7 +158,22 @@ async function runHtvmCode(code) {
     const activeSession = getActiveTerminalSession();
     if (!activeSession) return;
 
-    resetGlobalVarsOfHTVMjs();
+    let codeToTranspile = code;
+    const breakpoints = fileBreakpoints.get(currentOpenFile);
+
+    if (breakpoints && breakpoints.size > 0) {
+        activeSession.xterm.writeln(`\x1b[36mDebugger attached. Injecting breakpoints into HTVM code.\x1b[0m`);
+        const lines = codeToTranspile.split('\n');
+        const sortedBreakpoints = Array.from(breakpoints).sort((a, b) => b - a);
+        sortedBreakpoints.forEach(row => {
+            if(lines[row] !== undefined) {
+               lines.splice(row + 1, 0, `debuger--aJHCBAKCAhtvmnHTVM--ACJAKHBaSSshad88sjhb-DEBUGER--HTVM--sjcvas`);
+            }
+        });
+        codeToTranspile = lines.join('\n');
+    }
+
+    // MODIFIED: REMOVED resetGlobalVarsOfHTVMjs() CALL
     const lang = lsGet('selectedLangExtension') || 'js';
     let instructionSet = JSON.parse(localStorage.getItem(instructionSetKeys.legacyKey) || '[]');
     const isFullHtml = lang === 'js' && document.getElementById('full-html-checkbox').checked;
@@ -299,25 +184,18 @@ async function runHtvmCode(code) {
     
     activeSession.xterm.writeln(`\x1b[32mTranspiling HTVM to ${isFullHtml ? 'HTML' : lang.toUpperCase()}...\x1b[0m`);
     
-    // NOTE: We no longer pass plugin code to the compiler.
-    // The `loadActivePlugin` function handles setting up the global hook functions.
-    
     window.__HTVM_COMPILER_CONTEXT_FILE__ = currentOpenFile;
-    const compiled = compiler(code, instructionSet.join('\n'), "full", lang);
+    const compiled = compiler(codeToTranspile, instructionSet.join('\n'), "full", lang);
     window.__HTVM_COMPILER_CONTEXT_FILE__ = ''; 
-
-    resetGlobalVarsOfHTVMjs();
+    // MODIFIED: REMOVED resetGlobalVarsOfHTVMjs() CALL
     
     const newFileExt = isFullHtml ? 'html' : lang;
-
     const sourcePath = currentOpenFile;
     const dirName = sourcePath.substring(0, sourcePath.lastIndexOf('/')) || sourcePath.substring(0, sourcePath.lastIndexOf('\\'));
     const baseName = sourcePath.split(/[\\\/]/).pop().replace(/\.htvm$/, '');
     const newFile = `${dirName}/${baseName}.${newFileExt}`;
 
-
     const wasAlreadyOpen = openTabs.includes(newFile);
-
     if (fileSessions.has(newFile)) {
         fileSessions.delete(newFile);
     }
@@ -334,7 +212,7 @@ async function runHtvmCode(code) {
         if (isFullHtml) {
             runHtmlCode(compiled);
         } else if (lang === 'js') {
-            await runJsCode(compiled);
+            await window.electronAPI.runCommand(activeSession.id, `node "${newFile}"`, dirName);
         } else {
             printExecutionEndMessage();
             writePrompt(activeSession);
@@ -344,6 +222,7 @@ async function runHtvmCode(code) {
         writePrompt(activeSession);
     }
 }
+
 
 async function handleRun(e) {
     e?.preventDefault();
@@ -355,7 +234,7 @@ async function handleRun(e) {
         return;
     }
 
-    if (activeSession.isExecuting || debuggerState.isActive) {
+    if (activeSession.isExecuting) {
         activeSession.xterm.writeln(`\x1b[31mError: Cannot start a new execution while another process is active.\x1b[0m`);
         return;
     }
@@ -368,14 +247,17 @@ async function handleRun(e) {
     activeSession.xterm.writeln(`\x1b[36m> Running ${currentOpenFile}...\x1b[0m`);
     const ext = currentOpenFile.split('.').pop();
     
-    if (ext === 'js') {
-        await runJsCode(editor.getValue());
-    } else if (ext === 'htvm') {
+    if (ext === 'htvm') {
         await runHtvmCode(editor.getValue());
     } else if (ext === 'html') {
         runHtmlCode(editor.getValue());
     } else {
+        const dirName = currentOpenFile.substring(0, currentOpenFile.lastIndexOf('/')) || currentOpenFile.substring(0, currentOpenFile.lastIndexOf('\\'));
         activeSession.isExecuting = true;
-        await runPropertyCommand('run');
+        if (ext === 'js') {
+             await window.electronAPI.runCommand(activeSession.id, `node "${currentOpenFile}"`, dirName);
+        } else {
+            await runPropertyCommand('run');
+        }
     }
 }

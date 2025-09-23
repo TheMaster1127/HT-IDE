@@ -432,7 +432,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializeInstructionSetManagement();
     
     // --- PLUGIN API START: Load the active plugin on startup ---
-    await loadActivePlugin();
+    await loadActivePlugins();
     // --- PLUGIN API END ---
 
     if (!lsGet(instructionSetKeys.activeId)) {

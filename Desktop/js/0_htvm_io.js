@@ -33,35 +33,36 @@ function FileRead(pathString) {
 // These are empty placeholder functions. The HTVM engine will call these.
 // The plugin loader will overwrite these functions with the actual code from an active plugin.
 // If no plugin is active, these safe defaults will be called, doing nothing.
+// MODIFIED: Changed all hooks from 'let' to 'var' to ensure they are true global properties.
 
-let htvm_hook1 = (code) => code;
-let htvm_hook2 = (code) => code;
-let htvm_hook3 = (code) => code;
-let htvm_hook4 = (code) => code;
-let htvm_hook5 = (code) => code;
-let htvm_hook6 = (code) => code;
-let htvm_hook7 = (code) => code;
-let htvm_hook8 = (code) => code;
-let htvm_hook9 = (code) => code;
-let htvm_hook10 = (code) => code;
-let htvm_hook11 = (code) => code;
-let htvm_hook12 = (code) => code;
-let htvm_hook13 = (code) => code;
-let htvm_hook14 = (code) => code;
-let htvm_hook15 = (code) => code;
-let htvm_hook16 = (code) => code;
-let htvm_hook17 = (code) => code;
-let htvm_hook18 = (code) => code;
-let htvm_hook19 = (code) => code;
-let htvm_hook20 = (code) => code;
-let htvm_hook21 = (code) => code;
-let htvm_hook22 = (code) => code;
-let htvm_hook23 = (code) => code;
-let htvm_hook24 = (code) => code;
-let htvm_hook25 = (code) => code;
-let htvm_hook26 = (code) => code;
-let htvm_hook27 = (code) => code;
-let htvm_hook28 = (code) => code;
-let htvm_hook29 = (code) => code;
-let htvm_hook30 = (code) => code;
+var htvm_hook1 = (code) => code;
+var htvm_hook2 = (code) => code;
+var htvm_hook3 = (code) => code;
+var htvm_hook4 = (code) => code;
+var htvm_hook5 = (code) => code;
+var htvm_hook6 = (code) => code;
+var htvm_hook7 = (code) => code;
+var htvm_hook8 = (code) => code;
+var htvm_hook9 = (code) => code;
+var htvm_hook10 = (code) => code;
+var htvm_hook11 = (code) => code;
+var htvm_hook12 = (code) => code;
+var htvm_hook13 = (code) => code;
+var htvm_hook14 = (code) => code;
+var htvm_hook15 = (code) => code;
+var htvm_hook16 = (code) => code;
+var htvm_hook17 = (code) => code;
+var htvm_hook18 = (code) => code;
+var htvm_hook19 = (code) => code;
+var htvm_hook20 = (code) => code;
+var htvm_hook21 = (code) => code;
+var htvm_hook22 = (code) => code;
+var htvm_hook23 = (code) => code;
+var htvm_hook24 = (code) => code;
+var htvm_hook25 = (code) => code;
+var htvm_hook26 = (code) => code;
+var htvm_hook27 = (code) => code;
+var htvm_hook28 = (code) => code;
+var htvm_hook29 = (code) => code;
+var htvm_hook30 = (code) => code;
 // --- PLUGIN API END ---

@@ -210,7 +210,7 @@ body.preload * { transition: none !important; }
 #load-session-btn { background-color: var(--btn-load-session-bg); color: var(--btn-load-session-text); font-weight: var(--btn-load-session-text-bold); }
 #settings-btn { background-color: var(--btn-settings-bg); color: var(--btn-settings-text); font-weight: var(--btn-settings-text-bold); }
 /* PLUGIN API START: Added styling for the new button */
-#plugins-btn { background-color: var(--btn-plugins-bg); color: var(--btn-plugins-text); font-weight: var(--btn-plugins-text-bold); }
+#plugins-btn { background-color: var(--btn-plugins-bg); color: var(--btn-plugins-text); font-weight: var(--btn-plugins-text-bold); grid-column: 1 / -1; }
 /* PLUGIN API END */
 #load-instructions-btn { background-color: var(--btn-manage-instr-bg); color: var(--btn-manage-instr-text); font-weight: var(--btn-manage-instr-text-bold); }
 #htvm-to-htvm-btn { background-color: var(--btn-htvm-to-htvm-bg); color: var(--btn-htvm-to-htvm-text); font-weight: var(--btn-htvm-to-htvm-text-bold); }
@@ -454,13 +454,16 @@ body.syntax-highlighting-disabled .ace_line > span[class*="ace_"] { color: #f8f8
 .plugin-tab-btn.active { color: #fff; font-weight: bold; border-bottom-color: var(--btn-new-file-bg); }
 .plugin-tab-pane { display: none; }
 .plugin-tab-pane.active { display: block; }
-.plugin-list li { padding: 12px 10px; }
+.plugin-list li { padding: 12px 10px; display: flex; align-items: center; } /* Modified */
+.plugin-list li.dragging { opacity: 0.5; background: #333; } /* Added */
+.plugin-drag-handle { cursor: grab; padding-right: 12px; font-size: 1.5em; color: #666; } /* Added */
 .plugin-info { flex-grow: 1; }
 .plugin-info strong { font-size: 1.1em; }
 .plugin-info span { font-size: 0.8em; color: #888; margin-left: 8px; }
 .plugin-info p { margin: 4px 0 0 0; font-size: 0.9em; color: #ccc; }
 .plugin-controls { display: flex; gap: 8px; align-items: center; }
 .plugin-controls button { padding: 6px 12px; }
+.plugin-activation-toggle { display: flex; align-items: center; gap: 4px; user-select: none; cursor: pointer; } /* Added */
 .plugin-active-indicator { font-size: 0.8em; color: #4caf50; font-weight: bold; }
 /* --- PLUGIN API END --- */
 

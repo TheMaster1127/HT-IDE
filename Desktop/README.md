@@ -30,7 +30,7 @@
     - [HTVM Line Mapper](#htvm-line-mapper)
   - [5. Code Execution & Debugging](#5-code-execution--debugging)
     - [Running Files & Using Property Files](#running-files--using-property-files)
-    - [Built-in JavaScript Debugger](#built-in-javascript-debugger)
+    - [Built-in HTVM-to-JavaScript Debugger](#built-in-htvm-to-javascript-debugger)
     - [HTML Output Panel](#html-output-panel)
   - [6. Built-in Web Server](#6-built-in-web-server)
   - [7. HTVM Plugin API ("The Freedom API")](#7-htvm-plugin-api-the-freedom-api)
@@ -269,8 +269,10 @@ g++ "%ONLYFILENAME%.cpp" "-o" "%ONLYFILENAME%"
 ---
 
 
-#### Built-in JavaScript Debugger
--   **Set Breakpoints:** Simply click in the editor's "gutter" (the area with line numbers) to set or remove a breakpoint on that line.
+#### Built-in HTVM-to-JavaScript Debugger
+HT-IDE features a unique debugger for `.htvm` files. It works by injecting a special debug command into your code at each breakpoint location before transpilation. The HTVM engine then converts these commands into `debugger` statements in the final JavaScript output, allowing you to step through your transpiled code while seeing the execution point in your original HTVM source.
+
+-   **Set Breakpoints:** Simply click in the editor's "gutter" (the area with line numbers) to set or remove a breakpoint on that line in your `.htvm` file.
 -   **Debugger Panel:** When a breakpoint is hit during JS execution, a movable debugger panel appears.
 -   **Inspect Scope:** The panel shows all variables currently in scope and their values.
 -   **Variable Hover:** While paused, you can hover over variable names in the editor to see their current value in a tooltip.
@@ -289,7 +291,8 @@ g++ "%ONLYFILENAME%.cpp" "-o" "%ONLYFILENAME%"
 ### 7. HTVM Plugin API ("The Freedom API")
 HT-IDE now features a powerful plugin system that allows developers to extend and redefine the HTVM language itself.
 -   **Discover & Install:** Click the **Plugins** button in the sidebar to open the Plugin Manager. From here, you can browse the official **HTVM Marketplace** for community-created plugins.
--   **Activate & Manage:** Install plugins with a single click and activate the one you want to use for your current workspace. Only one plugin can be active at a time, allowing you to completely change the behavior of the transpiler.
+-   **Activate & Manage:** Install plugins and activate as many as you need for your current workspace using checkboxes. The effects of the plugins will be stacked.
+-   **Execution Order:** The order of plugins in the "Installed" list matters. You can drag and drop plugins to reorder them. The plugin at the **bottom** of the list runs its logic **first**, and its output is then passed to the plugin above it, and so on up the chain.
 -   **Create Your Own:** The plugin system is built on a simple but powerful JavaScript-based "Hook API". Check out the official [htvm-marketplace repository](https://github.com/TheMaster1127/htvm-marketplace) for documentation and examples on how to create and submit your own plugins.
 
 ### 8. Extensive Customization
