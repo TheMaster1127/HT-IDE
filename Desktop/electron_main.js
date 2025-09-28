@@ -8,6 +8,7 @@ const http = require('http');
 const { spawn } = require('child_process');
 const DiscordRPC = require('discord-rpc');
 const contextMenu = require('electron-context-menu');
+const semver = require('semver');
 
 const isDev = !app.isPackaged;
 
@@ -693,13 +694,45 @@ ipcMain.handle('fs:createItem', async (event, { itemPath, isFile }) => {
 });
 ipcMain.handle('fs:dropFile', async (event, { originalPath, targetDir }) => { try { const s = fs.statSync(originalPath); const n = path.basename(originalPath); const d = path.join(targetDir, n); if (s.isDirectory()) { fs.cpSync(originalPath, d, { recursive: true }); } else { fs.copyFileSync(originalPath, d); } return { success: true }; } catch (e) { return { success: false, error: e.message }; } });
 
-ipcMain.handle('plugins:fetch-marketplace', async () => {
-    const url = 'https://api.github.com/repos/TheMaster1127/htvm-marketplace/contents/main';
+// --- PLUGIN API (REFACTORED) ---
+
+async function fetchFile(url, isApi = false) {
     try {
-        const response = await net.fetch(url);
+        const response = await net.fetch(url, { cache: 'no-cache' });
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const data = await response.json();
-        return data.filter(item => item.type === 'dir').map(item => ({ name: item.name, url: item.url }));
+        if(isApi) {
+            const data = await response.json();
+            if (data.encoding === 'base64') {
+                return Buffer.from(data.content, 'base64').toString('utf-8');
+            }
+            return data.content;
+        }
+        return await response.text();
+    } catch (error) {
+        console.error(`Failed to fetch file from ${url}:`, error);
+        return { error: error.message };
+    }
+}
+
+ipcMain.handle('plugins:fetch-marketplace', async () => {
+    const marketplaceUrl = `https://raw.githubusercontent.com/TheMaster1127/htvm-marketplace/main/marketplace.json`;
+    try {
+        const content = await fetchFile(marketplaceUrl, false);
+        if (content.error) throw new Error(content.error);
+        const marketplaceData = JSON.parse(content);
+
+        return marketplaceData.map(plugin => {
+            const versions = Object.keys(plugin.versions).sort(semver.rcompare);
+            return {
+                id: plugin.id,
+                name: plugin.name,
+                description: plugin.description,
+                author: plugin.author,
+                latestVersion: versions[0],
+                allVersions: versions,
+                _versionsData: plugin.versions
+            };
+        });
     } catch (error) {
         console.error('Failed to fetch marketplace plugins:', error);
         return { error: error.message };
@@ -707,69 +740,80 @@ ipcMain.handle('plugins:fetch-marketplace', async () => {
 });
 
 ipcMain.handle('plugins:fetch-file', async (event, url) => {
-    try {
-        const response = await net.fetch(url);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const data = await response.json();
-        if (data.encoding === 'base64') {
-            return Buffer.from(data.content, 'base64').toString('utf-8');
-        }
-        return data.content;
-    } catch (error) {
-        console.error(`Failed to fetch file from ${url}:`, error);
-        return { error: error.message };
-    }
+    // This function is now only for fetching API files (like READMEs), not raw content.
+    return fetchFile(url, true);
 });
 
-ipcMain.handle('plugins:fetch-readme', async (event, pluginName) => {
-    const localReadmePath = path.join(userPluginsPath, pluginName, 'README.md');
+ipcMain.handle('plugins:fetch-readme', async (event, { pluginId, version, versionFolderName }) => {
+    const localReadmePath = path.join(userPluginsPath, pluginId, version, 'README.md');
     if (fs.existsSync(localReadmePath)) {
         return fs.readFileSync(localReadmePath, 'utf-8');
     }
 
-    const url = `https://api.github.com/repos/TheMaster1127/htvm-marketplace/contents/main/${pluginName}/README.md`;
+    const url = `https://api.github.com/repos/TheMaster1127/htvm-marketplace/contents/main/${pluginId}/${versionFolderName}/README.md`;
     try {
-        const response = await net.fetch(url);
-        if (!response.ok) {
-            return `# ${pluginName}\n\n*No README.md found for this plugin.*`;
+        const content = await fetchFile(url, true);
+        if (content.error) {
+             // Fallback for legacy structure
+            const fallbackUrl = `https://api.github.com/repos/TheMaster1127/htvm-marketplace/contents/main/${pluginId}/README.md`;
+            const fallbackContent = await fetchFile(fallbackUrl, true);
+            if (fallbackContent.error) return `# ${pluginId}\n\n*No README.md found for this plugin.*`;
+            return fallbackContent;
         }
-        const data = await response.json();
-        if (data.encoding === 'base64') {
-            return Buffer.from(data.content, 'base64').toString('utf-8');
-        }
-        return `# Error\n\nCould not decode README content.`;
+        return content;
     } catch (error) {
-        console.error(`Failed to fetch README for ${pluginName}:`, error);
+        console.error(`Failed to fetch README for ${pluginId}:`, error);
         return `# Error\n\nCould not fetch README.md for this plugin.\n\n*Details: ${error.message}*`;
     }
 });
 
-ipcMain.handle('plugins:install', (event, { pluginName, files }) => {
+ipcMain.handle('plugins:install', async (event, { pluginId, version, versionFolderName }) => {
     try {
-        const pluginDir = path.join(userPluginsPath, pluginName);
+        const filesUrl = `https://api.github.com/repos/TheMaster1127/htvm-marketplace/contents/main/${pluginId}/${versionFolderName}`;
+        const filesResponse = await net.fetch(filesUrl, { cache: 'no-cache' });
+        if (!filesResponse.ok) throw new Error(`Could not fetch file list for version ${version}.`);
+        const filesInDir = await filesResponse.json();
+
+        const filesToInstall = [];
+        for (const file of filesInDir) {
+            // Use the raw download_url provided by the API, which doesn't have rate limits.
+            const content = await fetchFile(file.download_url, false);
+            if (typeof content !== 'string') throw new Error(`Failed to download ${file.name}: ${content.error}`);
+            filesToInstall.push({ name: file.name, content });
+        }
+        
+        const pluginDir = path.join(userPluginsPath, pluginId, version);
         if (!fs.existsSync(pluginDir)) {
             fs.mkdirSync(pluginDir, { recursive: true });
         }
-        for (const file of files) {
+        for (const file of filesToInstall) {
             fs.writeFileSync(path.join(pluginDir, file.name), file.content);
         }
+        
         return { success: true };
     } catch (error) {
-        console.error(`Failed to install plugin ${pluginName}:`, error);
+        console.error(`Failed to install plugin ${pluginId} v${version}:`, error);
         return { success: false, error: error.message };
     }
 });
 
 ipcMain.handle('plugins:get-installed', () => {
     try {
-        const entries = fs.readdirSync(userPluginsPath, { withFileTypes: true });
+        if (!fs.existsSync(userPluginsPath)) return [];
         const plugins = [];
-        for (const entry of entries) {
-            if (entry.isDirectory()) {
-                const manifestPath = path.join(userPluginsPath, entry.name, 'plugin.json');
+        const pluginIdDirs = fs.readdirSync(userPluginsPath, { withFileTypes: true }).filter(d => d.isDirectory());
+        
+        for (const pluginIdDir of pluginIdDirs) {
+            const pluginId = pluginIdDir.name;
+            const versionsPath = path.join(userPluginsPath, pluginId);
+            const versionDirs = fs.readdirSync(versionsPath, { withFileTypes: true }).filter(d => d.isDirectory());
+
+            for (const versionDir of versionDirs) {
+                const version = versionDir.name;
+                const manifestPath = path.join(versionsPath, version, 'plugin.json');
                 if (fs.existsSync(manifestPath)) {
                     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
-                    plugins.push({ id: entry.name, ...manifest });
+                    plugins.push({ id: pluginId, version, ...manifest });
                 }
             }
         }
@@ -780,20 +824,24 @@ ipcMain.handle('plugins:get-installed', () => {
     }
 });
 
-ipcMain.handle('plugins:get-code', (event, pluginId) => {
+ipcMain.handle('plugins:get-code', (event, { pluginId, version }) => {
+    if (typeof version !== 'string' || !version) {
+        console.error(`'plugins:get-code' called with invalid version for pluginId '${pluginId}':`, version);
+        return null;
+    }
     try {
-        const manifestPath = path.join(userPluginsPath, pluginId, 'plugin.json');
+        const manifestPath = path.join(userPluginsPath, pluginId, version, 'plugin.json');
         if (!fs.existsSync(manifestPath)) return null;
         
         const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
-        const mainFilePath = path.join(userPluginsPath, pluginId, manifest.main);
+        const mainFilePath = path.join(userPluginsPath, pluginId, version, manifest.main);
 
         if (fs.existsSync(mainFilePath)) {
             return fs.readFileSync(mainFilePath, 'utf-8');
         }
         return null;
     } catch (error) {
-        console.error(`Failed to get code for plugin ${pluginId}:`, error);
+        console.error(`Failed to get code for plugin ${pluginId} v${version}:`, error);
         return null;
     }
 });
@@ -811,37 +859,42 @@ ipcMain.handle('plugins:delete', (event, pluginId) => {
     }
 });
 
-// --- THIS IS THE MISSING PIECE ---
 ipcMain.handle('plugins:load-local', async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
     const { canceled, filePaths } = await dialog.showOpenDialog(window, {
-        title: 'Select a local plugin.json file to test',
+        title: 'Select local plugin.json file(s) to test',
         filters: [{ name: 'Plugin Manifest', extensions: ['json'] }],
-        properties: ['openFile']
+        properties: ['openFile', 'multiSelections']
     });
 
     if (canceled || filePaths.length === 0) {
-        return null;
+        return { success: false, error: 'User cancelled.' };
     }
 
-    const manifestPath = filePaths[0];
-    const pluginDir = path.dirname(manifestPath);
+    const loadedPlugins = [];
+    for (const manifestPath of filePaths) {
+        const pluginDir = path.dirname(manifestPath);
+        try {
+            const manifestContent = fs.readFileSync(manifestPath, 'utf-8');
+            const manifest = JSON.parse(manifestContent);
+            
+            if (!manifest.main) throw new Error('plugin.json is missing the "main" property.');
+            
+            const codePath = path.join(pluginDir, manifest.main);
+            if (!fs.existsSync(codePath)) throw new Error(`Main file not found: ${manifest.main}`);
+            
+            const codeContent = fs.readFileSync(codePath, 'utf-8');
+            
+            loadedPlugins.push({ manifest, codeContent, path: manifestPath });
 
-    try {
-        const manifestContent = fs.readFileSync(manifestPath, 'utf-8');
-        const manifest = JSON.parse(manifestContent);
-        
-        if (!manifest.main) throw new Error('plugin.json is missing the "main" property.');
-        
-        const codePath = path.join(pluginDir, manifest.main);
-        if (!fs.existsSync(codePath)) throw new Error(`Main file not found: ${manifest.main}`);
-        
-        const codeContent = fs.readFileSync(codePath, 'utf-8');
-
-        return codeContent;
-
-    } catch (error) {
-        console.error(`Error loading local plugin from ${manifestPath}:`, error);
-        return { error: error.message };
+        } catch (error) {
+            console.error(`Error loading local plugin from ${manifestPath}:`, error);
+        }
+    }
+    
+    if (loadedPlugins.length > 0) {
+        return { success: true, plugins: loadedPlugins };
+    } else {
+        return { success: false, error: 'No valid plugins could be loaded from the selected files.' };
     }
 });

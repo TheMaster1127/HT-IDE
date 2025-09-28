@@ -2,6 +2,54 @@
 
 // --- Editor and Tab Management ---
 
+async function injectPluginHeaders() {
+    if (!currentOpenFile || !currentOpenFile.endsWith('.htvm')) return;
+
+    const activePluginIds = lsGet('active_plugin_ids') || [];
+    if (activePluginIds.length === 0) return;
+
+    const installedPlugins = await window.electronAPI.pluginsGetInstalled();
+    const headersToInsert = [];
+
+    const normalizeVersion = (version) => {
+        const parts = version.split('.');
+        while (parts.length < 3) parts.push('0');
+        return parts.join('.');
+    };
+
+    activePluginIds.forEach(id => {
+        if (id.startsWith('local-dev-plugin|')) {
+            // For local plugins, we don't have a reliable version, so we skip adding a header.
+            return;
+        }
+        const [pluginId, version] = id.split('|');
+        const pluginInfo = installedPlugins.find(p => p.id === pluginId && p.version === version);
+        if (pluginInfo) {
+            const normalized = normalizeVersion(pluginInfo.version);
+            headersToInsert.push(`#plugin#${pluginInfo.id}/${normalized}#`);
+        }
+    });
+
+    if (headersToInsert.length === 0) return;
+
+    const session = editor.session;
+    const content = session.getValue();
+    const existingHeaders = content.match(/^#plugin#.*\n?/gm) || [];
+    
+    // Create a sorted, unique string of required headers for easy comparison
+    const requiredHeaderBlock = headersToInsert.sort().join('\n') + (headersToInsert.length > 0 ? '\n' : '');
+    const existingHeaderBlock = existingHeaders.sort().join('');
+
+    if (requiredHeaderBlock !== existingHeaderBlock) {
+        // Remove old headers and insert new ones
+        const newContent = requiredHeaderBlock + content.replace(/^#plugin#.*\n?/gm, '');
+        
+        const fullRange = new ace.Range(0, 0, session.getLength(), Infinity);
+        session.replace(fullRange, newContent);
+    }
+}
+
+
 function setupGutterEvents() {
     editor.on("guttermousedown", function(e) {
         const target = e.domEvent.target;
@@ -55,7 +103,7 @@ async function openFileInEditor(filename) {
         const session = ace.createEditSession(content, isHtvmLike ? 'ace/mode/htvm' : mode);
         session.on('change', () => checkDirtyState(filename));
         fileSessions.set(filename, session);
-        // MODIFIED: Watch the file as soon as its session is created.
+        // MODIFICATION: Watch the file as soon as its session is created.
         window.electronAPI.watchFile(filename);
     }
 
@@ -86,6 +134,7 @@ async function openFileInEditor(filename) {
 
     await renderAll();
     updateEditorModeForHtvm();
+    await injectPluginHeaders(); // INJECT PLUGIN HEADERS HERE
 
     // Scroll the active tab into view
     const activeTab = document.querySelector('.tab.active');

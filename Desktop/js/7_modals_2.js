@@ -1,3 +1,5 @@
+// js/7_modals_2.js
+
 function promptForInitialInstructionSet() {
     const overlay = document.getElementById('modal-overlay');
 
@@ -55,10 +57,7 @@ function promptForInitialInstructionSet() {
                 };
                 reader.readAsText(file);
             });
-            // MODIFICATION START: Reset the file input after selection.
-            // This prevents the bug where selecting the same file twice doesn't fire the 'onchange' event.
             fileInput.value = '';
-            // MODIFICATION END
         };
         
         fileInput.click();
@@ -216,10 +215,7 @@ function openInstructionManagerModal() {
                 };
                 reader.readAsText(file);
             });
-            // MODIFICATION START: Reset the file input after selection.
-            // This prevents the bug where selecting the same file twice doesn't fire the 'onchange' event.
             fileInput.value = '';
-            // MODIFICATION END
         };
         fileInput.click();
     };
@@ -463,10 +459,12 @@ function openHtvmToHtvmModal() {
             fileInput.type = 'file';
             fileInput.multiple = true;
             fileInput.accept = '.htvm';
-            // MODIFICATION START: The event handler now uses 'fileInput.files' directly, which is more robust.
+            
             fileInput.onchange = async () => {
                 if (!fileInput.files?.length) return;
                 closeModal();
+
+                const installedPlugins = await window.electronAPI.pluginsGetInstalled();
                 const activeTerm = getActiveTerminalSession();
                 activeTerm?.xterm.writeln(`\x1b[36mStarting HTVM conversion for ${fileInput.files.length} file(s)...\x1b[0m`);
                 let allKnownPaths = (await getAllPaths()).map(item => item.path);
@@ -474,10 +472,41 @@ function openHtvmToHtvmModal() {
                 for (const file of Array.from(fileInput.files)) {
                     try {
                         const code = await file.text();
+                        
+                        // --- PLUGIN DEPENDENCY CHECK ---
+                        const requiredPlugins = (code.match(/^#plugin#.*#\n?/gm) || []).map(line => {
+                            const match = line.match(/#plugin#(.*)\/(.*)#/);
+                            return match ? { id: match[1], version: match[2] } : null;
+                        }).filter(Boolean);
+
+                        let warnings = "";
+                        requiredPlugins.forEach(req => {
+                            const installed = installedPlugins.find(p => p.id === req.id && p.version === req.version);
+                            if (!installed) {
+                                const anyVersionInstalled = installedPlugins.find(p => p.id === req.id);
+                                if(anyVersionInstalled) {
+                                    warnings += `\n- Requires '${req.id}' v${req.version}, but v${anyVersionInstalled.version} is installed.`;
+                                } else {
+                                    warnings += `\n- Requires '${req.id}' v${req.version}, which is not installed.`;
+                                }
+                            }
+                        });
+
+                        if (warnings) {
+                            const continueConfirmed = await new Promise(resolve => {
+                                openConfirmModal("Plugin Mismatch Warning", `The file "${file.name}" has the following plugin issues:${warnings}\n\nConversion might fail or produce incorrect results. Continue anyway?`, (confirmed) => resolve(confirmed));
+                            });
+                            if (!continueConfirmed) {
+                                activeTerm?.xterm.writeln(`\x1b[33mSkipped ${file.name} due to plugin mismatch.\x1b[0m`);
+                                continue;
+                            }
+                        }
+                        // --- END PLUGIN CHECK ---
+
                         resetGlobalVarsOfHTVMjs();
                         argHTVMinstrMORE.push(targetContent.replace(/\r/g, ''));
                         
-                        window.__HTVM_COMPILER_CONTEXT_FILE__ = file.path;
+                        window.__HTVM_COMPILER_CONTEXT_FILE__ = file.path; // Set context for FileRead
                         const convertedCode = compiler(code, sourceContent, "full", "htvm");
                         window.__HTVM_COMPILER_CONTEXT_FILE__ = '';
                         
@@ -498,7 +527,6 @@ function openHtvmToHtvmModal() {
                 await renderFileList();
                 activeTerm?.xterm.writeln(`\x1b[32m\nConversion process finished.\x1b[0m`);
             };
-            // MODIFICATION END
             fileInput.click();
         };
 

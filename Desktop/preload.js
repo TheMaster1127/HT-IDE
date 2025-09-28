@@ -61,11 +61,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // --- PLUGIN API ---
     pluginsFetchMarketplace: () => ipcRenderer.invoke('plugins:fetch-marketplace'),
     pluginsFetchFile: (url) => ipcRenderer.invoke('plugins:fetch-file', url),
-    pluginsFetchReadme: (pluginName) => ipcRenderer.invoke('plugins:fetch-readme', pluginName), // ADDED THIS LINE
-    pluginsInstall: (pluginName, files) => ipcRenderer.invoke('plugins:install', { pluginName, files }),
+    pluginsFetchReadme: (pluginId, version, versionFolderName) => ipcRenderer.invoke('plugins:fetch-readme', { pluginId, version, versionFolderName }),
+    pluginsInstall: (pluginId, version, versionFolderName) => ipcRenderer.invoke('plugins:install', { pluginId, version, versionFolderName }),
     pluginsGetInstalled: () => ipcRenderer.invoke('plugins:get-installed'),
-    pluginsGetCode: (pluginId) => ipcRenderer.invoke('plugins:get-code', pluginId),
+    pluginsGetCode: (pluginId, version) => ipcRenderer.invoke('plugins:get-code', { pluginId, version }),
     pluginsDelete: (pluginId) => ipcRenderer.invoke('plugins:delete', pluginId),
-    pluginsLoadLocal: () => ipcRenderer.invoke('plugins:load-local'), // ADDED THIS LINE
+    pluginsLoadLocal: () => ipcRenderer.invoke('plugins:load-local'),
 
 });

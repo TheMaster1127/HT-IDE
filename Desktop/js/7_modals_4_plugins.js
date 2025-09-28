@@ -52,14 +52,14 @@ async function openPluginsModal() {
             <ul class="modal-list plugin-list" id="marketplace-list"><li>Loading...</li></ul>
         </div>
         <div id="installed-pane" class="plugin-tab-pane">
-            <p style="font-size:0.9em; color:#ccc; margin-top:0;">Activate multiple plugins using the checkboxes. Drag to re-order. The last plugin in the list runs first.</p>
+            <p style="font-size:0.9em; color:#ccc; margin-top:0;">Activate one version per plugin. Drag to re-order execution (last in list runs first).</p>
             <ul class="modal-list plugin-list" id="installed-list"><li>Loading...</li></ul>
             <div style="text-align: right; margin-top: 15px;">
                 <button id="save-plugins-btn" class="modal-btn-confirm">Save Activation & Order</button>
             </div>
         </div>
         <div class="modal-buttons">
-            <button id="load-local-plugin-btn" style="float: left; background-color: #6a0dad;">Test Local Plugin...</button>
+            <button id="load-local-plugin-btn" style="float: left; background-color: #6a0dad;">Test Local Plugin(s)...</button>
             <button class="modal-btn-cancel">Close</button>
         </div>
     `;
@@ -73,27 +73,36 @@ async function openPluginsModal() {
     
     modalInstance.querySelector('#load-local-plugin-btn').onclick = async () => {
         const result = await window.electronAPI.pluginsLoadLocal();
-        if (result === null) return; // User cancelled
-        if (result.error) {
-            alert(`Error loading local plugin:\n${result.error}`);
+        if (!result.success || !result.plugins || result.plugins.length === 0) {
+            if (result.error !== 'User cancelled.') {
+                alert(`Error loading local plugins:\n${result.error || 'No valid plugins were selected.'}`);
+            }
             return;
         }
 
-        sessionStorage.setItem('temp_local_plugin_code', result);
-        
-        // Add to the active list instead of just setting it
         let activePlugins = lsGet('active_plugin_ids') || [];
-        if (!activePlugins.includes('local-dev-plugin')) {
-            activePlugins.push('local-dev-plugin');
-            lsSet('active_plugin_ids', activePlugins);
-        }
-
-        openConfirmModal("Load Local Plugin", "Local plugin has been loaded and activated for this session. A reload is required. Continue?", (confirmed) => {
-            if (confirmed) {
-                window.dispatchEvent(new Event('beforeunload'));
-                window.electronAPI.reloadApp();
+        let addedCount = 0;
+        
+        result.plugins.forEach(pluginData => {
+            const localId = `local-dev-plugin|${pluginData.path}`;
+            sessionStorage.setItem(localId, pluginData.codeContent);
+            if (!activePlugins.includes(localId)) {
+                activePlugins.push(localId);
+                addedCount++;
             }
         });
+
+        if (addedCount > 0) {
+            lsSet('active_plugin_ids', activePlugins);
+            openConfirmModal("Load Local Plugins", `${addedCount} local plugin(s) have been loaded and activated for this session. A reload is required. Continue?`, (confirmed) => {
+                if (confirmed) {
+                    window.dispatchEvent(new Event('beforeunload'));
+                    window.electronAPI.reloadApp();
+                }
+            });
+        } else {
+            alert("The selected local plugin(s) are already loaded for this session.");
+        }
     };
 
 
@@ -116,93 +125,101 @@ async function openPluginsModal() {
     let draggedPluginItem = null;
 
     const renderInstalled = async () => {
-        const installedPlugins = await window.electronAPI.pluginsGetInstalled();
+        const installedPlugins = await window.electronAPI.pluginsGetInstalled(); // This is now a flat list of {id, version, ...}
         const activePluginIds = lsGet('active_plugin_ids') || [];
         installedListEl.innerHTML = '';
 
-        // Sort installed plugins based on the active order
-        const sortedInstalled = [...installedPlugins].sort((a, b) => {
-            const indexA = activePluginIds.indexOf(a.id);
-            const indexB = activePluginIds.indexOf(b.id);
-            if (indexA === -1 && indexB === -1) return a.name.localeCompare(b.name);
-            if (indexA === -1) return 1;
-            if (indexB === -1) return -1;
-            return indexA - indexB;
+        const groupedPlugins = installedPlugins.reduce((acc, p) => {
+            (acc[p.id] = acc[p.id] || []).push(p);
+            return acc;
+        }, {});
+        
+        // Also group local dev plugins
+        activePluginIds.filter(id => id.startsWith('local-dev-plugin|')).forEach(localId => {
+            const fakeManifest = { id: localId, name: `Local Plugin`, version: 'dev', description: localId.split('|')[1] };
+            (groupedPlugins[localId] = groupedPlugins[localId] || []).push(fakeManifest);
         });
 
-        if (activePluginIds.includes('local-dev-plugin')) {
-            const li = document.createElement('li');
-            li.innerHTML = `
-                <div class="plugin-info">
-                    <strong>Local Development Plugin</strong>
-                    <span>Loaded from your computer</span>
-                    <p>Testing plugin.</p>
-                </div>
-                <div class="plugin-controls">
-                    <label class="plugin-activation-toggle"><input type="checkbox" data-id="local-dev-plugin" checked> Active</label>
-                    <button class="delete-local-btn modal-btn-reset">Deactivate</button>
-                </div>
-            `;
-            const deleteBtn = li.querySelector('.delete-local-btn');
-            if (deleteBtn) {
-                 deleteBtn.onclick = () => {
-                    let activeIds = lsGet('active_plugin_ids') || [];
-                    lsSet('active_plugin_ids', activeIds.filter(id => id !== 'local-dev-plugin'));
-                    sessionStorage.removeItem('temp_local_plugin_code');
-                    alert("Local dev plugin deactivated. Save changes and reload to apply.");
-                    renderInstalled();
-                }
-            }
-            installedListEl.appendChild(li);
-        }
+        const sortedGroupKeys = Object.keys(groupedPlugins).sort((a,b) => a.localeCompare(b));
 
-        if (sortedInstalled.length === 0 && !activePluginIds.includes('local-dev-plugin')) {
+        if (sortedGroupKeys.length === 0) {
             installedListEl.innerHTML = `<li class='no-sessions'>No plugins installed.</li>`;
             return;
         }
 
-        sortedInstalled.forEach(plugin => {
-            const li = document.createElement('li');
-            li.dataset.id = plugin.id;
-            li.draggable = true;
-            const isActive = activePluginIds.includes(plugin.id);
+        sortedGroupKeys.forEach(pluginId => {
+            const versions = groupedPlugins[pluginId];
+            const activeVersion = versions.find(v => activePluginIds.includes(pluginId === v.id ? v.id : `${pluginId}|${v.version}`));
+
+            let versionsHtml = versions.map(v => {
+                const isLocal = v.id.startsWith('local-dev-plugin|');
+                const uniqueId = isLocal ? v.id : `${pluginId}|${v.version}`;
+                const isChecked = activePluginIds.includes(uniqueId);
+                return `
+                    <div class="plugin-version-item" style="padding-left: 30px; margin: 5px 0;">
+                        <label class="plugin-activation-toggle" title="Activate this version">
+                            <input type="radio" name="active-version-${pluginId}" data-unique-id="${uniqueId}" ${isChecked ? 'checked' : ''}>
+                            Version ${v.version}
+                        </label>
+                        ${isLocal ? `<button class="delete-local-btn" data-unique-id="${uniqueId}">Deactivate</button>` : ''}
+                    </div>
+                `;
+            }).join('');
             
+            const firstVersion = versions[0];
+            const li = document.createElement('li');
+            li.dataset.id = pluginId;
+            li.draggable = true;
+
             li.innerHTML = `
                 <div class="plugin-drag-handle">::</div>
                 <div class="plugin-info">
-                    <strong>${plugin.name}</strong>
-                    <span>v${plugin.version} by ${plugin.author || 'Unknown'}</span>
-                    <p>${plugin.description}</p>
+                    <strong>${firstVersion.name}</strong>
+                    <span>by ${firstVersion.author || 'Unknown'}</span>
+                    <p>${firstVersion.description}</p>
+                    <div class="plugin-versions-container">${versionsHtml}</div>
                 </div>
                 <div class="plugin-controls">
-                    <label class="plugin-activation-toggle"><input type="checkbox" data-id="${plugin.id}" ${isActive ? 'checked' : ''}> Active</label>
                     <button class="details-btn">View Details</button>
                     <button class="delete-btn modal-btn-reset">Delete</button>
                 </div>
             `;
             
+            if (pluginId.startsWith('local-dev-plugin')) {
+                li.querySelector('.details-btn').style.display = 'none';
+                li.querySelector('.delete-btn').style.display = 'none';
+            }
+
             li.querySelector('.details-btn').onclick = async () => {
-                const readmeContent = await window.electronAPI.pluginsFetchReadme(plugin.id);
-                openPluginDocsModal(plugin.name, readmeContent);
+                // The new marketplace structure requires a folder name per version.
+                // For installed plugins, the folder name IS the version string.
+                const version = activeVersion?.version || firstVersion.version;
+                const readmeContent = await window.electronAPI.pluginsFetchReadme(pluginId, version, version);
+                openPluginDocsModal(firstVersion.name, readmeContent);
             };
-            
+
             li.querySelector('.delete-btn').onclick = () => {
-                openConfirmModal("Delete Plugin", `Permanently delete "${plugin.name}"?`, async (confirmed) => {
+                openConfirmModal("Delete All Versions", `Permanently delete "${firstVersion.name}" and all its installed versions?`, async (confirmed) => {
                     if (confirmed) {
-                        const result = await window.electronAPI.pluginsDelete(plugin.id);
-                        if (result.success) {
-                            if (isActive) {
-                                let activeIds = lsGet('active_plugin_ids') || [];
-                                lsSet('active_plugin_ids', activeIds.filter(id => id !== plugin.id));
-                            }
-                            await renderInstalled();
-                            await renderMarketplace();
-                        } else {
-                            alert(`Error deleting plugin: ${result.error}`);
-                        }
+                        await window.electronAPI.pluginsDelete(pluginId);
+                        let currentActive = lsGet('active_plugin_ids') || [];
+                        lsSet('active_plugin_ids', currentActive.filter(id => !id.startsWith(pluginId + '|')));
+                        await renderInstalled();
+                        await renderMarketplace();
                     }
                 });
             };
+            
+            li.querySelectorAll('.delete-local-btn').forEach(btn => {
+                btn.onclick = () => {
+                    let activeIds = lsGet('active_plugin_ids') || [];
+                    const uniqueId = btn.dataset.uniqueId;
+                    lsSet('active_plugin_ids', activeIds.filter(id => id !== uniqueId));
+                    sessionStorage.removeItem(uniqueId);
+                    alert("Local dev plugin deactivated. Save changes and reload to apply.");
+                    renderInstalled();
+                };
+            });
             
             installedListEl.appendChild(li);
         });
@@ -210,11 +227,13 @@ async function openPluginsModal() {
 
     // Drag and Drop for reordering
     installedListEl.addEventListener('dragstart', (e) => {
-        draggedPluginItem = e.target;
-        setTimeout(() => e.target.classList.add('dragging'), 0);
+        if(e.target.tagName === 'LI') {
+            draggedPluginItem = e.target;
+            setTimeout(() => e.target.classList.add('dragging'), 0);
+        }
     });
     installedListEl.addEventListener('dragend', (e) => {
-        draggedPluginItem.classList.remove('dragging');
+        if(draggedPluginItem) draggedPluginItem.classList.remove('dragging');
         draggedPluginItem = null;
     });
     installedListEl.addEventListener('dragover', (e) => {
@@ -234,9 +253,10 @@ async function openPluginsModal() {
 
     modalInstance.querySelector('#save-plugins-btn').onclick = () => {
         const newActiveOrder = [];
-        installedListEl.querySelectorAll('li input[type="checkbox"]').forEach(checkbox => {
-            if (checkbox.checked) {
-                newActiveOrder.push(checkbox.dataset.id);
+        installedListEl.querySelectorAll('li').forEach(li => {
+            const checkedRadio = li.querySelector('input[type="radio"]:checked');
+            if(checkedRadio) {
+                newActiveOrder.push(checkedRadio.dataset.uniqueId);
             }
         });
         
@@ -256,40 +276,27 @@ async function openPluginsModal() {
         });
     };
 
-    const handleInstall = async (pluginName) => {
+    const handleInstall = async (pluginId, version, versionFolderName, installButton) => {
+        installButton.textContent = 'Installing...';
+        installButton.disabled = true;
+    
         try {
-            const manifestUrl = `https://api.github.com/repos/TheMaster1127/htvm-marketplace/contents/main/${pluginName}/plugin.json`;
-            const manifestContent = await window.electronAPI.pluginsFetchFile(manifestUrl);
-            const manifest = JSON.parse(manifestContent);
-
-            const codeUrl = `https://api.github.com/repos/TheMaster1127/htvm-marketplace/contents/main/${pluginName}/${manifest.main}`;
-            const codeContent = await window.electronAPI.pluginsFetchFile(codeUrl);
-            
-            const filesToInstall = [
-                { name: 'plugin.json', content: manifestContent },
-                { name: manifest.main, content: codeContent }
-            ];
-
-            try {
-                const readmeContent = await window.electronAPI.pluginsFetchReadme(pluginName);
-                if (!readmeContent.includes("No README.md found")) {
-                    filesToInstall.push({ name: 'README.md', content: readmeContent });
-                }
-            } catch {}
-
-
-            const result = await window.electronAPI.pluginsInstall(pluginName, filesToInstall);
-
+            const result = await window.electronAPI.pluginsInstall(pluginId, version, versionFolderName);
+    
             if (result.success) {
-                alert(`Plugin "${manifest.name}" installed successfully! You can now activate it in the 'Installed' tab.`);
+                alert(`Plugin "${pluginId}" v${version} installed successfully! You can now activate it in the 'Installed' tab.`);
                 await renderInstalled();
                 await renderMarketplace();
             } else {
                 alert(`Failed to install plugin: ${result.error}`);
+                installButton.textContent = 'Install';
+                installButton.disabled = false;
             }
-
+    
         } catch (e) {
             alert(`An error occurred during installation: ${e.message}`);
+            installButton.textContent = 'Install';
+            installButton.disabled = false;
         }
     };
     
@@ -308,49 +315,52 @@ async function openPluginsModal() {
         }
 
         for (const plugin of marketplacePlugins) {
-            const isInstalled = installedPlugins.some(p => p.id === plugin.name);
+            const installedVersions = installedPlugins.filter(p => p.id === plugin.id).map(p => p.version);
+            const isLatestInstalled = installedVersions.includes(plugin.latestVersion);
+            
             const li = document.createElement('li');
             
-            let installButtonHtml = isInstalled 
-                ? '<button disabled>Installed</button>'
-                : '<button class="install-btn modal-btn-confirm">Install</button>';
+            const versionOptions = plugin.allVersions.map(v => `<option value="${v}">${v}${installedVersions.includes(v) ? ' (installed)' : ''}</option>`).join('');
 
             li.innerHTML = `
                 <div class="plugin-info">
                     <strong>${plugin.name}</strong>
-                    <p>Fetching details...</p>
+                    <span>Latest: v${plugin.latestVersion} by ${plugin.author || 'Unknown'}</span>
+                    <p>${plugin.description}</p>
                 </div>
                 <div class="plugin-controls">
-                    <button class="details-btn">View Details</button>
-                    ${installButtonHtml}
+                    <select class="version-select" style="margin-right: 8px;">${versionOptions}</select>
+                    <button class="install-btn modal-btn-confirm">Install</button>
                 </div>
             `;
             marketplaceListEl.appendChild(li);
 
-            li.querySelector('.details-btn').onclick = async () => {
-                const readmeContent = await window.electronAPI.pluginsFetchReadme(plugin.name);
-                openPluginDocsModal(plugin.name, readmeContent);
+            const installBtn = li.querySelector('.install-btn');
+            const versionSelect = li.querySelector('.version-select');
+            
+            const updateInstallButton = () => {
+                const selectedVersion = versionSelect.value;
+                if(installedVersions.includes(selectedVersion)) {
+                    installBtn.textContent = 'Installed';
+                    installBtn.disabled = true;
+                } else {
+                    installBtn.textContent = 'Install';
+                    installBtn.disabled = false;
+                }
+            };
+            
+            versionSelect.onchange = updateInstallButton;
+            installBtn.onclick = () => {
+                const selectedVersion = versionSelect.value;
+                const versionData = plugin._versionsData[selectedVersion];
+                if (!versionData || !versionData.folderName) {
+                    alert(`Error: Could not find folder name for version ${selectedVersion}. The marketplace manifest might be malformed.`);
+                    return;
+                }
+                handleInstall(plugin.id, selectedVersion, versionData.folderName, installBtn);
             };
 
-            try {
-                const manifestUrl = `https://api.github.com/repos/TheMaster1127/htvm-marketplace/contents/main/${plugin.name}/plugin.json`;
-                const manifestContent = await window.electronAPI.pluginsFetchFile(manifestUrl);
-                const manifest = JSON.parse(manifestContent);
-                
-                li.querySelector('.plugin-info').innerHTML = `
-                    <strong>${manifest.name}</strong>
-                    <span>v${manifest.version} by ${manifest.author || 'Unknown'}</span>
-                    <p>${manifest.description}</p>
-                `;
-            } catch (e) {
-                li.querySelector('p').textContent = 'Could not load plugin details.';
-                li.querySelector('.details-btn').disabled = true;
-                li.querySelector('.install-btn').disabled = true;
-            }
-
-            if (!isInstalled) {
-                li.querySelector('.install-btn').onclick = () => handleInstall(plugin.name);
-            }
+            updateInstallButton(); // Initial check
         }
     };
 

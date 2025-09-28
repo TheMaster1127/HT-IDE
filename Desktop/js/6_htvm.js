@@ -5,7 +5,6 @@ async function loadActivePlugins() {
     const hookNames = Array.from({ length: 30 }, (_, i) => `htvm_hook${i + 1}`);
     const placeholderFunction = () => { /* This is a unique placeholder function. */ };
 
-    // This object will hold the ordered lists of functions for each hook.
     const pluginExecutionOrder = {};
     for (const hookName of hookNames) {
         pluginExecutionOrder[hookName] = [];
@@ -14,7 +13,6 @@ async function loadActivePlugins() {
     const activePluginIds = lsGet('active_plugin_ids') || [];
     if (activePluginIds.length === 0) {
         console.log("No active plugins.");
-        // If there are no plugins, make sure the global hooks exist as pass-through functions.
         for (const hookName of hookNames) {
             window[hookName] = (input) => input;
         }
@@ -23,48 +21,56 @@ async function loadActivePlugins() {
 
     console.log(`Loading ${activePluginIds.length} active plugin(s) in order:`, activePluginIds);
 
-    // 1. Loop through each plugin, execute its code in isolation, and capture its defined hooks.
-    for (const pluginId of activePluginIds) {
+    const installedPlugins = await window.electronAPI.pluginsGetInstalled();
+
+    for (const uniqueId of activePluginIds) {
         let pluginCode = '';
-        if (pluginId === 'local-dev-plugin') {
-            pluginCode = sessionStorage.getItem('temp_local_plugin_code');
+        let pluginId = uniqueId;
+        let version;
+
+        if (uniqueId.startsWith('local-dev-plugin|')) {
+            pluginCode = sessionStorage.getItem(uniqueId);
         } else {
-            pluginCode = await window.electronAPI.pluginsGetCode(pluginId);
+            if (uniqueId.includes('|')) {
+                [pluginId, version] = uniqueId.split('|');
+            } else {
+                // Handle legacy format (just pluginId)
+                const versions = installedPlugins
+                    .filter(p => p.id === pluginId)
+                    .sort((a, b) => semver.rcompare(a.version, b.version));
+                if (versions.length > 0) {
+                    version = versions[0].version; // Get the latest installed version
+                }
+            }
+            
+            if (pluginId && version) {
+                pluginCode = await window.electronAPI.pluginsGetCode(pluginId, version);
+            }
         }
 
         if (!pluginCode) {
-            console.warn(`Could not fetch code for plugin ${pluginId}. Skipping.`);
+            console.warn(`Could not fetch code for plugin ${uniqueId}. Skipping.`);
             continue;
         }
 
         try {
-            // A. Reset all global hooks to our placeholder before running the plugin code.
-            // This creates a clean slate for us to detect what this specific plugin defines.
             for (const hookName of hookNames) {
                 window[hookName] = placeholderFunction;
             }
-
-            // B. Execute the plugin's code. This will overwrite some of the global placeholders.
             new Function(pluginCode)();
-
-            // C. Capture the functions that were just defined by this plugin.
             for (const hookName of hookNames) {
                 if (window[hookName] !== placeholderFunction) {
-                    // This hook was defined by the plugin, so add it to our execution list.
                     pluginExecutionOrder[hookName].push(window[hookName]);
                 }
             }
         } catch (e) {
-            console.error(`Error executing code for plugin ${pluginId}:`, e);
+            console.error(`Error executing code for plugin ${uniqueId}:`, e);
         }
     }
 
-    // 2. Now that all plugins have been processed, create the final "orchestrator" for each hook.
     for (const hookName of hookNames) {
-        // This single function will be the global hook that HTVM.js calls.
         window[hookName] = (initialInput) => {
             let processedData = initialInput;
-            // It loops through the list of functions we collected and executes them in order.
             for (const pluginFunc of pluginExecutionOrder[hookName]) {
                 processedData = pluginFunc(processedData);
             }
