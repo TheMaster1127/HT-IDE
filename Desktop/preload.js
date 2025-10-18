@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // --- OS Dialog ---
     openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
+    openFile: () => ipcRenderer.invoke('dialog:openFile'),
     showExitConfirm: () => ipcRenderer.invoke('dialog:showExitConfirm'),
 
     // --- Discord Rich Presence ---

@@ -454,13 +454,13 @@ body.syntax-highlighting-disabled .ace_line > span[class*="ace_"] { color: #f8f8
 .plugin-tab-btn.active { color: #fff; font-weight: bold; border-bottom-color: var(--btn-new-file-bg); }
 .plugin-tab-pane { display: none; }
 .plugin-tab-pane.active { display: block; }
-.plugin-list li { padding: 12px 10px; display: flex; align-items: center; } /* Modified */
+.plugin-list li { padding: 12px 10px; display: flex; align-items: flex-start; } /* Modified */
 .plugin-list li.dragging { opacity: 0.5; background: #333; } /* Added */
 .plugin-drag-handle { cursor: grab; padding-right: 12px; font-size: 1.5em; color: #666; } /* Added */
 .plugin-info { flex-grow: 1; }
 .plugin-info strong { font-size: 1.1em; }
 .plugin-info span { font-size: 0.8em; color: #888; margin-left: 8px; }
-.plugin-info p { margin: 4px 0 0 0; font-size: 0.9em; color: #ccc; }
+.plugin-info p { margin: 4px 0 0 0; font-size: 0.9em; color: #ccc; white-space: normal; } /* Modified */
 .plugin-controls { display: flex; gap: 8px; align-items: center; }
 .plugin-controls button { padding: 6px 12px; }
 .plugin-activation-toggle { display: flex; align-items: center; gap: 4px; user-select: none; cursor: pointer; } /* Added */

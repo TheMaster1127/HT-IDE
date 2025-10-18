@@ -501,6 +501,12 @@ ipcMain.handle('dialog:openDirectory', async () => {
     return null;
 });
 
+ipcMain.handle('dialog:openFile', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({ properties: ['openFile'] });
+    if (!canceled && filePaths.length > 0) return filePaths;
+    return null;
+});
+
 ipcMain.handle('http:toggle', async (event, { rootPath, port: startPort, defaultFile, terminalId }) => {
     if (httpServer && httpServer.listening) {
         return new Promise((resolve) => {
