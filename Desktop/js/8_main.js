@@ -329,6 +329,13 @@ function applyAndSetHotkeys() {
         if (checkMatch(activeHotkeys.runFile)) { e.preventDefault(); await handleRun(e); }
         else if (checkMatch(activeHotkeys.compileFile)) { e.preventDefault(); await runPropertyCommand('compile'); }
         else if (checkMatch(activeHotkeys.saveFile)) { e.preventDefault(); await saveFileContent(currentOpenFile, editor.getValue()); }
+        else if (checkMatch(activeHotkeys.openFile)) {
+            e.preventDefault();
+            const result = await window.electronAPI.openFile();
+            if (result && result.length > 0) {
+                await openFileInEditor(result[0]);
+            }
+        }
         else if (checkMatch(activeHotkeys.formatFile)) {
             e.preventDefault();
             if (!currentOpenFile || !currentOpenFile.endsWith('.htvm')) { alert("The formatter only works with .htvm files."); return; }

@@ -316,7 +316,6 @@ async function openPluginsModal() {
 
         for (const plugin of marketplacePlugins) {
             const installedVersions = installedPlugins.filter(p => p.id === plugin.id).map(p => p.version);
-            const isLatestInstalled = installedVersions.includes(plugin.latestVersion);
             
             const li = document.createElement('li');
             
@@ -329,7 +328,8 @@ async function openPluginsModal() {
                     <p>${plugin.description}</p>
                 </div>
                 <div class="plugin-controls">
-                    <select class="version-select" style="margin-right: 8px;">${versionOptions}</select>
+                    <button class="details-btn" style="background-color: var(--btn-new-file-bg); color: var(--btn-new-file-text);">Details</button>
+                    <select class="version-select" style="margin: 0 8px;">${versionOptions}</select>
                     <button class="install-btn modal-btn-confirm">Install</button>
                 </div>
             `;
@@ -337,6 +337,22 @@ async function openPluginsModal() {
 
             const installBtn = li.querySelector('.install-btn');
             const versionSelect = li.querySelector('.version-select');
+            const detailsBtn = li.querySelector('.details-btn');
+            
+            detailsBtn.onclick = async () => {
+                const selectedVersion = versionSelect.value;
+                const versionData = plugin._versionsData[selectedVersion];
+                if (!versionData || !versionData.folderName) {
+                    alert(`Error: Could not find folder name for version ${selectedVersion}.`);
+                    return;
+                }
+                detailsBtn.textContent = 'Loading...';
+                detailsBtn.disabled = true;
+                const readmeContent = await window.electronAPI.pluginsFetchReadme(plugin.id, selectedVersion, versionData.folderName);
+                openPluginDocsModal(plugin.name, readmeContent);
+                detailsBtn.textContent = 'Details';
+                detailsBtn.disabled = false;
+            };
             
             const updateInstallButton = () => {
                 const selectedVersion = versionSelect.value;
