@@ -1,9 +1,14 @@
-HTVM "%FILENAME%" "C:\Users\The_M\OneDrive\Desktop\GitHub~~~Projects\HTVM\HTVM\HTVM-v1-DEPRECATED\HT-instructions.txt" "cpp"
+; for cpp
 
+wine /home/themaster1127/GitHub_Projects/HTVM/HTVM/HTVM-v1-DEPRECATED/HTVM.exe "%FILENAME%" "/home/themaster1127/GitHub_Projects/HTVM/HTVM/HTVM-instructions.txt" "cpp"
 g++ "%ONLYFILENAME%.cpp" "-o" "%ONLYFILENAME%"
+cd "%DIRFULLPATH%" && "%ONLYFILENAME%"
 
+; for python
 
+;wine /home/themaster1127/GitHub_Projects/HTVM/HTVM/HTVM-v1-DEPRECATED/HTVM.exe "%FILENAME%" "/home/themaster1127/GitHub_Projects/HTVM/HTVM/HTVM-instructions.txt" "py"
+;cd "%DIRFULLPATH%" && python "%ONLYFILENAME%.py"
 
-
-
-
+; for js
+;wine /home/themaster1127/GitHub_Projects/HTVM/HTVM/HTVM-v1-DEPRECATED/HTVM.exe "%FILENAME%" "/home/themaster1127/GitHub_Projects/HTVM/HTVM/HTVM-instructions.txt" "js"
+;cd "%DIRFULLPATH%" && node "%ONLYFILENAME%.js"
