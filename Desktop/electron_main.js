@@ -1,6 +1,6 @@
 // electron_main.js
 
-const { app, BrowserWindow, ipcMain, globalShortcut, dialog, shell, Menu, net } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, dialog, shell, Menu, net, clipboard } = require('electron'); // --- MODIFIED: Added 'clipboard' and 'Menu'
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -229,6 +229,23 @@ function createWindow() {
         }
     });
 
+    mainWindow.webContents.on('context-menu', (event, params) => {
+        const template = [
+            { role: 'undo' },
+            { role: 'redo' },
+            { type: 'separator' },
+            { role: 'cut' },
+            { role: 'copy' },
+            { role: 'paste' },
+            { type: 'separator' },
+            { role: 'selectAll' }
+        ];
+
+        const menu = Menu.buildFromTemplate(template);
+        menu.popup(mainWindow);
+    });
+
+
     mainWindow.webContents.on('did-start-navigation', (event, url, isInPlace, isMainFrame) => {
         if (isMainFrame) {
             if (currentDirectoryWatcher) {
@@ -341,6 +358,29 @@ app.on('will-quit', () => {
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
 });
+
+// --- MODIFICATION START: This is the new, robust chunking system ---
+let largeCopyBuffer = [];
+ipcMain.handle('clipboard:start-large-write', () => {
+    largeCopyBuffer = []; // Reset the buffer for a new copy operation
+});
+ipcMain.handle('clipboard:write-chunk', (event, chunk) => {
+    largeCopyBuffer.push(chunk); // Add the received chunk to our buffer
+});
+ipcMain.handle('clipboard:end-large-write', () => {
+    try {
+        const fullText = largeCopyBuffer.join(''); // Reassemble the full string
+        clipboard.writeText(fullText); // Write the complete text to the native clipboard
+        largeCopyBuffer = []; // Clear the buffer
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to finalize large clipboard write:", error);
+        largeCopyBuffer = []; // Ensure buffer is cleared on error
+        return { success: false, error: error.message };
+    }
+});
+// --- MODIFICATION END ---
+
 
 ipcMain.handle('storage:get-all', () => {
     return storageCache;

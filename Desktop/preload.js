@@ -3,6 +3,12 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
+    // --- MODIFICATION START: Expose the new chunking clipboard functions ---
+    clipboardStartLargeWrite: () => ipcRenderer.invoke('clipboard:start-large-write'),
+    clipboardWriteChunk: (chunk) => ipcRenderer.invoke('clipboard:write-chunk', chunk),
+    clipboardEndLargeWrite: () => ipcRenderer.invoke('clipboard:end-large-write'),
+    // --- MODIFICATION END ---
+
     // --- Storage Functions ---
     storageGetAll: () => ipcRenderer.invoke('storage:get-all'),
     storageSetItem: (key, value) => ipcRenderer.invoke('storage:set-item', { key, value }),

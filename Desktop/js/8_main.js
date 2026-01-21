@@ -24,6 +24,32 @@ function writePrompt(session) {
 }
 window.writePrompt = writePrompt;
 
+// --- MODIFICATION START: New helper function for chunking large strings ---
+function splitIntoChunks(str, chunkSize) {
+    const chunks = [];
+    for (let i = 0; i < str.length; i += chunkSize) {
+        chunks.push(str.substring(i, i + chunkSize));
+    }
+    return chunks;
+}
+
+async function copyLargeTextViaChunking(text) {
+    try {
+        const CHUNK_SIZE = 40000; // 40KB chunks, a safe size for IPC
+        const chunks = splitIntoChunks(text, CHUNK_SIZE);
+        
+        await window.electronAPI.clipboardStartLargeWrite();
+        for (const chunk of chunks) {
+            await window.electronAPI.clipboardWriteChunk(chunk);
+        }
+        await window.electronAPI.clipboardEndLargeWrite();
+    } catch (error) {
+        console.error("Failed to copy large text via chunking:", error);
+    }
+}
+// --- MODIFICATION END ---
+
+
 // MODIFIED: This function now contains the fully restored, robust key handling logic.
 async function createTerminalInstanceForSession(session) {
     session.xterm = new Terminal({
@@ -346,6 +372,18 @@ function applyAndSetHotkeys() {
             }
             catch (err) { getActiveTerminalSession()?.xterm.writeln(`\x1b[31mAn error occurred during formatting: ${err.message}\x1b[0m`); }
         }
+        // --- MODIFICATION START: Added hotkey for copying the full file ---
+        else if (checkMatch(activeHotkeys.copyFullFile)) {
+            e.preventDefault();
+            if (!currentOpenFile) return;
+            const fileContent = editor.getValue();
+            await copyLargeTextViaChunking(fileContent);
+            const activeTerm = getActiveTerminalSession();
+            if (activeTerm) {
+                activeTerm.xterm.writeln(`\x1b[32mCopied full content of ${currentOpenFile.split(/[\\\/]/).pop()} to clipboard.\x1b[0m`);
+            }
+        }
+        // --- MODIFICATION END ---
         else if (checkMatch(activeHotkeys.closeTab)) {
             e.preventDefault();
             if (openTabs.length === 0) { if (await window.electronAPI.showExitConfirm()) { window.close(); } }
@@ -372,6 +410,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     applyUiThemeSettings();
 
     editor = ace.edit("editor");
+
+    // --- MODIFICATION START: This is the final, robust clipboard fix using chunking ---
+    const commands = editor.commands;
+    const originalCopyCommand = commands.commands.copy; 
+
+    commands.addCommand({
+        name: "unlimitedCopy",
+        bindKey: { win: "Ctrl-C", mac: "Command-C" },
+        exec: async function(editor) {
+            const selection = editor.getCopyText();
+            if (selection) {
+                // Use the robust chunking method for all copy operations from the editor.
+                await copyLargeTextViaChunking(selection);
+            } else {
+                // Keep the original "copy line" behavior if nothing is selected.
+                if (originalCopyCommand && typeof originalCopyCommand.exec === 'function') {
+                    originalCopyCommand.exec(editor);
+                }
+            }
+        },
+        readOnly: true
+    });
+    // --- MODIFICATION END ---
     
     window.electronAPI.onCommandOutput(({ terminalId, data }) => {
         terminalSessions.get(terminalId)?.xterm.write(data.replace(/\n/g, "\r\n"));
@@ -405,30 +466,38 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     window.electronAPI.onCloseTabFromContextMenu(async (filePath) => await handleCloseTabRequest(filePath));
 
+    // --- MODIFICATION START: This is the fix for the stale content bug (external changes) ---
     window.electronAPI.onFileChanged(async (filePath) => {
-        const msg = `The file "${filePath.split(/[\\\/]/).pop()}" has changed on disk. Do you want to reload it? Your unsaved changes in the editor will be lost.`;
-        if (filePath === currentOpenFile) {
-            openConfirmModal("File Changed on Disk", msg, async (confirmed) => {
+        const session = fileSessions.get(filePath);
+        if (!session) {
+            // If the file isn't open in a tab, we don't need to do anything.
+            return;
+        }
+
+        const isUnsaved = !session.getUndoManager().isClean();
+
+        if (isUnsaved) {
+            // If the user has unsaved changes, we must ask them what to do.
+            const msg = `The file "${filePath.split(/[\\\/]/).pop()}" has changed on disk, but you have unsaved changes in the editor.\n\nDo you want to discard your changes and reload from disk?`;
+            openConfirmModal("File Conflict", msg, async (confirmed) => {
                 if (confirmed) {
-                    const newContent = await window.electronAPI.getFileContent(filePath);
-                    if (newContent !== null) {
-                        const session = editor.session;
-                        const cursor = session.selection.getCursor();
-                        const scrollTop = session.getScrollTop();
-                        session.setValue(newContent);
-                        session.getUndoManager().markClean();
-                        checkDirtyState(filePath);
-                        session.selection.moveCursorToPosition(cursor);
-                        session.setScrollTop(scrollTop);
-                        editor.focus();
+                    // User agrees to discard changes. We force a reload by
+                    // deleting the session and re-opening the file.
+                    fileSessions.delete(filePath);
+                    if (currentOpenFile === filePath) {
+                        await openFileInEditor(filePath); 
                     }
                 }
             });
-        } 
-        else if (openTabs.includes(filePath) && fileSessions.has(filePath)) {
+        } else {
+            // If the file is saved (clean), we can safely reload it in the background.
             fileSessions.delete(filePath);
+            if (currentOpenFile === filePath) {
+                await openFileInEditor(filePath); // Re-opening reloads from disk.
+            }
         }
     });
+    // --- MODIFICATION END ---
     
     const appPath = await window.electronAPI.getAppPath();
     const separator = appPath.includes('\\') ? '\\' : '/';

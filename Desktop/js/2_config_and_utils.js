@@ -20,6 +20,7 @@ const hotkeyConfig = {
     saveFile:     { label: 'Save File', default: { key: 's', ctrl: true, shift: false, alt: false } },
     openFile:     { label: 'Open File', default: { key: 'o', ctrl: true, shift: false, alt: false } },
     formatFile:   { label: 'Format HTVM File', default: { key: 'f', ctrl: true, shift: true, alt: false } },
+    copyFullFile: { label: 'Copy Full File Content', default: { key: 'c', ctrl: true, shift: true, alt: false } },
     closeTab:     { label: 'Close Tab', default: { key: 'w', ctrl: true, shift: false, alt: false } },
     reopenTab:    { label: 'Re-open Last Closed Tab', default: { key: 't', ctrl: true, shift: true, alt: false } },
     toggleSidebar:{ label: 'Toggle Sidebar', default: { key: 'b', ctrl: true, shift: false, alt: false } },
