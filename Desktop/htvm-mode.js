@@ -178,7 +178,8 @@ const gui_option_tokens1 = [
   "s", "size", "sz",
   "a", "isEnabled", "isEnb",
   "u", "isVisible", "isVsb",
-  "n", "isDeleting", "del", "remove", "rm"
+  "n", "isDeleting", "del", "remove", "rm", 
+  "focus"
 ];
 
 const gui_option_tokens2 = [

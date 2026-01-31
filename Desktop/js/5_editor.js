@@ -98,7 +98,7 @@ async function openFileInEditor(filename) {
 
     if (!fileSessions.has(filename)) {
         // MODIFICATION: Add .htrs to the list of HTVM-like file extensions.
-        const isHtvmLike = filename.endsWith('.htvm') || filename.endsWith('.htpc') || filename.endsWith('.htpr') || filename.endsWith('.htrs');
+        const isHtvmLike = filename.endsWith('.htvm') || filename.endsWith('.htpc') || filename.endsWith('.htpr') || filename.endsWith('.htll') || filename.endsWith('.htrs');
         const mode = ace.require("ace/ext/modelist").getModeForPath(filename).mode;
         const session = ace.createEditSession(content, isHtvmLike ? 'ace/mode/htvm' : mode);
         session.on('change', () => checkDirtyState(filename));

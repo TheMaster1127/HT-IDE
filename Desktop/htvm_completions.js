@@ -125,6 +125,7 @@ const hardcodedHtvmWords = [
     "circle",
     "video",
     "dropdown",
+    "focus",
     "iframe"
 ];
 
