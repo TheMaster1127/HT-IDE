@@ -210,7 +210,7 @@ const regexGuiOptions = new RegExp(`\\b(?:${gui_option_pattern1})(?=:)|\\b(?:${g
                     { token: "functions", regex: cleanAndBuild(allFunctionNamesString3) + "(?=\\()" },
                     
                     // 4. Keywords, Types, and other specific word-based tokens
-                    { token: "keyword", regex: cleanAndBuild(htvmKeywords_temp) + "|\\bsubout\\b|\\bwhen\\b|\\bwehn\\b" },
+                    { token: "keyword", regex: cleanAndBuild(htvmKeywords_temp) + "|\\bsubout\\b|\\bwhen\\b|\\instance\\b|\\bwehn\\b" },
                     { token: "BuildInFunc", regex: cleanAndBuild(builtInVars_temp) },                    
                     { token: "command", regex: cleanAndBuildComma(builtInCommands_temp) + "|\\bendpoint(?=,)\\b|\\bfileinit(?=,)\\b|\\bport(?=,)\\b" },
                     { token: "arrayMethods", regex: "\\." + cleanAndBuild(arrayMethods_temp) },
@@ -219,8 +219,10 @@ const regexGuiOptions = new RegExp(`\\b(?:${gui_option_pattern1})(?=:)|\\b(?:${g
                     { token: "trueANDfalse", regex: cleanAndBuild(htvm_trueFalseGlobalNull_temp) + "|\\bin\\b" },
 {
     token: "guiOptions",
-    regex: regexGuiOptions
+    regex: regexGuiOptions + "|\\bas\\b"
 },
+
+
 
                     // 5. Operators (last, as they are the most general)
                     { token: "operators", regex: final_word_operators }
