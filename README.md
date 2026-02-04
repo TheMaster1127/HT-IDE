@@ -4,7 +4,7 @@ The IDE of the future — seamlessly designed for HTVM, fully customizable, effi
 
 #### A screenshot from the desktop version:
 
-<img width="2563" height="1440" alt="image" src="https://github.com/user-attachments/assets/f5941ee8-8eb9-4b65-8c44-1354ed2a565c" />
+<img width="2562" height="1440" alt="image" src="https://github.com/user-attachments/assets/380ce328-349b-451b-b89e-e5dcf3460acb" />
 
 ---
 
