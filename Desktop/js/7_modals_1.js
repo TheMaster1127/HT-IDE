@@ -4,7 +4,7 @@
 
 function openConfirmModal(title, message, callback) {
     const overlay = document.getElementById('modal-overlay');
-    
+
     const modalInstance = document.createElement('div');
     modalInstance.className = 'modal-box';
     modalInstance.innerHTML = `
@@ -31,7 +31,7 @@ function openConfirmModal(title, message, callback) {
 
     confirmBtn.onclick = () => closeModal(true);
     cancelBtn.onclick = () => closeModal(false);
-    
+
     overlay.appendChild(modalInstance);
     overlay.classList.add('visible');
 }
@@ -39,13 +39,13 @@ function openConfirmModal(title, message, callback) {
 
 function openSessionModal(mode) {
     const overlay = document.getElementById('modal-overlay');
-    
+
     const modalInstance = document.createElement('div');
     modalInstance.className = 'modal-box';
     modalInstance.innerHTML = `<h3 id="modal-title"></h3><div id="modal-save-content" style="display:none;"><p>Enter/overwrite session name:</p><input type="text" id="modal-input" style="width:calc(100% - 22px);padding:10px;margin-bottom:15px;background-color:#252525;border:1px solid #333;color:#e0e0e0;"></div><ul class="modal-list" id="modal-list"></ul><div class="modal-buttons"><button class="modal-btn-cancel">Cancel</button><button class="modal-btn-confirm" style="margin-left:8px;">Save</button></div>`;
 
     const list = modalInstance.querySelector('#modal-list');
-    
+
     const closeModal = () => {
         if (overlay.contains(modalInstance)) {
             overlay.removeChild(modalInstance);
@@ -113,7 +113,7 @@ function openSessionModal(mode) {
         modalInstance.querySelector('#modal-title').textContent = 'Load Session';
         modalInstance.querySelector('#modal-save-content').style.display = 'none';
         modalInstance.querySelector('.modal-btn-confirm').style.display = 'none';
-        
+
         populate(async (name) => {
             // MODIFICATION START: Handle both old (array) and new (object) session formats.
             const sessionData = lsGet(`session_data_${name}`);
@@ -203,7 +203,7 @@ function openInputModal(title, label, defaultValue, callback) {
         if (e.key === 'Enter') confirmAction();
         if (e.key === 'Escape') cancelBtn.onclick();
     };
-    
+
     overlay.appendChild(modalInstance);
     overlay.classList.add('visible');
     setTimeout(() => {
@@ -225,7 +225,7 @@ function renderHotkeyDisplayList() {
         if (id === 'runFile' && config.secondary) {
             displayText += ` / ${formatHotkey(config.secondary)}`;
         }
-        
+
         const label = config.label;
         html += `<li><b>${displayText}:</b> ${label}</li>`;
     }
@@ -248,6 +248,7 @@ function captureSettingsState() {
         state.autocompleteMaster = container.querySelector('#autocomplete-master-checkbox').checked;
         state.autocompleteKeywords = container.querySelector('#autocomplete-keywords-checkbox').checked;
         state.autocompleteLocal = container.querySelector('#autocomplete-local-checkbox').checked;
+        state.showUnofficialLangs = container.querySelector('#show-unofficial-langs-checkbox').checked;
         state.serverPort = container.querySelector('#server-port-input').value;
         state.serverDefaultFile = container.querySelector('#server-file-input').value;
         if(container.querySelector('#project-dir-input')) {
@@ -262,7 +263,7 @@ function captureSettingsState() {
 
 async function openSettingsModal(initialState = null) {
     const overlay = document.getElementById('modal-overlay');
-    
+
     const modalInstance = document.createElement('div');
     modalInstance.className = 'modal-box';
     modalInstance.style.maxWidth = '850px';
@@ -302,9 +303,13 @@ async function openSettingsModal(initialState = null) {
                     <button id="customize-theme-btn" style="margin-top: 5px; padding: 8px; background-color: var(--btn-new-file-bg); color: var(--btn-new-file-text); font-weight: var(--btn-new-file-text-bold);">Customize UI Theme</button>
                     <h4 style="margin-top:20px;">Syntax Highlighting (HTVM mostly)</h4>
                     <div><label><input type="checkbox" id="syntax-highlighting-master-checkbox"> Enable Syntax Highlighting</label></div>
-                    <div style="padding-left: 20px;"><label><input type="hidden" id="symbol-operator-highlighting-checkbox"> Highlight Symbol Operators (e.g., =, ++, *)</label></div>
+                    <div style="padding-left: 20px;"><label><input type="checkbox" id="symbol-operator-highlighting-checkbox"> Highlight Symbol Operators (e.g., =, ++, *)</label></div>
                     <button id="customize-colors-btn" style="margin-top: 10px; padding: 8px; background-color: var(--btn-new-file-bg); color: var(--btn-new-file-text); font-weight: var(--btn-new-file-text-bold);">Customize Syntax Colors</button>
                     <p style="font-size:0.8em; color:#aaa; margin-top:5px;">Color changes may affect other languages.</p>
+                </div>
+                <div>
+                    <h4>HTVM</h4>
+                    <div><label><input type="checkbox" id="show-unofficial-langs-checkbox"> Show Unsupported Language Targets</label></div>
                 </div>
                 <div>
                     <h4>Terminal</h4>
@@ -321,7 +326,7 @@ async function openSettingsModal(initialState = null) {
                  <h4>Hotkeys</h4>
                  <div id="hotkey-display-list">${renderHotkeyDisplayList()}</div>
                  <button id="customize-hotkeys-btn" style="margin-top: 15px; padding: 8px; background-color: var(--btn-new-file-bg); color: var(--btn-new-file-text); font-weight: var(--btn-new-file-text-bold);">Customize Hotkeys</button>
-                 
+
                  <div style="margin-top: 15px; border-top: 1px solid #333; padding-top: 15px;">
                     <h4>Projects</h4>
                     <div style="padding-left: 10px;">
@@ -339,7 +344,7 @@ async function openSettingsModal(initialState = null) {
         </div>
         <div class="modal-buttons" style="margin-top: 20px;"><button id="modal-ok-btn" style="padding: 10px 24px; font-size: 1.1em; font-weight: bold;">OK</button></div>
     `;
-    
+
     const closeModal = () => {
         if (overlay.contains(modalInstance)) {
             overlay.removeChild(modalInstance);
@@ -364,9 +369,10 @@ async function openSettingsModal(initialState = null) {
     modalInstance.querySelector('#autocomplete-master-checkbox').checked = lsGet('autocomplete-master') !== false;
     modalInstance.querySelector('#autocomplete-keywords-checkbox').checked = lsGet('autocomplete-keywords') !== false;
     modalInstance.querySelector('#autocomplete-local-checkbox').checked = lsGet('autocomplete-local') !== false;
+    modalInstance.querySelector('#show-unofficial-langs-checkbox').checked = lsGet('showUnofficialLangs') === true;
     modalInstance.querySelector('#server-port-input').value = lsGet('serverPort') || 8080;
     modalInstance.querySelector('#server-file-input').value = lsGet('serverDefaultFile') || 'index.html';
-    
+
     const appPath = await window.electronAPI.getAppPath();
     const separator = appPath.includes('\\') ? '\\' : '/';
     const defaultProjectsPath = `${appPath}${separator}projects`;
@@ -384,11 +390,25 @@ async function openSettingsModal(initialState = null) {
         if (initialState.autocompleteMaster !== undefined) modalInstance.querySelector('#autocomplete-master-checkbox').checked = initialState.autocompleteMaster;
         if (initialState.autocompleteKeywords !== undefined) modalInstance.querySelector('#autocomplete-keywords-checkbox').checked = initialState.autocompleteKeywords;
         if (initialState.autocompleteLocal !== undefined) modalInstance.querySelector('#autocomplete-local-checkbox').checked = initialState.autocompleteLocal;
+        if (initialState.showUnofficialLangs !== undefined) modalInstance.querySelector('#show-unofficial-langs-checkbox').checked = initialState.showUnofficialLangs;
         if (initialState.serverPort !== undefined) modalInstance.querySelector('#server-port-input').value = initialState.serverPort;
         if (initialState.serverDefaultFile !== undefined) modalInstance.querySelector('#server-file-input').value = initialState.serverDefaultFile;
         if (initialState.projectDirectory !== undefined) modalInstance.querySelector('#project-dir-input').value = initialState.projectDirectory;
     }
-    
+
+    const unofficialLangsCheckbox = modalInstance.querySelector('#show-unofficial-langs-checkbox');
+    unofficialLangsCheckbox.addEventListener('click', (e) => {
+        if (unofficialLangsCheckbox.checked) {
+            e.preventDefault(); // Stop the check from happening immediately
+            const warningMsg = "Warning: HTVM can convert to 3 languages: JavaScript, Python, and C++. There are other languages available like go, lua, cs, java, kt, rb, nim, ahk, swift, dart, ts, groovy, but they are deprecated, unsupported, contain bugs, and if you encounter issues or bugs with those unsupported languages, do not report them. Use those languages at your own risk. You have been warned.\n\nEnable them anyway?";
+            openConfirmModal("Enable Unsupported Languages?", warningMsg, (confirmed) => {
+                if (confirmed) {
+                    unofficialLangsCheckbox.checked = true; // Now, actually check it
+                }
+            });
+        }
+    });
+
     modalInstance.querySelector('#select-project-dir-btn').onclick = async () => {
         const result = await window.electronAPI.openDirectory();
         if (result && result.length > 0) {
@@ -417,6 +437,8 @@ async function openSettingsModal(initialState = null) {
         lsSet('autocomplete-master', modalInstance.querySelector('#autocomplete-master-checkbox').checked);
         lsSet('autocomplete-keywords', modalInstance.querySelector('#autocomplete-keywords-checkbox').checked);
         lsSet('autocomplete-local', modalInstance.querySelector('#autocomplete-local-checkbox').checked);
+        lsSet('showUnofficialLangs', modalInstance.querySelector('#show-unofficial-langs-checkbox').checked);
+        updateLanguageDropdownVisibility();
         lsSet('serverPort', parseInt(modalInstance.querySelector('#server-port-input').value, 10) || 8080);
         lsSet('serverDefaultFile', modalInstance.querySelector('#server-file-input').value.trim() || 'index.html');
         lsSet('projectDirectory', modalInstance.querySelector('#project-dir-input').value);
@@ -427,7 +449,7 @@ async function openSettingsModal(initialState = null) {
 
         lsSet('syntaxHighlightingEnabled', newSyntaxEnabled);
         lsSet('highlightSymbolOperators', newHighlightOperators);
-        
+
         if (needsReload) {
             const msg = "Some syntax highlighting settings have changed. A reload is required for them to take full effect. Your work will be saved.\n\nReload now?";
             openConfirmModal("Reload Required", msg, (confirmed) => {
@@ -442,7 +464,7 @@ async function openSettingsModal(initialState = null) {
             closeModal();
         }
     };
-    
+
     overlay.appendChild(modalInstance);
     overlay.classList.add('visible');
 }
@@ -453,7 +475,7 @@ function formatHotkey(config) {
     if (config.ctrl) parts.push('Ctrl');
     if (config.shift) parts.push('Shift');
     if (config.alt) parts.push('Alt');
-    
+
     let keyName = config.key;
     if (keyName.length === 1) keyName = keyName.toUpperCase();
     parts.push(keyName);
@@ -469,7 +491,7 @@ function openHotkeyEditorModal(settingsState) {
     for (const id in hotkeyConfig) {
         const config = hotkeyConfig[id];
         const activeHotkey = customHotkeys[id] || config.default;
-        
+
         itemsHtml += `
             <div class="color-picker-item" style="gap: 10px;">
                 <label style="flex-basis: 200px;">${config.label}</label>
@@ -501,7 +523,7 @@ function openHotkeyEditorModal(settingsState) {
     };
 
     const container = modalInstance.querySelector('#hotkey-picker-list');
-    
+
     container.querySelectorAll('.hotkey-input').forEach(input => {
         const id = input.dataset.id;
         input.dataset.config = JSON.stringify(customHotkeys[id] || hotkeyConfig[id].default);
@@ -509,11 +531,11 @@ function openHotkeyEditorModal(settingsState) {
         input.onkeydown = e => {
             e.preventDefault();
             e.stopPropagation();
-            
+
             const newConfig = { key: e.key, ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey, alt: e.altKey };
             const currentId = e.target.dataset.id;
             const allInputs = container.querySelectorAll('.hotkey-input');
-            
+
             for (const otherInput of allInputs) {
                 const otherId = otherInput.dataset.id;
                 if (currentId === otherId) continue;
@@ -523,7 +545,7 @@ function openHotkeyEditorModal(settingsState) {
                     return;
                 }
             }
-            
+
             input.value = formatHotkey(newConfig);
             input.dataset.config = JSON.stringify(newConfig);
         };
@@ -540,7 +562,7 @@ function openHotkeyEditorModal(settingsState) {
     });
 
     modalInstance.querySelector('#modal-hotkeys-cancel-btn').onclick = closeModal;
-    
+
     modalInstance.querySelector('#modal-hotkeys-reset-all-btn').onclick = () => {
         openConfirmModal("Reset All Hotkeys", "Are you sure?", (confirmed) => {
             if (confirmed) {
@@ -551,7 +573,7 @@ function openHotkeyEditorModal(settingsState) {
             }
         });
     };
-    
+
     modalInstance.querySelector('#modal-hotkeys-save-btn').onclick = () => {
         const newCustomHotkeys = {};
         container.querySelectorAll('.hotkey-input').forEach(input => {
@@ -561,7 +583,7 @@ function openHotkeyEditorModal(settingsState) {
         applyAndSetHotkeys();
         closeModal();
     };
-    
+
     overlay.appendChild(modalInstance);
     overlay.classList.add('visible');
 }
@@ -574,7 +596,7 @@ function openSyntaxColorModal(settingsState) {
     for (const key in syntaxColorConfig) {
         const item = syntaxColorConfig[key];
         const savedColor = lsGet(`color_${key}`) || item.default;
-        
+
         const controlHtml = item.isText
             ? `<label style="cursor:pointer; display:flex; align-items:center; gap: 4px; user-select: none;">
                    <input type="checkbox" id="bold_${key}"> Bold
@@ -605,7 +627,7 @@ function openSyntaxColorModal(settingsState) {
             <button class="modal-btn-confirm">Save & Apply</button>
         </div>
     `;
-    
+
     const closeModal = () => {
         if(overlay.contains(modalInstance)) overlay.removeChild(modalInstance);
         openSettingsModal(settingsState);
@@ -626,7 +648,7 @@ function openSyntaxColorModal(settingsState) {
     listContainer.addEventListener('mousemove', e => { if (infoTooltip.style.display === 'block') { const t = infoTooltip, w = window, m=15; let l = e.clientX + m, p = e.clientY + m; if (l + t.offsetWidth > w.innerWidth) l = e.clientX - t.offsetWidth - m; if(l<0)l=0; if(p<0)p=0; t.style.left = l + 'px'; t.style.top = p + 'px'; } });
 
     modalInstance.querySelector('.modal-btn-cancel').onclick = closeModal;
-    
+
     modalInstance.querySelector('.modal-btn-reset').onclick = () => {
         openConfirmModal("Reset Colors", "Are you sure?", (confirmed) => {
             if (confirmed) {
@@ -644,7 +666,7 @@ function openSyntaxColorModal(settingsState) {
             lsSet(`color_${key}`, modalInstance.querySelector(`#${key}`).value);
             if (syntaxColorConfig[key].isText) lsSet(`boldness_${key}`, modalInstance.querySelector(`#bold_${key}`).checked);
         }
-        
+
         openConfirmModal("Reload Required", "Syntax colors have been saved. A reload is required. Reload now?", (confirmed) => {
              if (confirmed) {
                 window.dispatchEvent(new Event('beforeunload'));
@@ -653,7 +675,7 @@ function openSyntaxColorModal(settingsState) {
             closeModal();
         });
     };
-    
+
     overlay.appendChild(modalInstance);
     overlay.classList.add('visible');
 }
@@ -675,7 +697,7 @@ function openThemeEditorModal(settingsState) {
         (acc[category] = acc[category] || []).push([key, item]);
         return acc;
     }, {});
-    
+
     const categories = Object.keys(groupedItems).sort();
 
     let tabButtonsHtml = categories.map((cat, index) => 
@@ -716,7 +738,7 @@ function openThemeEditorModal(settingsState) {
 
         return `<div class="theme-tab-pane ${index === 0 ? 'active' : ''}" data-category="${cat}">${itemsHtml}</div>`;
     }).join('');
-    
+
     const modalInstance = document.createElement('div');
     modalInstance.className = 'modal-box';
     modalInstance.style.maxWidth = '800px';
@@ -738,7 +760,7 @@ function openThemeEditorModal(settingsState) {
         if(overlay.contains(modalInstance)) overlay.removeChild(modalInstance);
         openSettingsModal(settingsState);
     }
-    
+
     const container = modalInstance.querySelector('#theme-picker-list');
 
     modalInstance.querySelector('.theme-tabs').addEventListener('click', e => {
@@ -767,7 +789,7 @@ function openThemeEditorModal(settingsState) {
             root.style.setProperty(boldKey + '-bold', isBold ? 'bold' : 'normal');
         }
     });
-    
+
     const infoTooltip = document.getElementById('info-tooltip');
     container.addEventListener('mouseover', e => { if (e.target.classList.contains('info-icon')) { infoTooltip.textContent = e.target.dataset.infoText; infoTooltip.style.display = 'block'; } });
     container.addEventListener('mouseout', e => { if (e.target.classList.contains('info-icon')) { infoTooltip.style.display = 'none'; } });
@@ -780,7 +802,7 @@ function openThemeEditorModal(settingsState) {
         }
         closeModal();
     };
-    
+
     modalInstance.querySelector('.modal-btn-reset').onclick = () => {
         openConfirmModal("Reset Theme", "Are you sure? This applies changes live.", (confirmed) => {
             if (confirmed) {
@@ -800,14 +822,14 @@ function openThemeEditorModal(settingsState) {
         container.querySelectorAll('input[data-bold-key]').forEach(input => lsSet(`theme_bold_${input.dataset.boldKey}`, input.checked));
         closeModal();
     };
-    
+
     overlay.appendChild(modalInstance);
     overlay.classList.add('visible');
 }
 
 function openExportImportModal() {
     const overlay = document.getElementById('modal-overlay');
-    
+
     const triggerDownload = (data, filename) => {
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -840,14 +862,14 @@ function openExportImportModal() {
         };
         input.click();
     };
-    
+
     // --- MODIFICATION START: Corrected workspace ID detection ---
     window.getAllWorkspaceIds = () => {
         const ids = new Set();
         // Always include the current workspace ID, even if no data is stored for it yet.
         // This ensures that when starting fresh, the current workspace "0" is recognized.
         ids.add(getIdeId());
-        
+
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
             const match = key.match(/^HT-IDE-id(\d+)-/);
@@ -875,13 +897,13 @@ function openExportImportModal() {
     modalInstance.innerHTML = `
         <h3>Export / Import Data</h3>
         <p style="font-size:0.9em; color:#ccc; margin-top:0;">Importing data will overwrite existing settings and requires a reload.</p>
-        
+
         <div style="border-top: 1px solid #333; margin-top: 15px; padding-top: 15px;">
             <h4><span style="color: #569cd6;">💻</span> Workspaces</h4>
             <p style="font-size:0.8em; margin:0 0 10px 0;">Switch between different workspaces, or create new ones.</p>
             <button id="manage-workspaces-btn" class="modal-btn-confirm" style="width:100%;">Manage Workspaces</button>
         </div>
-        
+
         <div style="border-top: 1px solid #333; margin-top: 15px; padding-top: 15px;">
             <h4><span style="color: #f51000; font-weight: bold;">⚠</span> Everything</h4>
             <p style="font-size:0.8em; margin:0 0 10px 0;">Exports or imports all workspaces, themes, and settings. Use with caution.</p>
@@ -899,7 +921,7 @@ function openExportImportModal() {
                 <button id="import-theme-btn" class="modal-btn-reset" style="flex:1;">Import Theme</button>
             </div>
         </div>
-        
+
         <div style="border-top: 1px solid #333; margin-top: 15px; padding-top: 15px;">
             <h4><span style="color: #569cd6;">💾</span> Workspace File</h4>
             <p style="font-size:0.8em; margin:0 0 10px 0;">Exports a single workspace or imports a file into a new or existing workspace.</p>
@@ -924,9 +946,9 @@ function openExportImportModal() {
     };
 
     modalInstance.querySelector('.modal-btn-cancel').onclick = closeModal;
-    
+
     modalInstance.querySelector('#manage-workspaces-btn').onclick = () => { closeModal(); openWorkspaceManagerModal(); };
-    
+
     modalInstance.querySelector('#export-all-btn').onclick = () => {
         openInputModal('Export All Data', 'Enter filename:', 'ht-ide-backup-all.json', (filename) => {
             if (!filename) return;
@@ -1016,7 +1038,7 @@ function openExportImportModal() {
 
 function openWorkspaceManagerModal() {
     const overlay = document.getElementById('modal-overlay');
-    
+
     const modalInstance = document.createElement('div');
     modalInstance.className = 'modal-box';
     modalInstance.style.maxWidth = '600px';
@@ -1091,7 +1113,7 @@ function openWorkspaceManagerModal() {
             }
         });
     };
-    
+
     overlay.appendChild(modalInstance);
     overlay.classList.add('visible');
     populateList();
@@ -1117,7 +1139,7 @@ function updateHotkeyTitles() {
         const formatHotkeyStr = formatHotkey(activeHotkeys.formatFile);
         formatBtn.title = `Format HTVM File (${formatHotkeyStr})`;
     }
-    
+
     const mapLineBtn = document.getElementById('map-line-btn');
     if (mapLineBtn) {
         const mapLineHotkeyStr = formatHotkey(activeHotkeys.mapLine);
@@ -1133,10 +1155,10 @@ function updateHotkeyTitles() {
 
 async function openNewProjectModal() {
     const overlay = document.getElementById('modal-overlay');
-    
+
     const modalInstance = document.createElement('div');
     modalInstance.className = 'modal-box';
-    
+
     let templates = lsGet('projectTemplates') || [];
     if (templates.length === 0) {
         templates = [{ id: 'template_default_empty', name: 'Empty Project', files: [] }];
@@ -1148,7 +1170,7 @@ async function openNewProjectModal() {
         <h3>Create New Project</h3>
         <label for="new-project-name-input" style="display: block; margin: 15px 0 5px 0;">Project Name:</label>
         <input type="text" id="new-project-name-input" placeholder="my-awesome-project" style="width:calc(100% - 22px);padding:10px;margin-bottom:15px;background-color:#252525;border:1px solid #333;color:#e0e0e0;">
-        
+
         <label for="project-template-select" style="display: block; margin: 15px 0 5px 0;">Select Structure:</label>
         <select id="project-template-select" style="width:100%; padding: 10px; background-color: #252525; border: 1px solid #333; color: #e0e0e0; margin-bottom: 15px;">
             ${templateOptions}
@@ -1176,16 +1198,16 @@ async function openNewProjectModal() {
         if (!projectName.match(/^[a-zA-Z0-9._-]+$/)) {
             return alert("Project name can only contain letters, numbers, dots, hyphens, and underscores.");
         }
-        
+
         const templateId = modalInstance.querySelector('#project-template-select').value;
         const template = (lsGet('projectTemplates') || []).find(t => t.id === templateId);
         if (!template) return alert("Selected structure not found.");
-        
+
         const appPath = await window.electronAPI.getAppPath();
         const separator = appPath.includes('\\') ? '\\' : '/';
         const defaultProjectsPath = `${appPath}${separator}projects`;
         const projectBaseDir = lsGet('projectDirectory') || defaultProjectsPath;
-        
+
         await window.electronAPI.createItem(projectBaseDir, false);
 
         const newProjectPath = `${projectBaseDir}${separator}${projectName}`;
@@ -1196,7 +1218,7 @@ async function openNewProjectModal() {
 
         let result = await window.electronAPI.createItem(newProjectPath, false);
         if (!result.success) return alert(`Error creating project directory: ${result.error}`);
-        
+
         const filesToOpen = [];
         for (const file of template.files) {
             if (!file.path) continue;
@@ -1204,7 +1226,7 @@ async function openNewProjectModal() {
             await window.electronAPI.saveFileContent(filePath, file.content || '');
             filesToOpen.push(filePath);
         }
-        
+
         closeModal();
 
         openConfirmModal("Project Created", `Project "${projectName}" was created successfully.\n\nDo you want to open it now? All current tabs will be closed.`, async (confirmed) => {
@@ -1216,13 +1238,13 @@ async function openNewProjectModal() {
                 fileSessions.clear();
                 recentlyClosedTabs = [];
                 currentOpenFile = null;
-                
+
                 await setCurrentDirectory(newProjectPath);
 
                 for (const fileToOpen of filesToOpen) {
                     await openFileInEditor(fileToOpen);
                 }
-                
+
                 if (filesToOpen.length === 0) {
                     editor.setSession(ace.createEditSession("// New empty project."));
                     editor.setReadOnly(true);
@@ -1249,13 +1271,13 @@ function openProjectManagerModal(settingsState) {
         activeTemplateId: null,
         activeFilePath: null,
     };
-    
+
     if (memory.templates.length === 0) {
         memory.templates.push({ id: 'template_default_empty', name: 'Empty Project', files: [] });
     }
 
     let templateEditor;
-    
+
     const modalInstance = document.createElement('div');
     modalInstance.className = 'modal-box';
     modalInstance.style.cssText = "width:90%; max-width:1000px; height: 80vh; display: flex; flex-direction: column;";
@@ -1269,7 +1291,7 @@ function openProjectManagerModal(settingsState) {
             file.content = templateEditor.getValue();
         }
     };
-    
+
     const closeModal = (save = false) => {
         if (save) {
             saveActiveFileContent();
@@ -1310,13 +1332,13 @@ function openProjectManagerModal(settingsState) {
                 <button class="modal-btn-confirm">Save & Close</button>
             </div>
         `;
-        
+
         templateEditor = ace.edit(modalInstance.querySelector("#structure-file-editor"));
         templateEditor.setTheme("ace/theme/monokai");
         templateEditor.setOptions({ wrap: true });
-        
+
         attachButtonHandlers();
-        
+
         const templateListEl = modalInstance.querySelector('#structure-manager-list');
         templateListEl.innerHTML = '';
         memory.templates.forEach(t => {
@@ -1383,7 +1405,7 @@ function openProjectManagerModal(settingsState) {
                 }
             });
         };
-        
+
         modalInstance.querySelector('#structure-rename-btn').onclick = () => {
             if (!memory.activeTemplateId) return;
             const tpl = memory.templates.find(t => t.id === memory.activeTemplateId);
@@ -1437,7 +1459,7 @@ function openProjectManagerModal(settingsState) {
         modalInstance.querySelector('.modal-btn-confirm').onclick = () => closeModal(true);
         modalInstance.querySelector('.modal-btn-cancel').onclick = () => closeModal(false);
     };
-    
+
     overlay.appendChild(modalInstance);
     render();
     overlay.classList.add('visible');
@@ -1447,7 +1469,7 @@ function openProjectManagerModal(settingsState) {
 
 async function startLineMappingProcess() {
     let sourceCode, targetCode;
-    
+
     if (currentOpenFile && currentOpenFile.endsWith('.htvm')) {
         sourceCode = editor.getValue();
         openConfirmModal("Paste Target Code", "The HTVM code has been pre-filled.\n\nPlease copy the target language code, then click OK.", async (ok) => {
@@ -1545,7 +1567,7 @@ function openLineMapperModal(htvmCode = "", targetCode = "") {
             console.error("Line mapping error:", e);
         }
     };
-    
+
     overlay.appendChild(modalInstance);
     overlay.classList.add('visible');
 }

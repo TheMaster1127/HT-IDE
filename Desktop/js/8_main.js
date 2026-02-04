@@ -37,7 +37,7 @@ async function copyLargeTextViaChunking(text) {
     try {
         const CHUNK_SIZE = 40000; // 40KB chunks, a safe size for IPC
         const chunks = splitIntoChunks(text, CHUNK_SIZE);
-        
+
         await window.electronAPI.clipboardStartLargeWrite();
         for (const chunk of chunks) {
             await window.electronAPI.clipboardWriteChunk(chunk);
@@ -72,7 +72,7 @@ async function createTerminalInstanceForSession(session) {
         session.xterm.write(promptText + session.currentLine); // Redraw prompt and input
         session.xterm.write('\r\x1b[' + (promptVisibleLength + session.cursorPos) + 'C'); // Move cursor to correct position
     };
-    
+
     // --- NEW: Context Menu (Right-Click) Handler for Pasting ---
     session.pane.addEventListener('contextmenu', async (e) => {
         e.preventDefault(); // Prevent the default browser right-click menu
@@ -211,7 +211,7 @@ async function createTerminalInstanceForSession(session) {
                 const lineBeforeCursor = session.currentLine.substring(0, session.cursorPos);
                 const lastWordMatch = lineBeforeCursor.match(/([^\s]+)$/);
                 if (!lastWordMatch) break;
-                
+
                 const partial = lastWordMatch[0];
                 const matches = await window.electronAPI.terminalAutocomplete(session.id, partial, session.cwd);
 
@@ -243,7 +243,7 @@ async function createTerminalInstanceForSession(session) {
                 }
                 break;
             }
-                
+
             default:
                 if (printable) {
                     session.currentLine = session.currentLine.substring(0, session.cursorPos) + key + session.currentLine.substring(session.cursorPos);
@@ -267,12 +267,12 @@ async function handleToggleHttpServer() {
     try {
         const homeDir = await window.electronAPI.getHomeDir();
         const rootDir = currentDirectory === '/' ? homeDir : currentDirectory;
-        
+
         const port = lsGet('serverPort') || 8080;
         const defaultFile = lsGet('serverDefaultFile') || 'index.html';
-        
+
         const result = await window.electronAPI.toggleHttpServer(rootDir, port, defaultFile, activeTerm.id);
-        
+
         if (result.status === 'started') {
             isServerRunning = true;
             serverPort = result.port;
@@ -329,7 +329,7 @@ function applyAndSetHotkeys() {
             if (e.key === '=') { e.preventDefault(); currentZoom += 0.5; window.electronAPI.setZoomLevel(currentZoom); lsSet('zoomLevel', currentZoom); return; }
             if (e.key === '-') { e.preventDefault(); currentZoom -= 0.5; window.electronAPI.setZoomLevel(currentZoom); lsSet('zoomLevel', currentZoom); return; }
         }
-        
+
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'tab') {
             e.preventDefault();
             if (openTabs.length < 2) return;
@@ -351,7 +351,7 @@ function applyAndSetHotkeys() {
 
 
         if (e.key === 'F5') { e.preventDefault(); await handleRun(e); return; }
-        
+
         if (checkMatch(activeHotkeys.runFile)) { e.preventDefault(); await handleRun(e); }
         else if (checkMatch(activeHotkeys.compileFile)) { e.preventDefault(); await runPropertyCommand('compile'); }
         else if (checkMatch(activeHotkeys.saveFile)) { e.preventDefault(); await saveFileContent(currentOpenFile, editor.getValue()); }
@@ -399,11 +399,20 @@ function applyAndSetHotkeys() {
     updateHotkeyTitles();
 }
 
+function updateLanguageDropdownVisibility() {
+    const showAll = lsGet('showUnofficialLangs') === true;
+    const dropdown = document.getElementById('lang-dropdown');
+    if (dropdown) {
+        dropdown.classList.toggle('show-unofficial', showAll);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     IDE_ID = getIdeId();
     STORAGE_PREFIX = `HT-IDE-id${IDE_ID}-`;
     langTools = ace.require("ace/ext/language_tools");
 
+    updateLanguageDropdownVisibility();
     window.electronAPI.setZoomLevel(lsGet('zoomLevel') || 0);
 
     applyEditorColorSettings();
@@ -433,7 +442,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         readOnly: true
     });
     // --- MODIFICATION END ---
-    
+
     window.electronAPI.onCommandOutput(({ terminalId, data }) => {
         terminalSessions.get(terminalId)?.xterm.write(data.replace(/\n/g, "\r\n"));
     });
@@ -458,7 +467,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             session.xterm.write(session.currentLine);
         }
     });
-    
+
     window.electronAPI.onDirectoryChanged(async () => {
         console.log("Directory change detected, refreshing file list.");
         await renderFileList();
@@ -498,7 +507,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
     // --- MODIFICATION END ---
-    
+
     const appPath = await window.electronAPI.getAppPath();
     const separator = appPath.includes('\\') ? '\\' : '/';
     await window.electronAPI.createItem(`${appPath}${separator}property files`, false);
@@ -506,7 +515,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     Object.keys(draftCompletions).forEach(lang => lsSet(`lang_completions_${lang}`, draftCompletions[lang]));
 
     initializeInstructionSetManagement();
-    
+
     // --- PLUGIN API START: Load the active plugin on startup ---
     await loadActivePlugins();
     // --- PLUGIN API END ---
@@ -530,7 +539,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const keybindingMode = lsGet('keybindingMode') || 'normal';
     if (keybindingMode !== 'normal') editor.setKeyboardHandler(`ace/keyboard/${keybindingMode}`);
-    
+
     setupGutterEvents();
     editor.on('changeSelection', debounce(updateEditorModeForHtvm, 200));
 
@@ -547,7 +556,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('open-folder-btn').addEventListener('click', handleOpenFolder);
     document.getElementById('new-terminal-btn').addEventListener('click', handleNewTerminal);
     document.getElementById('http-server-btn').addEventListener('click', handleToggleHttpServer);
-    
+
     const toggleBtn = document.getElementById('main-toggle-sidebar-btn'), sidebar = document.querySelector('.sidebar'), backdrop = document.getElementById('sidebar-backdrop'), closeBtn = document.getElementById('sidebar-close-btn');
     function toggleSidebar() {
         const isCollapsed = sidebar.classList.contains('collapsed');
@@ -588,13 +597,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('download-html-btn').addEventListener('click', handleDownloadHtml);
 
     applyAndSetHotkeys();
-    
+
     initResizer(document.getElementById('sidebar-resizer'), document.querySelector('.sidebar'), 'sidebarWidth', 'x');
     initResizer(document.getElementById('terminal-resizer'), document.getElementById('terminal-container'), 'terminalHeight', 'y');
     initResizer(document.getElementById('output-panel-resizer'), document.getElementById('output-panel'), 'outputPanelWidth', 'x');
 
     await handleNewTerminal(); 
-    
+
     document.getElementById('run-js-after-htvm').checked = lsGet('runJsAfterHtvm') !== false;
     document.getElementById('full-html-checkbox').checked = lsGet('fullHtml') === true;
 
@@ -604,7 +613,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sidebarWidth = lsGet('sidebarWidth'); if (sidebarWidth) document.querySelector('.sidebar').style.width = sidebarWidth;
     const terminalHeight = lsGet('terminalHeight'); if (terminalHeight) document.getElementById('terminal-container').style.height = terminalHeight;
     const outputWidth = lsGet('outputPanelWidth'); if (outputWidth) document.getElementById('output-panel').style.width = outputWidth;
-    
+
     if (lsGet('sidebarCollapsed') !== false) { document.querySelector('.sidebar').classList.add('collapsed'); }
     else { document.querySelector('.sidebar').classList.remove('collapsed'); }
 
@@ -633,7 +642,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         editor.setReadOnly(true);
         renderTabs();
     }
-    
+
     const mainContent = document.querySelector('.main-content-wrapper');
     mainContent.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); });
     mainContent.addEventListener('drop', async (e) => {
@@ -691,7 +700,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     editor.on('mousemove', function (e) {
         const tooltip = document.getElementById('value-tooltip');
         if (!tooltip || !debuggerState.isPaused) { if (tooltip) tooltip.style.display = 'none'; return; }
-        
+
         const pos = e.getDocumentPosition();
         const token = editor.session.getTokenAt(pos.row, pos.column);
 
@@ -722,7 +731,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!fileList) return;
 
         const strongElements = fileList.querySelectorAll('li > strong');
-        
+
         let parentDirEntries = 0;
         strongElements.forEach(strong => {
             if (strong.textContent.includes('..')) {
@@ -761,11 +770,11 @@ function applyUiThemeSettings() {
     const root = document.documentElement;
     for (const key in uiThemeConfig) {
         const item = uiThemeConfig[key];
-        
+
         const savedValue = lsGet(`theme_${key}`) ?? item.default;
         const unit = item.unit || '';
         root.style.setProperty(key, savedValue + unit);
-        
+
         if (item.hasBoldToggle) {
             const isBold = lsGet(`theme_bold_${key}`) ?? item.defaultBold;
             root.style.setProperty(key + '-bold', isBold ? 'bold' : 'normal');

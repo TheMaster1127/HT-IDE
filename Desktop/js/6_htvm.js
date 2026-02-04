@@ -143,6 +143,7 @@ function stopDebugger() { /* This function is now deprecated */ }
 
 
 function formatHtvmCode(code) {
+    resetGlobalVarsOfHTVMjs();
     const activeSession = getActiveTerminalSession();
     let instructionSet = JSON.parse(localStorage.getItem(instructionSetKeys.legacyKey) || '[]');
     
@@ -161,6 +162,7 @@ function formatHtvmCode(code) {
 }
 
 async function runHtvmCode(code) {
+    resetGlobalVarsOfHTVMjs();
     const activeSession = getActiveTerminalSession();
     if (!activeSession) return;
 
