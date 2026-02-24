@@ -5,7 +5,7 @@ const fileSessions = new Map();
 const fileBreakpoints = new Map();
 
 // --- C Language Auto-Formatter State ---
-let isCAutoSemicolonEnabled = true; // You can set this to false in the console to disable the feature
+let isCAutoSemicolonEnabled = false; // You can set this to false in the console to disable the feature
 let lastEditedRow = null;
 
 // --- Terminal State ---
