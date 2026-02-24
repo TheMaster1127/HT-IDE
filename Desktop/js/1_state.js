@@ -4,6 +4,10 @@ let currentOpenFile = null, lastActiveTab = null, currentDirectory = '/', openTa
 const fileSessions = new Map();
 const fileBreakpoints = new Map();
 
+// --- C Language Auto-Formatter State ---
+let isCAutoSemicolonEnabled = true; // You can set this to false in the console to disable the feature
+let lastEditedRow = null;
+
 // --- Terminal State ---
 const terminalSessions = new Map();
 let activeTerminalId = null;

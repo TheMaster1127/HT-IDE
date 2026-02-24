@@ -184,7 +184,7 @@ const gui_option_tokens1 = [
 
 const gui_option_tokens2 = [
   "button", "text", "edit", "picture", "toggle",
-  "rectangle", "circle", "video", "dropdown", "iframe"
+  "rectangle", "circle", "video", "dropdown", "iframe", "as"
 ];
 
 const gui_option_pattern1 = gui_option_tokens1.map(gui_option_toCaseInsensitivePattern).join('|');
@@ -217,13 +217,7 @@ const regexGuiOptions = new RegExp(`\\b(?:${gui_option_pattern1})(?=:)|\\b(?:${g
                     { token: "static_types", regex: cleanAndBuild(staticTypes_temp) + "|" + "\\b(?:" + "[Gg][Uu][Ii]" + "|" + "[Gg][Uu][Ii][Cc][Oo][Nn][Tt][Rr][Oo][Ll]" + ")\\b" },
                     { token: "programmingBlocksAndImport", regex: cleanAndBuild(programmingBlocksAndImport_temp) },
                     { token: "trueANDfalse", regex: cleanAndBuild(htvm_trueFalseGlobalNull_temp) + "|\\bin\\b" },
-{
-    token: "guiOptions",
-    regex: regexGuiOptions + "|\\bas\\b"
-},
-
-
-
+                    { token: "guiOptions", regex: regexGuiOptions },
                     // 5. Operators (last, as they are the most general)
                     { token: "operators", regex: final_word_operators }
                 ],

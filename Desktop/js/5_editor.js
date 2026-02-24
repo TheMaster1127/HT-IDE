@@ -49,6 +49,100 @@ async function injectPluginHeaders() {
     }
 }
 
+/**
+ * A comprehensive formatter for a single line of C code.
+ * This function applies several convenient shortcuts and fixes common errors.
+ * @param {string} line The line of code to format.
+ * @returns {string} The potentially modified line of code.
+ */
+function formatCLine(line) {
+    // 1. Preserve original indentation to re-apply at the end.
+    const leadingWhitespaceMatch = line.match(/^\s*/);
+    const leadingWhitespace = leadingWhitespaceMatch ? leadingWhitespaceMatch[0] : '';
+    let processedLine = line.trim();
+
+    // If line is empty or a comment, return immediately.
+    if (processedLine.length === 0 || processedLine.startsWith('//') || processedLine.startsWith('/*') || processedLine.startsWith(' *')) {
+        return line;
+    }
+
+    /**
+     * Helper function to apply regex replacements safely, ignoring content inside strings.
+     * This handles backreferences like $1, $2 correctly.
+     */
+    const replaceOutsideStrings = (text, pattern, replacer) => {
+        const masterPattern = new RegExp(
+            `"([^"\\\\]*(?:\\\\.[^"\\\\]*)*)"|'([^'\\\\]*(?:\\\\.[^'\\\\]*)*)'|(${pattern.source})`,
+            pattern.flags.includes('g') ? pattern.flags : pattern.flags + 'g'
+        );
+
+        return text.replace(masterPattern, (match, double, single, target) => {
+            if (double !== undefined || single !== undefined) return match;
+            if (target !== undefined) {
+                // Apply the specific pattern to the matched target
+                if (typeof replacer === 'function') {
+                    return target.replace(pattern, replacer);
+                } else {
+                    return target.replace(pattern, replacer);
+                }
+            }
+            return match;
+        });
+    };
+
+    // --- 2. Assignment & Logical Operators ---
+    // Convert := to =
+    processedLine = replaceOutsideStrings(processedLine, /:=/g, '=');
+    // Convert 'and' to '&&' and 'or' to '||' (case-insensitive)
+    processedLine = replaceOutsideStrings(processedLine, /\band\b/gi, '&&');
+    processedLine = replaceOutsideStrings(processedLine, /\bor\b/gi, '||');
+
+    // --- 3. The IF Statement Fix ---
+    // Fixes 'if (var = val)' to 'if (var == val)' without adding extra spaces
+    processedLine = replaceOutsideStrings(processedLine, /if\s*\((.+)\)/gi, (match, inner) => {
+        // Find single '=' not preceded or followed by other operators, consuming surrounding spaces
+        const fixedInner = inner.replace(/([^<>!=])\s*=\s*([^=])/g, '$1 == $2');
+        return `if (${fixedInner})`;
+    });
+
+    // --- 4. Parentheses Simplification ---
+    // Converts '(cond) && (cond)' to 'cond && cond' inside expressions
+    processedLine = replaceOutsideStrings(processedLine, /\)\s*(&&|\|\|)\s*\(/g, ' $1 ');
+
+    // --- 5. Convert 'loop' to 'for' ---
+    // Handles 'loop 10', 'Loop, var', 'loop func(x) {', etc.
+    const loopRegex = /^loop\s*,?\s*(.+?)\s*({?)$/i;
+    const loopMatch = processedLine.match(loopRegex);
+    if (loopMatch) {
+        const condition = loopMatch[1].trim();
+        const brace = loopMatch[2] || '';
+        processedLine = `for (int i = 0; i < ${condition}; i++) ${brace}`.trim();
+    }
+
+    // --- 6. Final Semicolon Logic ---
+    const trimmed = processedLine.trim();
+
+    // Do not add semicolon to preprocessor, comments, or already-ended lines
+    const noSemicolonEndings = ['{', '}', ';', '>', ':', ','];
+    const noSemicolonStarts = ['#', '//', '/*', ' *'];
+    if (noSemicolonStarts.some(s => trimmed.startsWith(s))) return leadingWhitespace + trimmed;
+    if (noSemicolonEndings.some(e => trimmed.endsWith(e))) return leadingWhitespace + trimmed;
+
+    // Do not add semicolon to control structures (if, for, while, etc.)
+    const controlKeywords = ['if', 'for', 'while', 'switch', 'else', 'do'];
+    const isControl = controlKeywords.some(kw => {
+        const reg = new RegExp(`^${kw}(\\s*\\(.*\\))?\\s*({?)$`, 'i');
+        return reg.test(trimmed);
+    });
+    if (isControl) return leadingWhitespace + trimmed;
+
+    // Do not add semicolon to function headers/definitions
+    const isHeader = /^((?:void|int|char|float|double|static|size_t|const|unsigned|long|inline|volatile|restrict)\s+)+\**\w+\s*\(.*\)$/i.test(trimmed);
+    if (isHeader) return leadingWhitespace + trimmed;
+
+    // Add semicolon to everything else (variable assignments, function calls like printf(s))
+    return leadingWhitespace + trimmed + ';';
+}
 
 function setupGutterEvents() {
     editor.on("guttermousedown", function(e) {
@@ -70,6 +164,36 @@ function setupGutterEvents() {
         fileBreakpoints.set(currentOpenFile, currentBreakpoints);
         e.stop();
     });
+
+    // --- NEW: C Auto-Formatter Logic ---
+    // This listener is attached once and handles the auto-semicolon feature.
+    editor.on('changeSelection', () => {
+        // Use a small timeout to let the editor state settle before we process the line.
+        setTimeout(() => {
+            const currentRow = editor.getSelectionRange().start.row;
+
+            // Process the *previous* line if the cursor has moved to a new line.
+            if (lastEditedRow !== null && lastEditedRow !== currentRow) {
+                // Check the global toggle, ensure a .c file is open.
+                if (isCAutoSemicolonEnabled && currentOpenFile && currentOpenFile.endsWith('.c')) {
+                    
+                    const session = editor.session;
+                    const lineToProcess = session.getLine(lastEditedRow);
+                    const formattedLine = formatCLine(lineToProcess);
+                    
+                    if (lineToProcess !== formattedLine) {
+                        const range = new ace.Range(lastEditedRow, 0, lastEditedRow, Infinity);
+                        // The user has already moved their cursor, so we just replace the line content
+                        // without trying to manage the cursor position.
+                        session.replace(range, formattedLine);
+                    }
+                }
+            }
+            
+            // Update the last known row to the current one for the next event.
+            lastEditedRow = currentRow;
+        }, 10); // A 10ms delay is negligible for the user but robust for the event loop.
+    });
 }
 
 async function openFileInEditor(filename) {
@@ -77,7 +201,7 @@ async function openFileInEditor(filename) {
     
     // If we are just re-focusing the same file, do nothing.
     if (currentOpenFile === filename) return;
-
+    
     const content = await window.electronAPI.getFileContent(filename);
     if (content === null) {
         const staleTabIndex = openTabs.indexOf(filename);
@@ -95,10 +219,13 @@ async function openFileInEditor(filename) {
             cursor: editor.getCursorPosition()
         });
     }
+    
+    // Reset the auto-formatter's line tracking when switching files.
+    lastEditedRow = null;
 
     if (!fileSessions.has(filename)) {
         // MODIFICATION: Add .htrs to the list of HTVM-like file extensions.
-        const isHtvmLike = filename.endsWith('.htvm') || filename.endsWith('.htpc') || filename.endsWith('.htpr') || filename.endsWith('.htll') || filename.endsWith('.htrs');
+        const isHtvmLike = filename.endsWith('.htvm') || filename.endsWith('.htpc') || filename.endsWith('.htpr') || filename.endsWith('.htsh') || filename.endsWith('.htll') || filename.endsWith('.htrs');
         const mode = ace.require("ace/ext/modelist").getModeForPath(filename).mode;
         const session = ace.createEditSession(content, isHtvmLike ? 'ace/mode/htvm' : mode);
         session.on('change', () => checkDirtyState(filename));
